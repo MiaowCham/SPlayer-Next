@@ -1,0 +1,29 @@
+name: 同步上游
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出 fork 的 dev 分支
+        uses: actions/checkout@v5
+        with:
+          ref: dev
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 合并上游 dev 分支
+        run: |
+          git remote add upstream https://github.com/SPlayer-Dev/SPlayer-Next.git
+          git fetch upstream dev
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-edit upstream/dev
+          git push origin dev
