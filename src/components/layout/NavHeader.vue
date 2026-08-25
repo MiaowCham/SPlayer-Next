@@ -23,24 +23,18 @@ const { isBorderless } = useWindowControls();
 const uiZoomOpen = ref(false);
 
 const themeIcon = computed(() => {
-  if (theme.mode === "light") return IconMoon;
-  if (theme.mode === "dark") return IconMonitor;
-  return IconSun;
+  if (theme.mode === "light") return IconSun;
+  if (theme.mode === "dark") return IconMoon;
+  return IconMonitor;
 });
 
 const themeLabel = computed(() => {
-  if (theme.mode === "light") return t("settings.themeMode.dark");
-  if (theme.mode === "dark") return t("settings.themeMode.system");
-  return t("settings.themeMode.light");
+  if (theme.mode === "light") return t("settings.themeMode.light");
+  if (theme.mode === "dark") return t("settings.themeMode.dark");
+  return t("settings.themeMode.system");
 });
 
 const menuItems = computed<DropdownMenuItem[]>(() => [
-  {
-    key: "theme",
-    label: themeLabel.value,
-    icon: themeIcon.value,
-    disabled: theme.appearanceStyle === "image",
-  },
   { key: "uiZoom", label: t("uiZoom.title"), icon: IconScaling },
   { key: "reload", label: t("nav.reload"), icon: IconRefreshCw, separator: true },
   { key: "devtools", label: t("nav.devtools"), icon: IconTerminal },
@@ -48,8 +42,7 @@ const menuItems = computed<DropdownMenuItem[]>(() => [
 ]);
 
 const onMenuSelect = (key: string): void => {
-  if (key === "theme") theme.cycleMode();
-  else if (key === "reload") location.reload();
+  if (key === "reload") location.reload();
   else if (key === "devtools") window.api.system.toggleDevTools();
   else if (key === "uiZoom") uiZoomOpen.value = true;
   else if (key === "settings") showSettings();
@@ -99,6 +92,19 @@ const onMenuSelect = (key: string): void => {
     <!-- 右侧 -->
     <div class="flex items-center gap-3 shrink-0">
       <NavUser />
+      <SButton
+        class="app-no-drag"
+        variant="tertiary"
+        circle
+        :size="40"
+        :icon-size="20"
+        :disabled="theme.appearanceStyle === 'image'"
+        :title="themeLabel"
+        :aria-label="themeLabel"
+        @click="theme.cycleMode()"
+      >
+        <template #icon><component :is="themeIcon" /></template>
+      </SButton>
       <SDropdownMenu :items="menuItems" @select="onMenuSelect">
         <template #trigger>
           <SButton class="app-no-drag" variant="tertiary" circle :size="40">
