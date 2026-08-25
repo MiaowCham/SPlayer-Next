@@ -1109,6 +1109,10 @@
       "label": "显示翻译",
       "description": "显示歌词的翻译文本"
     },
+    "fallbackTranslation": {
+      "label": "退回其他语言翻译",
+      "description": "没有当前应用语言的翻译时，优先使用中文或英文翻译"
+    },
     "showRomanization": {
       "label": "显示音译",
       "description": "显示歌词的音译文本"

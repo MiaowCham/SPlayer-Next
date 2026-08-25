@@ -11,7 +11,6 @@ import {
   SPRING_PRESETS,
 } from "@/types/settings";
 import type { SystemConfig, LocaleCode } from "@shared/types/settings";
-import { ALL_PLATFORMS } from "@shared/types/platform";
 import { defaultSystemConfig } from "@shared/defaults/settings";
 import { setByPath } from "@shared/utils/path";
 
@@ -104,6 +103,7 @@ export const useSettingsStore = defineStore(
       fontFamilyKorean: "",
       fontFamilyChinese: "",
       showTranslation: true,
+      fallbackTranslation: true,
       showRomanization: true,
       amllShowLineRomanization: true,
       amllShowWordRomanization: true,
@@ -280,7 +280,10 @@ export const useSettingsStore = defineStore(
         if (typeof lyric.detectBackgroundLyrics !== "boolean") {
           lyric.detectBackgroundLyrics = true;
         }
-        lyric.lyricSourceOrder = reconcileOrder(lyric.lyricSourceOrder, ALL_PLATFORMS);
+        if (typeof lyric.fallbackTranslation !== "boolean") {
+          lyric.fallbackTranslation = true;
+        }
+        lyric.lyricSourceOrder = reconcileOrder(lyric.lyricSourceOrder, DEFAULT_LYRIC_SOURCE_ORDER);
         lyric.lyricFormatOrder = reconcileOrder(lyric.lyricFormatOrder, DEFAULT_LYRIC_FORMAT_ORDER);
       },
     },

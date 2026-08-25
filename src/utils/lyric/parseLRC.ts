@@ -121,6 +121,7 @@ const parseLrcWords = (line: string): LyricWord[] | null => {
  */
 export const parseLRC = (text: string, detectBackground = true): LyricLine[] => {
   const lines: LyricLine[] = [];
+  let previousContentLine: LyricLine | undefined;
   for (const raw of text.split("\n")) {
     const trimmed = raw.trim();
     if (shouldSkipLine(trimmed)) continue;
@@ -130,16 +131,13 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
     // 提取行内容
     const content = trimmed.slice(textStart);
     if (!content.trim()) {
-      for (const t of times) {
-        lines.push({
-          words: [],
-          translatedLyric: "",
-          romanLyric: "",
-          startTime: t,
-          endTime: 0,
-          isBG: false,
-          isDuet: false,
-        });
+      const endTime = times.find((time) => time > (previousContentLine?.startTime ?? MAX_TIME));
+      if (previousContentLine && endTime !== undefined) {
+        previousContentLine.endTime = endTime;
+        const lastWord = previousContentLine.words[previousContentLine.words.length - 1];
+        if (lastWord && lastWord.endTime <= lastWord.startTime) {
+          lastWord.endTime = endTime;
+        }
       }
       continue;
     }
@@ -158,6 +156,7 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
           isBG: detectBackgroundLine(words, detectBackground),
           isDuet: false,
         });
+        previousContentLine = lines[lines.length - 1];
       }
       continue;
     }
@@ -173,6 +172,7 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
         isBG: detectBackgroundLine(lrcWords, detectBackground),
         isDuet: false,
       });
+      previousContentLine = lines[lines.length - 1];
       continue;
     }
     // 回退标准整行模式
@@ -188,6 +188,7 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
         isBG,
         isDuet: false,
       });
+      previousContentLine = lines[lines.length - 1];
     }
   }
   // 按起始时间排序
@@ -197,6 +198,13 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
   for (const line of lines) {
     const prev = merged[merged.length - 1];
     if (prev && prev.startTime === line.startTime) {
+      if (line.endTime > line.startTime) {
+        prev.endTime = Math.max(prev.endTime, line.endTime);
+        const lastWord = prev.words[prev.words.length - 1];
+        if (lastWord && lastWord.endTime <= lastWord.startTime) {
+          lastWord.endTime = prev.endTime;
+        }
+      }
       const text = line.words
         .map((w) => w.word)
         .join("")

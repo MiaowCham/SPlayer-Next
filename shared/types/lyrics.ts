@@ -2,15 +2,18 @@ import type { Platform } from "./platform";
 import type { Track } from "./player";
 
 /** 歌词格式 */
-export type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "krc" | "lrc" | "srt" | "ass";
+export type LyricFormat =
+  "ttml" | "lqe" | "lys" | "yrc" | "qrc" | "krc" | "lrcn" | "lnt" | "lrc" | "srt" | "ass";
 
 /** 默认格式优先级（高到低）；本地外挂选择、TTML 升级判定共用 */
 export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
   "ttml",
+  "lqe",
   "lys",
   "qrc",
   "krc",
   "yrc",
+  "lrcn",
   "lrc",
   "ass",
   "srt",

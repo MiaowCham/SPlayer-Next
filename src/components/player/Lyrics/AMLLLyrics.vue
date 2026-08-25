@@ -4,6 +4,7 @@ import { LyricPlayer as CoreLyricPlayer } from "@applemusic-like-lyrics/core";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { getCurrentTime } from "@/services/playback";
+import { resolveAmlLineRomanization } from "./romanization";
 import "@applemusic-like-lyrics/core/style.css";
 import "./renderer.css";
 
@@ -72,7 +73,7 @@ const processedLyrics = computed(() => {
     const newLine = {
       ...line,
       translatedLyric: props.showTranslation ? line.translatedLyric : "",
-      romanLyric: props.showLineRomanization ? line.romanLyric : "",
+      romanLyric: resolveAmlLineRomanization(line, props.showLineRomanization),
     };
     if (line.words) {
       newLine.words = line.words.map((word) => {

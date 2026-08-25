@@ -1121,6 +1121,10 @@
       "label": "Show Translation",
       "description": "Display translated lyrics"
     },
+    "fallbackTranslation": {
+      "label": "Fall Back to Other Translation Languages",
+      "description": "Prefer Chinese or English when a translation for the app language is unavailable"
+    },
     "showRomanization": {
       "label": "Show Romanization",
       "description": "Display romanized lyrics"

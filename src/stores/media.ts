@@ -1,5 +1,6 @@
 import type { MediaInfo, PlaybackContext, Track, TrackDetail } from "@shared/types/player";
 import type { LyricData, LyricFormat, LyricInput, LyricLine } from "@shared/types/lyrics";
+import { isPlatform } from "@shared/types/platform";
 import { findLyricIndex } from "@shared/utils/lyric";
 import { useSettingsStore } from "@/stores/settings";
 import { watchLyricPreference } from "@/services/lyric/loader";
@@ -145,6 +146,9 @@ export const useMediaStore = defineStore("media", () => {
       try {
         const lines = parseLyric(input, source.format, settings.locale, {
           detectBackground: settings.lyric.detectBackgroundLyrics,
+          fallbackTranslation: settings.lyric.fallbackTranslation,
+          platform:
+            source.platform ?? (isPlatform(track.value?.source) ? track.value.source : undefined),
         });
         nextLines = applyLyricExclude(lines, track.value);
         normalizeLyricLines(nextLines);

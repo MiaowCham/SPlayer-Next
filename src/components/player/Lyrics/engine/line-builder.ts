@@ -3,6 +3,7 @@
  */
 
 import type { LyricLine } from "@shared/types/lyrics";
+import { resolveDefaultRomanization } from "../romanization";
 import { buildWordSpans, type WordMeasurement, type WordAnimTarget } from "./word-builder";
 
 /** 行 DOM 构建选项 */
@@ -99,10 +100,11 @@ export const buildLineElements = (
       subDiv.textContent = line.translatedLyric;
       contentDiv.appendChild(subDiv);
     }
-    if (options.showRomanization && line.romanLyric) {
+    const romanization = resolveDefaultRomanization(line);
+    if (options.showRomanization && romanization) {
       const subDiv = document.createElement("div");
       subDiv.className = "lp-sub";
-      subDiv.textContent = line.romanLyric;
+      subDiv.textContent = romanization;
       contentDiv.appendChild(subDiv);
     }
 

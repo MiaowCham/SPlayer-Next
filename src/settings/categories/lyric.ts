@@ -199,6 +199,12 @@ const lyricCategory: SettingCategory = {
           defaultValue: true,
         },
         {
+          key: "fallbackTranslation",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.fallbackTranslation" },
+          defaultValue: true,
+        },
+        {
           key: "showRomanization",
           type: "switch",
           binding: { store: "settings", path: "lyric.showRomanization" },

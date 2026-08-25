@@ -13,6 +13,7 @@
 
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
 import { parseTTMLTime } from "./timestamp";
+import { pickTranslationIndex } from "./translationLanguage";
 
 /**
  * 获取元素属性值，兼容命名空间前缀（如 ttm:agent → agent）
@@ -79,38 +80,6 @@ const stripParens = (text: string): string =>
     .replace(/[)）]$/, "")
     .trim();
 
-/**
- * 规范化语言标签
- * @param lang 原始语言标签
- * @returns 规范化后的语言标签
- */
-const normalizeLang = (lang: string | null | undefined): string =>
-  (lang ?? "").toLowerCase().replace(/_/g, "-");
-
-/**
- * 从多语言候选中选出最匹配偏好语言的索引
- * @param langs 候选语言标签数组，顺序与候选一致
- * @param preferred 偏好语言标签（如 zh-CN），为空则取首个
- * @returns 选中索引，无合适候选返回 -1
- */
-const pickLangIndex = (langs: (string | null)[], preferred: string): number => {
-  if (langs.length === 0) return -1;
-  const want = normalizeLang(preferred);
-  if (!want) return 0;
-  const wantBase = want.split("-")[0];
-  let baseMatch = -1;
-  let hasTagged = false;
-  for (let i = 0; i < langs.length; i++) {
-    const lang = normalizeLang(langs[i]);
-    if (!lang) continue;
-    hasTagged = true;
-    if (lang === want) return i;
-    if (baseMatch === -1 && lang.split("-")[0] === wantBase) baseMatch = i;
-  }
-  if (baseMatch !== -1) return baseMatch;
-  return hasTagged ? -1 : 0;
-};
-
 /** 行级翻译候选 */
 interface TransCandidate {
   lang: string | null;
@@ -127,6 +96,7 @@ interface TransCandidate {
 const collectTranslations = (
   doc: Document,
   preferredLang: string,
+  fallbackTranslation: boolean,
 ): Map<string, { main: string; bg: string }> => {
   const candidates = new Map<string, TransCandidate[]>();
 
@@ -167,10 +137,7 @@ const collectTranslations = (
 
   const translations = new Map<string, { main: string; bg: string }>();
   for (const [key, list] of candidates) {
-    const idx = pickLangIndex(
-      list.map((item) => item.lang),
-      preferredLang,
-    );
+    const idx = pickTranslationIndex(list, preferredLang, fallbackTranslation);
     if (idx !== -1) translations.set(key, { main: list[idx].main, bg: list[idx].bg });
   }
 
@@ -310,14 +277,18 @@ const alignRomanWords = (words: LyricWord[], romanWords: RomanWord[]): void => {
  * @returns 解析后的歌词行数组
  * @throws 当 XML 解析失败时抛出错误
  */
-export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
+export const parseTTML = (
+  text: string,
+  preferredLang = "",
+  fallbackTranslation = true,
+): LyricLine[] => {
   const doc = new DOMParser().parseFromString(text, "application/xml");
   if (doc.querySelector("parsererror")) {
     throw new Error("Invalid TTML XML");
   }
 
   const { mainAgent, agentTypes } = collectAgents(doc);
-  const translations = collectTranslations(doc, preferredLang);
+  const translations = collectTranslations(doc, preferredLang, fallbackTranslation);
   const transliterations = collectTransliterations(doc);
   const lines: LyricLine[] = [];
 
@@ -431,10 +402,7 @@ export const parseTTML = (text: string, preferredLang = ""): LyricLine[] => {
     // 行内多语言翻译按偏好语言挑选
     if (!line.translatedLyric) {
       const valid = transCandidates.filter((item) => item.text);
-      const idx = pickLangIndex(
-        valid.map((item) => item.lang),
-        preferredLang,
-      );
+      const idx = pickTranslationIndex(valid, preferredLang, fallbackTranslation);
       if (idx !== -1) line.translatedLyric = valid[idx].text;
     }
 

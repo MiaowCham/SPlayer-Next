@@ -300,9 +300,11 @@ export const watchLyricPreference = (): void => {
   const settings = useSettingsStore();
   watch(
     () => [
+      settings.locale,
       settings.lyric.lyricSourcePreference,
       settings.lyric.smartPreferOnline,
       settings.lyric.detectBackgroundLyrics,
+      settings.lyric.fallbackTranslation,
       settings.system.lyric.enableOnlineTTMLLyric,
       settings.system.localLyric.enableLocalTTMLOverride,
       settings.system.localLyric.repoDir,

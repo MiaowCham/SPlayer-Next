@@ -97,6 +97,8 @@ export interface LyricSettings {
   fontFamilyChinese: string;
   /** 是否显示翻译歌词 */
   showTranslation: boolean;
+  /** 未命中应用语言时是否回退其他语言翻译 */
+  fallbackTranslation: boolean;
   /** 是否显示音译歌词 */
   showRomanization: boolean;
   /** AMLL 是否显示逐行音译 */
