@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useMediaStore } from "@/stores/media";
+import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
-import { formatSignedSec } from "@/utils/time";
+import { formatLyricOffset } from "@/utils/time";
+import IconLucideLanguages from "~icons/lucide/languages";
 
 defineProps<{
   /** 是否处于沉浸模式 */
@@ -16,6 +18,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const media = useMediaStore();
+const settings = useSettingsStore();
 const status = useStatusStore();
 const settingsDialog = useSettingsDialog();
 
@@ -25,16 +28,34 @@ const LYRIC_OFFSET_STEP = 500;
 /** 偏移弹层是否打开；打开期间按钮组保持可见 */
 const offsetPopoverOpen = ref(false);
 
+/** 翻译与发音快捷开关是否打开 */
+const contentPopoverOpen = ref(false);
+
 const hasTrack = computed(() => !!media.track);
 
 /** 当前是否有可复制的歌词 */
 const hasLyric = computed(() => media.parsedLyric.length > 0);
+
+/** 当前歌词是否包含翻译。 */
+const hasTranslation = computed(() =>
+  media.parsedLyric.some((line) => line.translatedLyric.trim().length > 0),
+);
+
+/** 当前歌词是否包含逐行或逐字发音。 */
+const hasPronunciation = computed(() =>
+  media.parsedLyric.some(
+    (line) =>
+      line.romanLyric.trim().length > 0 ||
+      line.words.some((word) => (word.romanWord?.trim().length ?? 0) > 0),
+  ),
+);
 
 /** 复制歌词弹窗是否打开 */
 const copyDialogOpen = ref(false);
 
 /** 当前曲目偏移（ms） */
 const songOffset = computed(() => status.lyricOffsetMs);
+const offsetDisplay = computed(() => formatLyricOffset(songOffset.value));
 
 /** 写入偏移 */
 const writeOffset = (offsetMs: number): void => {
@@ -49,8 +70,16 @@ const offsetInputMs = computed<number>({
   set: (val) => writeOffset(val ?? 0),
 });
 
-const advanceLyric = (): void => writeOffset(songOffset.value + LYRIC_OFFSET_STEP);
-const delayLyric = (): void => writeOffset(songOffset.value - LYRIC_OFFSET_STEP);
+const getOffsetStep = (event: MouseEvent): number => {
+  if (event.ctrlKey) return 50;
+  if (event.shiftKey) return 250;
+  return LYRIC_OFFSET_STEP;
+};
+
+const advanceLyric = (event: MouseEvent): void =>
+  writeOffset(songOffset.value + getOffsetStep(event));
+const delayLyric = (event: MouseEvent): void =>
+  writeOffset(songOffset.value - getOffsetStep(event));
 const resetLyricOffset = (): void => writeOffset(0);
 </script>
 
@@ -60,7 +89,7 @@ const resetLyricOffset = (): void => writeOffset(0);
     :class="
       immersive
         ? 'opacity-0 pointer-events-none'
-        : offsetPopoverOpen
+        : offsetPopoverOpen || contentPopoverOpen
           ? 'opacity-100 pointer-events-auto'
           : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
     "
@@ -81,7 +110,6 @@ const resetLyricOffset = (): void => writeOffset(0);
       circle
       :size="40"
       :disabled="!hasLyric"
-      :title="t('player.locateCurrentLyric')"
       @click="emit('locate')"
     >
       <template #icon><IconLucideLocateFixed /></template>
@@ -104,9 +132,11 @@ const resetLyricOffset = (): void => writeOffset(0);
           :class="!hasTrack ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''"
         >
           <span class="text-xs font-medium text-cover">
-            {{ formatSignedSec(songOffset) }}
+            {{ offsetDisplay.value }}
           </span>
-          <span class="text-[10px] text-cover/60">s</span>
+          <span v-if="offsetDisplay.unit === 's'" class="text-[10px] text-cover/60">
+            {{ offsetDisplay.unit }}
+          </span>
         </div>
       </template>
       <div class="flex flex-col gap-2 w-44">
@@ -116,7 +146,7 @@ const resetLyricOffset = (): void => writeOffset(0);
         <p class="m-0 text-xs text-cover/60">{{ t("player.lyricOffset.hint") }}</p>
         <SNumberInput
           v-model="offsetInputMs"
-          :step="100"
+          :step="1"
           size="small"
           unit="ms"
           placeholder="0"
@@ -144,6 +174,39 @@ const resetLyricOffset = (): void => writeOffset(0);
       <template #icon><IconLucideMinus /></template>
     </SButton>
     <div class="h-px w-6 bg-cover/25 my-1" />
+    <SPopover v-model:open="contentPopoverOpen" trigger="click" side="left" :side-offset="8" cover>
+      <template #trigger>
+        <SButton type="cover" variant="ghost" circle :size="40" :disabled="!hasLyric">
+          <template #icon><IconLucideLanguages /></template>
+        </SButton>
+      </template>
+      <div class="flex min-w-40 flex-col gap-3">
+        <SCheckbox
+          v-model:checked="settings.lyric.showTranslation"
+          size="small"
+          :disabled="!hasTranslation"
+          :label="
+            t(
+              settings.lyric.showTranslation
+                ? 'player.lyricActions.hideTranslation'
+                : 'player.lyricActions.showTranslation',
+            )
+          "
+        />
+        <SCheckbox
+          v-model:checked="settings.lyric.showRomanization"
+          size="small"
+          :disabled="!hasPronunciation"
+          :label="
+            t(
+              settings.lyric.showRomanization
+                ? 'player.lyricActions.hidePronunciation'
+                : 'player.lyricActions.showPronunciation',
+            )
+          "
+        />
+      </div>
+    </SPopover>
     <SButton type="cover" variant="ghost" circle :size="40" @click="settingsDialog.show('lyric')">
       <template #icon><IconLucideSettings2 /></template>
     </SButton>

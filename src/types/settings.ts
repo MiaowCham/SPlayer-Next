@@ -201,6 +201,8 @@ export interface PlayerSettings {
   showProgressLyric: boolean;
   /** 进度调节吸附最近歌词 */
   snapToLyric: boolean;
+  /** 拖拽播放页进度条时让歌词跟随预览位置滚动 */
+  followLyricOnProgressDrag: boolean;
   /** 播放时底部显示歌词而非歌手名 */
   showLyricInBar: boolean;
   /** 播放时提前获取下一首的播放数据 */

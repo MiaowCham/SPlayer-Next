@@ -48,12 +48,67 @@ const lyricRef = ref<InstanceType<typeof Lyrics> | InstanceType<typeof AMLLLyric
 const lyricMounted = ref(false);
 const initialLyricTimeMs = ref(0);
 const pendingTrackLocate = ref(false);
+let delayedTrackLocateTimer: ReturnType<typeof setTimeout> | null = null;
+let secondDelayedTrackLocateTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingTrackKey = "";
+let progressLyricDragging = false;
+let progressLyricPreviewTime: number | null = null;
+
+const resetProgressLyricFollow = (): void => {
+  progressLyricDragging = false;
+  progressLyricPreviewTime = null;
+};
+
+/**
+ * 计算歌词本帧使用的播放时间。
+ * @param currentMs - 真实播放时间
+ * @returns 歌词时间与是否需要按 seek 处理
+ */
+const resolveLyricProgressTime = (currentMs: number): { time: number; isSeek: boolean } => {
+  if (!settings.player.followLyricOnProgressDrag) {
+    resetProgressLyricFollow();
+    return { time: currentMs, isSeek: isPlaying.value && player.isSeeking() };
+  }
+
+  if (progressLyricDragging && progressLyricPreviewTime !== null) {
+    return { time: progressLyricPreviewTime, isSeek: true };
+  }
+
+  return { time: currentMs, isSeek: isPlaying.value && player.isSeeking() };
+};
+
+const clearDelayedTrackLocate = (): void => {
+  if (delayedTrackLocateTimer !== null) {
+    clearTimeout(delayedTrackLocateTimer);
+    delayedTrackLocateTimer = null;
+  }
+  if (secondDelayedTrackLocateTimer !== null) {
+    clearTimeout(secondDelayedTrackLocateTimer);
+    secondDelayedTrackLocateTimer = null;
+  }
+};
+
+const scheduleDelayedTrackLocate = (trackKey: string): void => {
+  clearDelayedTrackLocate();
+  if (!trackKey) return;
+  delayedTrackLocateTimer = setTimeout(() => {
+    delayedTrackLocateTimer = null;
+    if (pendingTrackKey !== trackKey || media.parsedLyric.length === 0 || !lyricRef.value) return;
+    lyricRef.value.scrollToTime(getCurrentTime() + status.lyricOffsetMs);
+  }, 250);
+  secondDelayedTrackLocateTimer = setTimeout(() => {
+    secondDelayedTrackLocateTimer = null;
+    if (pendingTrackKey !== trackKey || media.parsedLyric.length === 0 || !lyricRef.value) return;
+    lyricRef.value.scrollToTime(getCurrentTime() + status.lyricOffsetMs);
+  }, 500);
+};
 
 /** 在歌词实例就绪后执行一次切歌定位。 */
 const locatePendingTrack = (): void => {
   if (!pendingTrackLocate.value || media.parsedLyric.length === 0 || !lyricRef.value) return;
   pendingTrackLocate.value = false;
   lyricRef.value.scrollToTime(getCurrentTime() + status.lyricOffsetMs);
+  scheduleDelayedTrackLocate(pendingTrackKey);
 };
 
 /** 加载中的歌曲使用队列当前项兜底，避免全屏播放器出现空白。 */
@@ -64,7 +119,8 @@ const hasTrack = computed(() => !!displayTrack.value);
 /** 精确播放时间（毫秒） */
 const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
   if (!status.trackLoading && !media.lyricLoading) {
-    lyricRef.value?.setCurrentTime(currentMs + status.lyricOffsetMs, player.isSeeking());
+    const lyricTime = resolveLyricProgressTime(currentMs);
+    lyricRef.value?.setCurrentTime(lyricTime.time + status.lyricOffsetMs, lyricTime.isSeek);
   }
 });
 
@@ -81,6 +137,7 @@ const onAfterEnter = () => {
 
 /** 收起前 */
 const onBeforeLeave = () => {
+  resetProgressLyricFollow();
   lyricRef.value?.freeze();
   stopTick();
 };
@@ -110,10 +167,15 @@ watch(
 watch(
   () => (media.track ? `${media.track.source}:${media.track.id}` : ""),
   (trackKey, previousTrackKey) => {
+    clearDelayedTrackLocate();
+    resetProgressLyricFollow();
+    pendingTrackKey = trackKey;
     pendingTrackLocate.value = !!trackKey && trackKey !== previousTrackKey;
   },
   { flush: "sync" },
 );
+
+onBeforeUnmount(clearDelayedTrackLocate);
 
 // 切换歌词引擎时，重新计算初始并推送时间
 watch(
@@ -182,7 +244,19 @@ const collapse = (): void => {
 };
 
 const onSeekDragEnd = (value: number): void => {
+  resetProgressLyricFollow();
   player.seek(snapToNearestLyric(value));
+};
+
+const onSeekDragStart = (value: number): void => {
+  if (!settings.player.followLyricOnProgressDrag) return;
+  progressLyricDragging = true;
+  progressLyricPreviewTime = value;
+};
+
+const onSeekDragChange = (value: number): void => {
+  if (!settings.player.followLyricOnProgressDrag || !progressLyricDragging) return;
+  progressLyricPreviewTime = value;
 };
 
 const {
@@ -344,8 +418,12 @@ const showComments = (): void => {
                 :hide-passed-lines="settings.lyric.hidePassedLines"
                 :enable-blur="settings.lyric.enableBlur"
                 :show-translation="settings.lyric.showTranslation"
-                :show-line-romanization="settings.lyric.amllShowLineRomanization"
-                :show-word-romanization="settings.lyric.amllShowWordRomanization"
+                :show-line-romanization="
+                  settings.lyric.showRomanization && settings.lyric.amllShowLineRomanization
+                "
+                :show-word-romanization="
+                  settings.lyric.showRomanization && settings.lyric.amllShowWordRomanization
+                "
                 @seek="handleLyricSeek"
               >
                 <template #bottom>
@@ -573,6 +651,8 @@ const showComments = (): void => {
                 :always-show-thumb="false"
                 cover
                 class="flex-1"
+                @change="onSeekDragChange"
+                @drag-start="onSeekDragStart"
                 @drag-end="onSeekDragEnd"
               />
               <span

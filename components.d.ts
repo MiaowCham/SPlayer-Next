@@ -114,6 +114,7 @@ declare module 'vue' {
     IconLucideListMusic: typeof import('~icons/lucide/list-music')['default']
     IconLucideLoaderCircle: typeof import('~icons/lucide/loader-circle')['default']
     IconLucideLocate: typeof import('~icons/lucide/locate')['default']
+    IconLucideLocateFixed: typeof import('~icons/lucide/locate-fixed')['default']
     IconLucideLock: typeof import('~icons/lucide/lock')['default']
     IconLucideLogOut: typeof import('~icons/lucide/log-out')['default']
     IconLucideMaximize: typeof import('~icons/lucide/maximize')['default']

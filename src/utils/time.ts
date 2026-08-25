@@ -69,3 +69,22 @@ export const formatSignedSec = (ms: number): string => {
   const sec = (ms / 1000).toFixed(1).replace(/\.?0+$/, "");
   return ms > 0 ? `+${sec}` : sec;
 };
+
+/**
+ * 格式化歌词偏移显示值，小偏移显示毫秒，大偏移显示四舍五入后的秒数
+ * @param ms - 偏移毫秒数
+ * @returns 显示数值与单位
+ */
+export const formatLyricOffset = (ms: number): { value: string; unit: "ms" | "s" } => {
+  if (Math.abs(ms) < 1000) {
+    const value = Math.trunc(ms);
+    return { value: value > 0 ? `+${value}` : String(value), unit: "ms" };
+  }
+  const absMs = Math.abs(ms);
+  if (absMs < 10_000) {
+    const seconds = (ms / 1000).toFixed(1);
+    return { value: ms > 0 ? `+${seconds}` : seconds, unit: "s" };
+  }
+  const seconds = Math.round(ms / 1000);
+  return { value: seconds > 0 ? `+${seconds}` : String(seconds), unit: "s" };
+};

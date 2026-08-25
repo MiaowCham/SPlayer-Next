@@ -469,13 +469,19 @@
       "title": "歌词偏移",
       "hint": "正值为歌词提前，单位毫秒"
     },
+    "lyricActions": {
+      "showTranslation": "显示翻译",
+      "hideTranslation": "隐藏翻译",
+      "showPronunciation": "显示发音",
+      "hidePronunciation": "隐藏发音"
+    },
     "locateCurrentLyric": "定位当前歌词",
     "lyricCredit": "歌词制作",
     "copyLyric": {
       "title": "复制歌词",
       "contentLabel": "要复制的内容",
       "translation": "翻译",
-      "romaji": "音译",
+      "romaji": "发音",
       "emptyLine": "空行",
       "songName": "歌名",
       "artist": "歌手",
@@ -967,6 +973,10 @@
       "label": "进度调节吸附最近歌词",
       "description": "调节进度时自动吸附到最近的歌词行"
     },
+    "followLyricOnProgressDrag": {
+      "label": "歌词滚动跟随进度条",
+      "description": "在播放页拖拽进度条时，让歌词跟随拖拽位置滚动"
+    },
     "enableSpectrum": {
       "label": "启用音乐频谱",
       "description": "实时频谱分析会持续占用一定的 CPU，性能敏感设备建议关闭"
@@ -1030,7 +1040,7 @@
     },
     "enableOnlineTTMLLyric": {
       "label": "启用在线 TTML 歌词",
-      "description": "从 AMLL TTML DB 获取歌词，支持逐字、翻译、音译"
+      "description": "从 AMLL TTML DB 获取歌词，支持逐字、翻译、发音"
     },
     "amllDbServer": {
       "label": "AMLL TTML DB 地址",
@@ -1201,16 +1211,16 @@
       "description": "没有当前应用语言的翻译时，优先使用中文或英文翻译"
     },
     "showRomanization": {
-      "label": "显示音译",
-      "description": "显示歌词的音译文本"
+      "label": "显示发音",
+      "description": "显示歌词的发音文本"
     },
     "amllShowLineRomanization": {
-      "label": "显示逐行音译",
-      "description": "显示歌词行的音译文本"
+      "label": "显示逐行发音",
+      "description": "显示歌词行的发音文本"
     },
     "amllShowWordRomanization": {
-      "label": "显示逐词音译",
-      "description": "在逐字歌词中，显示每个字词的音译文本"
+      "label": "显示逐词发音",
+      "description": "在逐字歌词中，显示每个字词的发音文本"
     },
     "enableWordHighlight": {
       "label": "逐字高亮",
@@ -2104,7 +2114,7 @@
     },
     "downloadSaveTtml": {
       "label": "同时保存为 TTML",
-      "description": "额外导出一份 TTML，单文件含原文、翻译与音译"
+      "description": "额外导出一份 TTML，单文件含原文、翻译与发音"
     },
     "cacheCategoryClear": {
       "label": "清除",

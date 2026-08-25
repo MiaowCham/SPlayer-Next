@@ -72,6 +72,7 @@ export const useSettingsStore = defineStore(
       showProgressTooltip: true,
       showProgressLyric: false,
       snapToLyric: false,
+      followLyricOnProgressDrag: false,
       showLyricInBar: true,
       preloadNextTrack: false,
     });

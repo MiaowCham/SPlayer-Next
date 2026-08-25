@@ -5,7 +5,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { openExternal } from "@/utils/url";
 import { REPO_URL, REPO_NAME, APP_VERSION, IS_APPX } from "@/utils/config";
 
-const { initialCategory, initialHighlight, rememberCategory } = useSettingsDialog();
+const { open, initialCategory, initialHighlight, rememberCategory } = useSettingsDialog();
 
 // 同步后端配置
 useSettingsStore().syncSystem();
@@ -52,11 +52,25 @@ const onSearchSelect = (categoryId: string, itemKey: string) => {
   });
 };
 
-onMounted(() => {
+/** 每次从外部打开设置时重新应用分类与高亮目标。 */
+const applyInitialTarget = (): void => {
+  if (!settingsSchema.some((category) => category.id === initialCategory.value)) return;
   if (initialHighlight.value) {
     onSearchSelect(initialCategory.value, initialHighlight.value);
+    return;
   }
-});
+  activeId.value = initialCategory.value;
+  highlightKey.value = undefined;
+  nextTick(() => scrollRef.value?.scrollTo({ top: 0 }));
+};
+
+watch(
+  [open, initialCategory, initialHighlight],
+  ([isOpen]) => {
+    if (isOpen) applyInitialTarget();
+  },
+  { flush: "post", immediate: true },
+);
 </script>
 
 <template>

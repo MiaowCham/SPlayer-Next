@@ -461,6 +461,12 @@ export const stop = async (): Promise<void> => {
  */
 let seekTarget: number | null = null;
 
+/** 结束 seek 等待并恢复播放时间插值。 */
+const clearSeekState = (): void => {
+  seekTarget = null;
+  playback.setSeeking(false);
+};
+
 /**
  * 判断后端推送的 position 是否已到达 seek 目标附近
  * @param position - 后端推送的播放位置（毫秒）
@@ -470,8 +476,7 @@ export const hasReachedSeekTarget = (position: number): boolean => {
   if (seekTarget === null) return true;
   // 容差：后端推送的位置在 seek 目标 ±1s 内视为已到达
   if (Math.abs(position - seekTarget) < 1000) {
-    seekTarget = null;
-    playback.setSeeking(false);
+    clearSeekState();
     return true;
   }
   return false;
@@ -501,6 +506,10 @@ export const seek = async (posMs: number): Promise<void> => {
   if (result.success) {
     status.position = posMs;
     playback.setCurrentTime(posMs);
+    // 暂停时不会持续收到 position 推送，成功后应立即释放 seek 状态。
+    if (!status.isPlaying) clearSeekState();
+  } else {
+    clearSeekState();
   }
 };
 

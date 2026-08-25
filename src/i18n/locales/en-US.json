@@ -481,13 +481,19 @@
       "title": "Lyric Offset",
       "hint": "Positive values advance lyrics, in milliseconds"
     },
+    "lyricActions": {
+      "showTranslation": "Show Translation",
+      "hideTranslation": "Hide Translation",
+      "showPronunciation": "Show Pronunciation",
+      "hidePronunciation": "Hide Pronunciation"
+    },
     "locateCurrentLyric": "Locate Current Lyric",
     "lyricCredit": "Lyrics by",
     "copyLyric": {
       "title": "Copy Lyrics",
       "contentLabel": "Content to copy",
       "translation": "Translation",
-      "romaji": "Romaji",
+      "romaji": "Pronunciation",
       "emptyLine": "Blank line",
       "songName": "Title",
       "artist": "Artist",
@@ -979,6 +985,10 @@
       "label": "Snap to Nearest Lyric",
       "description": "Automatically snap to the nearest lyric line when adjusting progress"
     },
+    "followLyricOnProgressDrag": {
+      "label": "Follow Progress Bar While Scrubbing",
+      "description": "Move lyrics with the preview position while dragging the player progress bar"
+    },
     "enableSpectrum": {
       "label": "Enable Spectrum",
       "description": "Real-time spectrum analysis adds some CPU load — consider disabling on lower-power devices"
@@ -1042,7 +1052,7 @@
     },
     "enableOnlineTTMLLyric": {
       "label": "Enable Online TTML Lyrics",
-      "description": "Fetch lyrics from AMLL TTML DB. Supports word-level timing, translation, and romanization."
+      "description": "Fetch lyrics from AMLL TTML DB. Supports word-level timing, translation, and pronunciation."
     },
     "amllDbServer": {
       "label": "AMLL TTML DB Server",
@@ -1213,16 +1223,16 @@
       "description": "Prefer Chinese or English when a translation for the app language is unavailable"
     },
     "showRomanization": {
-      "label": "Show Romanization",
-      "description": "Display romanized lyrics"
+      "label": "Show Pronunciation",
+      "description": "Display lyric pronunciation"
     },
     "amllShowLineRomanization": {
-      "label": "Show Line Romanization",
-      "description": "Display romanized lyrics for each line"
+      "label": "Show Line Pronunciation",
+      "description": "Display pronunciation for each lyric line"
     },
     "amllShowWordRomanization": {
-      "label": "Show Word Romanization",
-      "description": "Display romanized lyrics for each word in word-by-word lyrics"
+      "label": "Show Word Pronunciation",
+      "description": "Display pronunciation for each word in word-by-word lyrics"
     },
     "enableWordHighlight": {
       "label": "Word Highlight",
@@ -2116,7 +2126,7 @@
     },
     "downloadSaveTtml": {
       "label": "Also Save as TTML",
-      "description": "Export an extra TTML file containing original, translation and romanization in one file"
+      "description": "Export an extra TTML file containing original, translation and pronunciation in one file"
     },
     "cacheCategoryClear": {
       "label": "Clear",
