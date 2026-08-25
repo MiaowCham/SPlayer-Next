@@ -17,6 +17,7 @@ import { downloadLog } from "@main/utils/logger";
 import { getEngine } from "@main/services/engine";
 import { fetchBytes } from "@main/utils/fetchBytes";
 import { renderDownloadPath, dedupePath, resolveExtension } from "@main/utils/filename";
+import { createLocalTrackId } from "@main/utils/localTrack";
 import * as db from "@main/database/downloads";
 import { ErrorCode } from "@shared/types/errors";
 import type { JsTagWriteRequest } from "@splayer/audio-engine";
@@ -317,6 +318,7 @@ const runTask = async (
     task.received = received;
     task.total = total || received;
     task.filePath = finalPath;
+    task.localTrackId = createLocalTrackId(finalPath);
     task.tagWarning = !tagOk;
     task.finishedAt = Date.now();
     broadcastState(task);

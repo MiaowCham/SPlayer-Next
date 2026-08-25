@@ -141,6 +141,14 @@ const setCurrentTime = (time: number) => {
   renderer?.setCurrentTime(time);
 };
 
+/**
+ * 强制滚动歌词到指定播放时间。
+ * @param time - 播放时间（毫秒）
+ */
+const scrollToTime = (time: number): void => {
+  renderer?.scrollToTime(time);
+};
+
 const freeze = () => {
   isFrozen = true;
   renderer?.freeze();
@@ -155,7 +163,7 @@ const resume = () => {
   renderer?.resume();
 };
 
-defineExpose({ setCurrentTime, freeze, resume });
+defineExpose({ setCurrentTime, scrollToTime, freeze, resume });
 
 const handleLineClick = (timeMs: number) => {
   emit("seek", timeMs);

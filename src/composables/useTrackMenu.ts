@@ -8,6 +8,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
 import { useStatusStore } from "@/stores/status";
 import { useCopyText } from "@/composables/useCopyText";
+import { useLyricTrackManagerDialog } from "@/composables/useLyricTrackManagerDialog";
 import { toast } from "@/composables/useToast";
 import { buildDownloadQualityItems } from "@/composables/useDownload";
 import { getTrackShareUrl } from "@/utils/format/shareUrl";
@@ -24,6 +25,7 @@ import IconListMinus from "~icons/lucide/list-minus";
 import IconCloudOff from "~icons/lucide/cloud-off";
 import IconSearch from "~icons/lucide/search";
 import IconMessageCircle from "~icons/lucide/message-circle";
+import IconFilePenLine from "~icons/lucide/file-pen-line";
 import IconMoreHorizontal from "~icons/lucide/more-horizontal";
 import IconPuzzle from "~icons/lucide/puzzle";
 
@@ -65,6 +67,7 @@ export const useTrackMenu = (
   const settings = useSettingsStore();
   const plugins = usePluginsStore();
   const { copy } = useCopyText();
+  const lyricManager = useLyricTrackManagerDialog();
   const isPlaylist = options.collectionType === "playlist";
   const isCloudView = options.collectionType === "cloud";
   const showPlay = !options.hidePlayActions;
@@ -150,6 +153,12 @@ export const useTrackMenu = (
         key: "comments",
         label: t("comments.name"),
         icon: markRaw(IconMessageCircle),
+      },
+      {
+        key: "manageLyrics",
+        label: t("songList.context.manageLyrics"),
+        icon: markRaw(IconFilePenLine),
+        separator: true,
       },
       {
         key: "more",
@@ -260,6 +269,9 @@ export const useTrackMenu = (
         break;
       case "comments":
         status.showComments(current);
+        break;
+      case "manageLyrics":
+        lyricManager.show(current, "context-menu");
         break;
       case "copyTitle":
         await copy(current.title);

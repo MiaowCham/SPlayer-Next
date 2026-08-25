@@ -378,3 +378,9 @@ export const getTracksByIds = (ids: string[]): Track[] => {
     .all(...ids) as TrackRow[];
   return rows.map(rowToTrack);
 };
+
+/** 按本地曲目 ID 获取单曲。 */
+export const getTrackById = (id: string): Track | null => {
+  const row = getDb().prepare("SELECT * FROM tracks WHERE id = ?").get(id) as TrackRow | undefined;
+  return row ? rowToTrack(row) : null;
+};

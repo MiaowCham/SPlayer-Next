@@ -320,6 +320,8 @@ export interface LocalLyricSettings {
   enableLocalTTMLOverride: boolean;
   /** 本地 TTML 歌词库目录 */
   repoDir: string;
+  /** 手动导入歌词目录；为空时使用应用数据目录 */
+  managedDir: string;
 }
 
 /** 歌曲缓存配置 */

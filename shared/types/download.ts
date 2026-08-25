@@ -67,6 +67,8 @@ export interface DownloadTask {
   total: number;
   /** 完成后最终文件路径 */
   filePath?: string;
+  /** 完成后按本地扫描规则生成的曲目 ID */
+  localTrackId?: string;
   /** 失败原因码 */
   errorCode?: string;
   /** 写标签失败但音频已落盘 */

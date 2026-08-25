@@ -404,6 +404,20 @@ export class LyricRenderer {
   };
 
   /**
+   * 强制将歌词滚动并对齐到指定播放时间。
+   * @param timeMs - 播放时间（毫秒）
+   */
+  scrollToTime = (timeMs: number) => {
+    clearTimeout(this.scrollResetTimerId);
+    this.isUserScrolling = false;
+    this.userScrollOffset = 0;
+    this.pendingPlayTime = timeMs;
+    this.lastProcessedTime = timeMs;
+    this.handleSeek(timeMs, true);
+    this.needsFullSync = true;
+  };
+
+  /**
    * 设置播放/暂停状态
    * @param playing - 是否正在播放
    */

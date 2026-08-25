@@ -481,6 +481,7 @@
       "title": "Lyric Offset",
       "hint": "Positive values advance lyrics, in milliseconds"
     },
+    "locateCurrentLyric": "Locate Current Lyric",
     "lyricCredit": "Lyrics by",
     "copyLyric": {
       "title": "Copy Lyrics",
@@ -509,6 +510,87 @@
     "shuffleMode": {
       "on": "Shuffle on",
       "off": "Shuffle off"
+    }
+  },
+  "lyricManager": {
+    "trackTitle": "Lyric Management",
+    "unknownArtist": "Unknown artist",
+    "trackHint": "Currently Used Lyrics",
+    "currentLyric": "Currently Used Lyrics",
+    "currentLyricUnavailable": "This track is not playing, so the lyric currently in use cannot be confirmed",
+    "sourceDisplayHint": "Click to open lyric management for the current track",
+    "smartSelectionHint": "Smart Selection is active and chooses lyrics using the configured source and format priorities.",
+    "smartSelection": "Smart Selection",
+    "smartSelectionDescription": "Automatically choose by source and format priority, falling back when unavailable.",
+    "smartSelected": "Smart Selection",
+    "file": "Lyric file",
+    "unknownFile": "Unnamed lyric",
+    "format": "Format",
+    "import": "Import",
+    "overwriteTitle": "Overwrite lyrics with the same name?",
+    "overwriteDescription": "“{filename}” already exists in this track's lyric folder. Overwrite it? The active version will not switch automatically.",
+    "refreshLyric": "Refresh Lyrics",
+    "openDatabase": "Open Management Panel",
+    "databaseTitle": "Manually Imported Lyrics Management",
+    "migrateDirectory": "Migrate Lyric Folder",
+    "migrateDirectoryDescription": "Move existing manually imported lyrics to \"{directory}\". Files with the same name will be replaced.",
+    "importNeteaseTtml": "Import Netease TTML",
+    "emptyManaged": "No manually managed lyrics",
+    "trackId": "Track ID",
+    "openDirectory": "Open Lyric Folder",
+    "manageTrack": "Manage Track",
+    "unmatchedTrack": "Unable to match a track by ID",
+    "deleteLyric": "Delete Lyrics",
+    "deleteLyricFailed": "Failed to delete lyrics",
+    "deleteUnmatchedTitle": "Delete unmatched lyrics?",
+    "deleteUnmatchedDescription": "This permanently deletes “{filename}” and all of its local lyric files.",
+    "syncToTracks": "Sync to Other Tracks",
+    "syncTitle": "Sync Custom Lyrics",
+    "searchTrackPlaceholder": "Search local or Netease tracks by title, artist, or ID",
+    "searchTrackHint": "Search and choose local or online tracks to receive these lyrics",
+    "applyToTracks": "Apply to {count} Tracks",
+    "syncFailed": "Failed to sync lyrics. Import a manually managed lyric for the current track first.",
+    "migrateDirectoryFailed": "Failed to migrate the lyric folder. The original folder was left unchanged.",
+    "matchResults": "Lyric Match Results",
+    "matchResultsHint": "Select to lock a lyric source. Smart mode marks the candidate it currently uses. Right-click an unused local lyric to delete it.",
+    "matching": "Matching available lyric sources…",
+    "noMatchResults": "No available lyrics found",
+    "select": "Select",
+    "selected": "Selected",
+    "localVersion": "Local File",
+    "deleteVersionHint": "Right-click to delete this local lyric",
+    "inUseDeleteHint": "This lyric is currently in use and cannot be deleted",
+    "deleteVersionTitle": "Delete local lyric version?",
+    "deleteVersionDescription": "This permanently deletes “{filename}”.",
+    "deleteVersionFailed": "Failed to delete the local lyric",
+    "selectFailed": "Failed to select lyrics",
+    "importFailed": "Failed to import lyrics. LNT requires a type declaration and an active LRCN with line IDs",
+    "refreshFailed": "Failed to refresh lyric matches",
+    "matchSource": {
+      "manual": "Manual Import",
+      "localTtml": "Local TTML Repository",
+      "amll": "AMLL Online Lyric DB",
+      "netease": "Netease Music",
+      "qqmusic": "QQ Music",
+      "kugou": "Kugou Music"
+    },
+    "activeSource": {
+      "external": "External Lyrics",
+      "embedded": "Embedded Lyrics",
+      "online": "Online Lyrics",
+      "managed": "Manual Import",
+      "amll": "AMLL"
+    },
+    "sourceDisplay": {
+      "external": "From External Lyrics",
+      "embedded": "From Embedded Lyrics",
+      "online": "From Online Lyrics",
+      "managed": "Manual Import",
+      "localTtml": "From Local TTML",
+      "amll": "From AMLL",
+      "netease": "From Netease",
+      "qqmusic": "From QQ",
+      "kugou": "From Kugou"
     }
   },
   "songList": {
@@ -542,6 +624,7 @@
       "showInExplorer": "Open Location",
       "copyPath": "Copy File Path",
       "editTags": "Edit Metadata",
+      "manageLyrics": "Manage Lyrics",
       "download": "Download Song",
       "deleteFile": "Delete File",
       "searchSame": "Search by Name",
@@ -744,6 +827,7 @@
       "playControl": "Playback Control",
       "audioSource": "Audio Source",
       "scrobble": "Scrobble",
+      "lyricManagement": "Lyric Management",
       "lyricContent": "Lyric Content",
       "lyricTTML": "TTML Lyrics",
       "lyricExclude": "Metadata Stripping",
@@ -777,7 +861,7 @@
       "downloadGeneral": "Download Options",
       "downloadTags": "What to Write",
       "cache": "Cache Management",
-      "database": "Database Management",
+      "database": "Lyric Cache Management",
       "backupReset": "Backup & Reset",
       "debug": "Debug",
       "preset": "OCD Settings",
@@ -911,15 +995,18 @@
       "label": "Lyric Source Preference",
       "description": "Platform priority when matching online lyrics",
       "auto": "Smart",
-      "qqmusic": "Prefer QM",
-      "kugou": "Prefer KG",
-      "netease": "Prefer NCM",
+      "local": "Manual Import",
+      "qqmusic": "QM",
+      "kugou": "KG",
+      "netease": "NCM",
       "self": "Follow Self"
     },
     "lyricSourceOrder": {
-      "label": "Source Order",
-      "description": "Customize source priority",
-      "hint": "When using auto mode, sources are tried top-down; falls through to the next on miss"
+      "label": "Lyric Source Order",
+      "description": "Manually imported lyrics always come first; reorder the remaining sources below",
+      "hint": "Auto mode checks manually imported lyrics first, then tries the remaining sources in this order",
+      "amll": "AMLL Online Lyric DB",
+      "localTtml": "Local TTML Lyric Repository"
     },
     "lyricFormatOrder": {
       "label": "Lyric Format Priority",
@@ -1926,8 +2013,8 @@
       "description": "Inspect cache usage and clear it"
     },
     "dbCacheManager": {
-      "label": "Database Manager",
-      "description": "Inspect database usage and clear it"
+      "label": "Lyric Cache Management",
+      "description": "Inspect lyric cache usage and clear it"
     },
     "cacheDir": {
       "label": "Cache Directory",
@@ -2044,11 +2131,20 @@
       "confirmDesc": "All file caches above will be deleted and regenerated on next use. This cannot be undone."
     },
     "dbClearAll": {
-      "label": "Clear Database Caches",
+      "label": "Clear Lyric Cache",
       "description": "Wipe lyric and matching caches stored in the database. Your local library and account data are not affected.",
       "button": "Clear All",
-      "confirmTitle": "Clear all database caches?",
-      "confirmDesc": "All database caches above will be cleared. This cannot be undone."
+      "confirmTitle": "Clear all lyric caches?",
+      "confirmDesc": "All lyric and matching caches above will be cleared. This cannot be undone."
+    },
+    "managedLyrics": {
+      "label": "Manually Imported Lyrics",
+      "clear": "Clear Custom Lyrics",
+      "clearConfirmTitle": "Clear manually imported lyrics?",
+      "clearConfirmDescription": "This permanently removes all custom lyric files and their associations.",
+      "openDirectory": "Custom Lyric Folder",
+      "openDirectoryDescription": "View and manage manually imported lyric files in File Explorer.",
+      "openDirectoryButton": "Open Folder"
     }
   },
   "collection": {

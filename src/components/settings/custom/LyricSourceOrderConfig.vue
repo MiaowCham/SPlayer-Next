@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { PLATFORM_SHORT_NAME, type Platform } from "@shared/types/platform";
+import { PLATFORM_SHORT_NAME, isPlatform } from "@shared/types/platform";
 import { useSortable } from "@vueuse/integrations/useSortable";
-import { DEFAULT_LYRIC_SOURCE_ORDER } from "@/types/settings";
+import { DEFAULT_LYRIC_SOURCE_ORDER, type LyricSourceOrderItem } from "@/types/settings";
 import { useSettingsStore } from "@/stores/settings";
 import IconLucideGripVertical from "~icons/lucide/grip-vertical";
+import IconLucideLockKeyhole from "~icons/lucide/lock-keyhole";
 
 defineOptions({ inheritAttrs: false });
 
@@ -11,7 +12,7 @@ const { t } = useI18n();
 const settings = useSettingsStore();
 const open = ref(false);
 
-const list = ref<Platform[]>([]);
+const list = ref<LyricSourceOrderItem[]>([]);
 const listEl = ref<HTMLElement | null>(null);
 
 watch(open, (val) => {
@@ -25,7 +26,11 @@ useSortable(listEl, list, {
   fallbackClass: "sortable-ghost",
 });
 
-const labelOf = (v: Platform): string => PLATFORM_SHORT_NAME[v] ?? v;
+const labelOf = (v: LyricSourceOrderItem): string => {
+  if (isPlatform(v)) return PLATFORM_SHORT_NAME[v] ?? v;
+  return t(`settings.lyricSourceOrder.${v}`);
+};
+const localLabel = computed(() => t("settings.lyricSourcePreference.local"));
 
 const handleConfirm = () => {
   settings.lyric.lyricSourceOrder = [...list.value];
@@ -47,19 +52,26 @@ const handleReset = () => {
     :description="t('settings.lyricSourceOrder.hint')"
     width="420px"
   >
-    <div ref="listEl" class="flex flex-col gap-2.5">
-      <SCard
-        v-for="(item, idx) in list"
-        :key="item"
-        variant="settings"
-        class="flex items-center gap-3 cursor-grab active:cursor-grabbing"
-      >
-        <span class="w-5 text-center text-xs text-on-surface-variant/60 font-medium">
-          {{ idx + 1 }}
-        </span>
-        <span class="text-sm flex-1">{{ labelOf(item) }}</span>
-        <IconLucideGripVertical class="text-on-surface-variant/40" />
+    <div class="flex flex-col gap-2.5">
+      <SCard variant="settings" class="flex items-center gap-3 opacity-75">
+        <span class="w-5 text-center text-xs text-on-surface-variant/60 font-medium">1</span>
+        <span class="text-sm flex-1">{{ localLabel }}</span>
+        <IconLucideLockKeyhole class="text-on-surface-variant/40" />
       </SCard>
+      <div ref="listEl" class="flex flex-col gap-2.5">
+        <SCard
+          v-for="(item, idx) in list"
+          :key="item"
+          variant="settings"
+          class="flex items-center gap-3 cursor-grab active:cursor-grabbing"
+        >
+          <span class="w-5 text-center text-xs text-on-surface-variant/60 font-medium">
+            {{ idx + 2 }}
+          </span>
+          <span class="text-sm flex-1">{{ labelOf(item) }}</span>
+          <IconLucideGripVertical class="text-on-surface-variant/40" />
+        </SCard>
+      </div>
     </div>
     <template #footer="{ close }">
       <SButton variant="secondary" @click="handleReset">{{ t("common.reset") }}</SButton>

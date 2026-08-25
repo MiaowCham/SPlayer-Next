@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { Artist } from "@shared/types/player";
-import type { SSelectOption } from "@/components/ui/SSelect.vue";
+import { useLyricTrackManagerDialog } from "@/composables/useLyricTrackManagerDialog";
 import { useMediaStore } from "@/stores/media";
-import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
+import { useStatusStore } from "@/stores/status";
 import { getQualityLabel, getQualityLevel } from "@/utils/quality";
 import {
   canNavigateToResource,
@@ -28,21 +28,13 @@ const props = withDefaults(
 );
 
 const media = useMediaStore();
-const status = useStatusStore();
 const settings = useSettingsStore();
+const status = useStatusStore();
+const lyricManager = useLyricTrackManagerDialog();
 
 /** 加载中的歌曲 */
 const displayTrack = computed(() => media.track ?? status.currentTrack);
 const artists = computed(() => getValidArtists(displayTrack.value?.artists));
-
-/** 歌词来源偏好下拉选项 */
-const lyricSourceOptions = computed<SSelectOption[]>(() => [
-  { value: "auto", label: t("settings.lyricSourcePreference.auto") },
-  { value: "qqmusic", label: t("settings.lyricSourcePreference.qqmusic") },
-  { value: "kugou", label: t("settings.lyricSourcePreference.kugou") },
-  { value: "netease", label: t("settings.lyricSourcePreference.netease") },
-  { value: "self", label: t("settings.lyricSourcePreference.self") },
-]);
 
 /** 生成歌手详情页跳转目标 */
 const artistTarget = (artist: Artist): ResourceNavigationTarget => ({
@@ -105,8 +97,24 @@ const channelText = computed(() => {
   return t("quality.multiChannel");
 });
 
-/** 歌词格式标签 */
-const lyricLabel = computed(() => media.activeLyric?.format.toUpperCase() ?? "NO-LRC");
+/** 当前歌词来源标签 */
+const lyricLabel = computed(() => {
+  const lyric = media.activeLyric;
+  if (!lyric) return "NO-LRC";
+  if (lyric.source === "managed") return t("lyricManager.sourceDisplay.managed");
+  if (lyric.provider === "amll") return t("lyricManager.sourceDisplay.amll");
+  if (lyric.provider === "localTtml") return t("lyricManager.sourceDisplay.localTtml");
+  if (lyric.source === "online" && lyric.platform) {
+    return t(`lyricManager.sourceDisplay.${lyric.platform}`);
+  }
+  return t(`lyricManager.sourceDisplay.${lyric.source}`);
+});
+
+/** 打开当前歌曲的歌词管理面板。 */
+const openLyricManager = (): void => {
+  const track = displayTrack.value;
+  if (track) lyricManager.show(toRaw(track), "player");
+};
 
 /** 专辑文本 */
 const albumText = computed(() => displayTrack.value?.album?.name ?? "");
@@ -200,21 +208,20 @@ const alignItems = computed(() => {
           </div>
         </div>
       </SPopover>
-      <SPopselect
-        v-model="settings.lyric.lyricSourcePreference"
-        :options="lyricSourceOptions"
-        side="top"
-        :side-offset="8"
-        cover
-      >
+      <SPopover side="top" :side-offset="8" cover trigger="hover">
         <template #trigger>
-          <span
-            class="inline-flex items-center justify-center leading-none px-1.5 py-1.2 rounded-md border border-solid border-cover/30 cursor-pointer transition-colors hover:border-cover/60"
+          <button
+            type="button"
+            class="appearance-none bg-transparent text-inherit font-inherit inline-flex items-center justify-center leading-none px-1.5 py-1.2 rounded-md border border-solid border-cover/30 cursor-pointer transition-colors hover:border-cover/60"
+            @click="openLyricManager"
           >
             {{ lyricLabel }}
-          </span>
+          </button>
         </template>
-      </SPopselect>
+        <div class="max-w-56 text-xs text-cover/70">
+          {{ t("lyricManager.sourceDisplayHint") }}
+        </div>
+      </SPopover>
     </div>
     <!-- 歌手 -->
     <div class="max-w-full flex items-center gap-1.5 text-[1.2em] text-cover/60">

@@ -258,6 +258,14 @@ const setCurrentTime = (time: number, isSeek?: boolean) => {
   playerRef.value?.setCurrentTime(time, isSeek);
 };
 
+/**
+ * 强制滚动歌词到指定播放时间。
+ * @param time - 播放时间（毫秒）
+ */
+const scrollToTime = (time: number): void => {
+  playerRef.value?.setCurrentTime(time, true);
+};
+
 // 隐藏界面或休眠时调用
 const freeze = () => {
   isFrozen.value = true;
@@ -275,6 +283,7 @@ const resume = () => {
 
 defineExpose({
   setCurrentTime,
+  scrollToTime,
   freeze,
   resume,
   lyricPlayer: playerRef,

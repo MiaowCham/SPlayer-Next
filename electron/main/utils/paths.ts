@@ -37,3 +37,6 @@ export const logsDir = path.join(dataRoot, "logs");
 
 /** 插件根目录：scripts / data / logs */
 export const pluginsDir = path.join(dataRoot, "plugins");
+
+/** 用户手动管理的歌词原文目录 */
+export const defaultManagedLyricsDir = path.join(dataRoot, "lyrics", "managed");

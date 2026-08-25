@@ -26,6 +26,7 @@ const handleOpenUpdate = (id: number, value: boolean): void => {
     :title="item.options.title"
     :description="item.options.description"
     :closable="item.options.closable ?? true"
+    :layer="item.options.layer"
     width="420px"
     @update:open="(value: boolean) => handleOpenUpdate(item.id, value)"
   >

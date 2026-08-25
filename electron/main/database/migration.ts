@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 
 /** 当前 schema 版本 */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 8;
 
 type TableInfoRow = { name: string };
 
@@ -50,6 +50,49 @@ export const migrate = (d: Database.Database): void => {
       d.exec("ALTER TABLE tracks ADD COLUMN cue_end_ms INTEGER");
     }
     v = 4;
+  }
+
+  if (v < 5) v = 5;
+
+  if (v < 6) {
+    if (!hasColumn(d, "managed_lyrics", "track_json")) {
+      d.exec("ALTER TABLE managed_lyrics ADD COLUMN track_json TEXT");
+    }
+    v = 6;
+  }
+
+  if (v < 7) {
+    if (!hasColumn(d, "managed_lyrics", "active_version_id")) {
+      d.exec("ALTER TABLE managed_lyrics ADD COLUMN active_version_id TEXT");
+    }
+    d.exec(`
+      CREATE TABLE IF NOT EXISTS managed_lyric_versions (
+        version_id TEXT PRIMARY KEY,
+        track_source TEXT NOT NULL,
+        track_id TEXT NOT NULL,
+        data TEXT NOT NULL,
+        filename TEXT NOT NULL COLLATE NOCASE,
+        origin TEXT NOT NULL,
+        imported_at INTEGER NOT NULL,
+        UNIQUE(track_source, track_id, filename)
+      );
+      CREATE INDEX IF NOT EXISTS idx_managed_lyric_versions_track
+        ON managed_lyric_versions(track_source, track_id, imported_at DESC);
+    `);
+    v = 7;
+  }
+
+  if (v < 8) {
+    d.exec(`
+      CREATE TABLE IF NOT EXISTS track_lyric_preferences (
+        track_source TEXT NOT NULL,
+        track_id TEXT NOT NULL,
+        choice_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (track_source, track_id)
+      );
+    `);
+    v = 8;
   }
 
   // 版本无关部分

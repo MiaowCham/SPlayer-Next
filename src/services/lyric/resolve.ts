@@ -26,6 +26,22 @@ export interface ResolvedLyric {
 /** 本地歌词读取结果 */
 export type LocalLyric = { source: NonNullable<LyricData>; content: string };
 
+/** 读取用户手动管理歌词。 */
+export const resolveManagedLyric = async (track: Track): Promise<ResolvedLyric | null> => {
+  const lyric = await window.api.lyrics.getManaged(track);
+  if (!lyric?.content.trim()) return null;
+  return {
+    source: { source: "managed", format: lyric.format },
+    input: {
+      content: lyric.content,
+      translation: lyric.translation,
+      translationFormat: lyric.translationFormat,
+      romaji: lyric.romaji,
+      romajiFormat: lyric.romajiFormat,
+    },
+  };
+};
+
 /** 匹配结果转为在线歌词结果 */
 const toOnlineResult = (data: LyricMatchResult): OnlineResult => ({
   source: { source: "online", format: data.format, platform: data.platform },
@@ -106,6 +122,7 @@ const isOnlineResultUpgrade = (result: OnlineResult, localFormat: LyricFormat): 
 interface OnlinePreferenceOptions {
   hasLocal: boolean;
   localFormat: LyricFormat | null;
+  preference?: import("@/types/settings").LyricSourcePreference;
   onCandidate?: (result: OnlineResult) => void;
   shouldContinue?: () => boolean;
 }
@@ -120,19 +137,32 @@ export const resolveOnlineByPreference = async (
   options: OnlinePreferenceOptions,
 ): Promise<OnlineResult | null> => {
   const settings = useSettingsStore();
-  const preference = settings.lyric.lyricSourcePreference;
+  let preference = options.preference ?? settings.lyric.lyricSourcePreference;
   const isCurrent = options.shouldContinue ?? (() => true);
-  if (preference === "self") {
-    return isPlatform(track.source) ? resolvePlatformLyric(track.source, track) : null;
+  if (preference === "local") {
+    if (options.hasLocal) return null;
+    preference = "auto";
   }
-  if (preference !== "auto") return resolvePlatformLyric(preference, track);
+  if (preference === "self") {
+    const result = isPlatform(track.source)
+      ? await resolvePlatformLyric(track.source, track)
+      : null;
+    if (result || options.hasLocal) return result;
+    preference = "auto";
+  }
+  if (preference !== "auto") {
+    const preferred = await resolvePlatformLyric(preference, track);
+    if (preferred || options.hasLocal) return preferred;
+    preference = "auto";
+  }
 
   const order = settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
+  const platformOrder = order.filter(isPlatform);
   const formatOrder = settings.lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
-  let candidates: Platform[] = [...order];
+  let candidates: Platform[] = [...platformOrder];
   if (options.hasLocal) {
     if (!settings.lyric.smartPreferOnline || !options.localFormat) return null;
-    candidates = order.filter((platform) =>
+    candidates = platformOrder.filter((platform) =>
       platformCanUpgrade(platform, options.localFormat!, formatOrder),
     );
     if (candidates.length === 0) return null;
@@ -179,6 +209,9 @@ export const resolveOnlineByPreference = async (
 const shouldTryTTMLByFormat = (mainFormat: LyricFormat): boolean => {
   const settings = useSettingsStore();
   if (!settings.system.lyric.enableOnlineTTMLLyric) return false;
+  if (!(settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER).includes("amll")) {
+    return false;
+  }
   if (settings.lyric.lyricSourcePreference === "self") return false;
   const order = settings.lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
   const ttmlIdx = order.indexOf("ttml");
@@ -195,13 +228,16 @@ const shouldTryTTMLByFormat = (mainFormat: LyricFormat): boolean => {
 export const resolveTTMLOverlay = async (
   track: Track,
   online: OnlineResult,
+  preferredPlatform?: "netease" | "qqmusic",
 ): Promise<ResolvedLyric | null> => {
-  if (!shouldTryTTMLByFormat(online.source.format)) return null;
+  if (!preferredPlatform && !shouldTryTTMLByFormat(online.source.format)) return null;
   const candidates = await Promise.all(
-    TTML_PLATFORMS.map(async (platform) => ({
-      platform,
-      response: await requestTTMLOverlay(track, platform),
-    })),
+    TTML_PLATFORMS.filter((platform) => !preferredPlatform || platform === preferredPlatform).map(
+      async (platform) => ({
+        platform,
+        response: await requestTTMLOverlay(track, platform),
+      }),
+    ),
   );
   const match = candidates.find(
     (candidate): candidate is typeof candidate & { response: { ok: true; data: string } } =>
@@ -209,7 +245,7 @@ export const resolveTTMLOverlay = async (
   );
   if (!match) return null;
   return {
-    source: { source: "online", format: "ttml", platform: match.platform },
+    source: { source: "online", format: "ttml", platform: match.platform, provider: "amll" },
     input: { content: match.response.data },
   };
 };
@@ -223,8 +259,9 @@ export const resolveTTMLOverlay = async (
 export const resolveStreamingByPreference = async (
   track: Track,
   shouldContinue: () => boolean = () => true,
+  override?: import("@/types/settings").LyricSourcePreference,
 ): Promise<ResolvedLyric | null> => {
-  const preference = useSettingsStore().lyric.lyricSourcePreference;
+  const preference = override ?? useSettingsStore().lyric.lyricSourcePreference;
   let serverLyric: ResolvedLyric | null = null;
 
   if (preference === "self" || preference === "auto") {
@@ -236,6 +273,7 @@ export const resolveStreamingByPreference = async (
   const online = await resolveOnlineByPreference(track, {
     hasLocal: !!serverLyric,
     localFormat: serverLyric?.source.format ?? null,
+    preference,
     shouldContinue,
   });
   if (!shouldContinue()) return null;
@@ -264,7 +302,10 @@ export const resolveLocalRepoLyric = async (track: Track): Promise<ResolvedLyric
   }
   const resp = await window.api.lyrics.matchLocalTTML(track);
   if (!resp.ok || !resp.data) return null;
-  return { source: { source: "external", format: "ttml" }, input: { content: resp.data } };
+  return {
+    source: { source: "external", format: "ttml", provider: "localTtml" },
+    input: { content: resp.data },
+  };
 };
 
 /**
@@ -305,14 +346,39 @@ export const resolveLyricForPreload = async (
   track: Track,
   shouldContinue: () => boolean,
 ): Promise<ResolvedLyric | null> => {
+  const storedPreference = await window.api.lyrics.getTrackPreference(track);
+  if (!shouldContinue()) return null;
+  const globalPreference = useSettingsStore().lyric.lyricSourcePreference;
+  const preference = storedPreference
+    ? storedPreference.source === "platform" || storedPreference.source === "amll"
+      ? storedPreference.platform
+      : storedPreference.source === "localTtml"
+        ? "local"
+        : storedPreference.source
+    : globalPreference;
+  const wantsManaged = storedPreference
+    ? storedPreference.source === "auto" || storedPreference.source === "local"
+    : preference === "auto" || preference === "local";
+  const wantsLocalRepo = storedPreference
+    ? storedPreference.source === "auto" ||
+      storedPreference.source === "local" ||
+      storedPreference.source === "localTtml"
+    : preference === "auto" || preference === "local";
+  if (wantsManaged) {
+    const managed = await resolveManagedLyric(track);
+    if (!shouldContinue()) return null;
+    if (managed) return managed;
+  }
   if (track.source === "local") return null;
 
-  const localRepo = await resolveLocalRepoLyric(track);
-  if (!shouldContinue()) return null;
-  if (localRepo) return localRepo;
+  if (wantsLocalRepo) {
+    const localRepo = await resolveLocalRepoLyric(track);
+    if (!shouldContinue()) return null;
+    if (localRepo) return localRepo;
+  }
 
   if (track.source === "streaming") {
-    const streaming = await resolveStreamingByPreference(track, shouldContinue);
+    const streaming = await resolveStreamingByPreference(track, shouldContinue, preference);
     if (!shouldContinue()) return null;
     if (streaming) return streaming;
     const plugin = await resolvePluginLyric(track);
@@ -322,11 +388,19 @@ export const resolveLyricForPreload = async (
   const online = await resolveOnlineByPreference(track, {
     hasLocal: false,
     localFormat: null,
+    preference,
     shouldContinue,
   });
   if (!shouldContinue()) return null;
   if (online) {
-    const ttml = await resolveTTMLOverlay(track, online);
+    const ttml =
+      storedPreference?.source === "platform"
+        ? null
+        : await resolveTTMLOverlay(
+            track,
+            online,
+            storedPreference?.source === "amll" ? storedPreference.platform : undefined,
+          );
     if (!shouldContinue()) return null;
     return ttml ?? { source: online.source, input: online.input };
   }

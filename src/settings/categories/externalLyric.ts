@@ -1,9 +1,8 @@
-import type { SettingCategory, SettingSection } from "@/types/settings-schema";
+import type { SettingSection } from "@/types/settings-schema";
 import { useSettingsStore } from "@/stores/settings";
 import { isMac } from "@/utils/config";
-import IconLucideMonitor from "~icons/lucide/monitor";
 
-const desktopLyricSection: SettingSection = {
+export const desktopLyricSection: SettingSection = {
   id: "desktopLyric",
   tag: { text: "Beta" },
   items: [
@@ -142,7 +141,7 @@ const desktopLyricSection: SettingSection = {
   ],
 };
 
-const dynamicIslandSection: SettingSection = {
+export const dynamicIslandSection: SettingSection = {
   id: "dynamicIsland",
   tag: { text: "Beta" },
   items: [
@@ -258,7 +257,7 @@ const dynamicIslandSection: SettingSection = {
 };
 
 /** Win 平台限定 */
-const taskbarLyricSection: SettingSection = {
+export const taskbarLyricSection: SettingSection = {
   id: "taskbarLyric",
   tag: { text: "Beta" },
   items: [
@@ -387,16 +386,3 @@ const taskbarLyricSection: SettingSection = {
     },
   ],
 };
-
-const externalLyricCategory: SettingCategory = {
-  id: "externalLyric",
-  icon: IconLucideMonitor,
-  sections: [
-    desktopLyricSection,
-    dynamicIslandSection,
-    // taskbarLyric 仅 Windows 可用
-    ...(navigator.platform.startsWith("Win") ? [taskbarLyricSection] : []),
-  ],
-};
-
-export default externalLyricCategory;

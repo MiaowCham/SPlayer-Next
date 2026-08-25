@@ -64,7 +64,7 @@ const toLocalTrack = (task: DownloadTask): Track => ({
   ...task.track,
   source: "local",
   path: task.filePath,
-  id: task.filePath!,
+  id: task.localTrackId!,
 });
 
 /** 可播放队列（已完成且有文件） */
@@ -72,7 +72,7 @@ const playableTasks = computed(() => props.tasks.filter(isDone));
 
 /** 当前播放的是否为该任务 */
 const isPlaying = (task: DownloadTask): boolean =>
-  isDone(task) && media.track?.id === task.filePath;
+  isDone(task) && media.track?.id === task.localTrackId;
 
 /** 在可播放队列中定位并播放 */
 const playTask = (task: DownloadTask): void => {

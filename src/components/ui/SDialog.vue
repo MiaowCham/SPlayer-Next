@@ -8,12 +8,16 @@ export interface SDialogProps {
   modal?: boolean;
   /** 标题（无障碍必需，不传则隐藏标题区） */
   title?: string;
+  /** 标题右侧标签 */
+  titleTag?: string;
   /** 描述文本 */
   description?: string;
   /** 是否显示关闭按钮 */
   closable?: boolean;
   /** 封面主题模式（播放器内使用） */
   cover?: boolean;
+  /** 设置面板主题模式 */
+  variant?: "default" | "settings";
   /** 宽度，支持 CSS 值（默认 460px） */
   width?: string;
   /** 高度，支持 CSS 值（默认 auto，受 max-h 限制） */
@@ -26,16 +30,20 @@ export interface SDialogProps {
   lazy?: boolean;
   /** 关闭后销毁内容 */
   destroyOnClose?: boolean;
+  /** 弹窗层级；top 用于二级流程，topmost 用于覆盖二级流程的确认框 */
+  layer?: "default" | "top" | "topmost";
 }
 
 const props = withDefaults(defineProps<SDialogProps>(), {
   modal: true,
   closable: true,
   cover: false,
+  variant: "default",
   width: "460px",
   height: "auto",
   lazy: true,
   destroyOnClose: false,
+  layer: "default",
 });
 
 const DESTROY_DELAY_MS = 180;
@@ -46,6 +54,10 @@ const containerStyle = computed(() => ({
   maxHeight: props.height === "auto" ? "85vh" : undefined,
   top: props.top,
 }));
+const layerClass = computed(() => {
+  if (props.layer === "topmost") return "z-320";
+  return props.layer === "top" ? "z-310" : "z-300";
+});
 
 const emit = defineEmits<{
   "update:open": [value: boolean];
@@ -105,14 +117,16 @@ const setOpen = (val: boolean): void => {
       <!-- 遮罩层 -->
       <DialogOverlay
         :class="[
-          'fixed inset-0 z-300 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out',
+          'fixed inset-0 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out',
+          layerClass,
           cover ? 'bg-black/50' : 'bg-black/40',
         ]"
       />
       <DialogContent
         :style="containerStyle"
         :class="[
-          'fixed left-1/2 z-300 -translate-x-1/2',
+          'fixed left-1/2 -translate-x-1/2',
+          layerClass,
           top ? '' : 'top-1/2 -translate-y-1/2',
           'rounded-xl shadow-xl overflow-hidden',
           'flex flex-col',
@@ -122,12 +136,17 @@ const setOpen = (val: boolean): void => {
           'focus:outline-none',
           cover
             ? 'bg-black/55 backdrop-blur-xl backdrop-saturate-160 border border-solid border-white/10 text-cover'
-            : 'bg-surface-alt border border-solid border-outline-variant/30 text-on-surface',
+            : variant === 'settings'
+              ? 'bg-surface border border-solid border-outline-variant/15 text-on-surface'
+              : 'bg-surface-alt border border-solid border-outline-variant/30 text-on-surface',
         ]"
       >
         <!-- 标题 + 描述 -->
         <div v-if="title" class="shrink-0 px-5 pt-4 pb-3 pr-12">
-          <DialogTitle class="text-lg font-semibold">{{ title }}</DialogTitle>
+          <DialogTitle class="flex items-center gap-2 text-lg font-semibold">
+            <span>{{ title }}</span>
+            <STag v-if="titleTag" type="warning" size="tiny">{{ titleTag }}</STag>
+          </DialogTitle>
           <DialogDescription
             v-if="description"
             :class="['text-xs mt-1', cover ? 'text-cover/50' : 'text-on-surface/50']"

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { JsScanEvent, JsScannedTrack } from "@splayer/audio-engine";
@@ -17,6 +16,7 @@ import { toMs } from "@main/utils/time";
 import { parseArtists, parseAlbum } from "@main/utils/metadata";
 import { getCoverCacheDir, isWin } from "@main/utils/config";
 import { libraryLog } from "@main/utils/logger";
+import { createLocalTrackId } from "@main/utils/localTrack";
 import { getCueAudioPath, parseCueSheet, extractCuePath } from "./cue";
 
 let scanning = false;
@@ -32,7 +32,7 @@ const pathKey = (value: string): string => {
  * id 由文件路径哈希生成，标签编辑回灌与扫描共用此规则
  */
 export const scannedToUpsert = (track: JsScannedTrack): UpsertTrack => {
-  const id = createHash("sha256").update(track.path).digest("hex").slice(0, 16);
+  const id = createLocalTrackId(track.path);
   return {
     id,
     path: track.path,
@@ -95,7 +95,7 @@ const syncCueTracks = async (
       if (!audio || audio.duration <= 0) continue;
       const cueTracks = parseCueSheet(content, cuePath, audio.duration);
       for (const cueTrack of cueTracks) {
-        const id = createHash("sha256").update(cueTrack.path).digest("hex").slice(0, 16);
+        const id = createLocalTrackId(cueTrack.path);
         nextPaths.add(cueTrack.path);
         upserts.push({
           id,

@@ -47,6 +47,14 @@ const { snapToNearestLyric } = useProgressLyric();
 const lyricRef = ref<InstanceType<typeof Lyrics> | InstanceType<typeof AMLLLyrics>>();
 const lyricMounted = ref(false);
 const initialLyricTimeMs = ref(0);
+const pendingTrackLocate = ref(false);
+
+/** 在歌词实例就绪后执行一次切歌定位。 */
+const locatePendingTrack = (): void => {
+  if (!pendingTrackLocate.value || media.parsedLyric.length === 0 || !lyricRef.value) return;
+  pendingTrackLocate.value = false;
+  lyricRef.value.scrollToTime(getCurrentTime() + status.lyricOffsetMs);
+};
 
 /** 加载中的歌曲使用队列当前项兜底，避免全屏播放器出现空白。 */
 const displayTrack = computed(() => media.track ?? status.currentTrack);
@@ -67,6 +75,7 @@ const onAfterEnter = () => {
   nextTick(() => {
     lyricRef.value?.resume();
     startTick();
+    locatePendingTrack();
   });
 };
 
@@ -91,7 +100,19 @@ watch(hasLyric, (value) => {
 // 歌词变化时先推送精确时间
 watch(
   () => media.parsedLyric,
-  () => lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs),
+  () => {
+    const currentTime = getCurrentTime() + status.lyricOffsetMs;
+    lyricRef.value?.setCurrentTime(currentTime);
+    nextTick(locatePendingTrack);
+  },
+);
+
+watch(
+  () => (media.track ? `${media.track.source}:${media.track.id}` : ""),
+  (trackKey, previousTrackKey) => {
+    pendingTrackLocate.value = !!trackKey && trackKey !== previousTrackKey;
+  },
+  { flush: "sync" },
 );
 
 // 切换歌词引擎时，重新计算初始并推送时间
@@ -116,6 +137,11 @@ const coverCentered = computed(() => {
 const handleLyricSeek = async (timeMs: number): Promise<void> => {
   await player.seek(timeMs);
   if (!isPlaying.value) await player.play();
+};
+
+/** 强制将歌词定位到当前播放位置。 */
+const locateCurrentLyric = (): void => {
+  lyricRef.value?.scrollToTime(getCurrentTime() + status.lyricOffsetMs);
 };
 
 const springConfig = computed(() => ({
@@ -379,7 +405,7 @@ const showComments = (): void => {
               </div>
             </div>
             <!-- 歌词侧边工具栏 -->
-            <LyricActions :immersive="immersive" />
+            <LyricActions :immersive="immersive" @locate="locateCurrentLyric" />
           </div>
           <!-- 播放队列 -->
           <div

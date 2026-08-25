@@ -42,6 +42,7 @@
     "test:all": "pnpm test && pnpm test:native",
     "build:native": "tsx scripts/build-native.ts",
     "start": "electron-vite preview",
+    "preview:browser": "vite --config vite.browser-preview.config.ts",
     "dev": "pnpm build:native --dev && tsx scripts/dev.ts",
     "build": "rimraf dist && pnpm build:native && pnpm typecheck && electron-vite build",
     "postinstall": "electron-rebuild -f -w better-sqlite3",

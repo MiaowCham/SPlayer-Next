@@ -8,12 +8,18 @@ import IconLucideMic2 from "~icons/lucide/mic-2";
 import IconLucideFileText from "~icons/lucide/file-text";
 import IconLucideSearch from "~icons/lucide/search";
 import IconLucideDatabase from "~icons/lucide/database";
+import IconLucideFolderOpen from "~icons/lucide/folder-open";
 import { useCacheStats } from "@/composables/useCacheStats";
+import LyricDatabaseManager from "./LyricDatabaseManager.vue";
 
 defineOptions({ inheritAttrs: false });
 
 const { t } = useI18n();
 const { stats, loading, clearingId, clearingKind, load, refresh } = useCacheStats();
+const managedStats = ref<Awaited<ReturnType<typeof window.api.lyrics.getManagedStats>> | null>(
+  null,
+);
+const clearingManaged = ref(false);
 
 const iconMap: Record<string, Component> = {
   lyric: IconLucideMic2,
@@ -24,7 +30,17 @@ const iconMap: Record<string, Component> = {
 const dbStats = computed(() => stats.value.filter((stat) => stat.kind === "db"));
 const totalSize = computed(() => dbStats.value.reduce((sum, stat) => sum + stat.size, 0));
 
-onMounted(load);
+const loadManagedStats = async (): Promise<void> => {
+  managedStats.value = await window.api.lyrics.getManagedStats();
+};
+
+const refreshAll = async (): Promise<void> => {
+  await Promise.all([refresh(), loadManagedStats()]);
+};
+
+onMounted(async () => {
+  await Promise.all([load(), loadManagedStats()]);
+});
 
 const requestClear = async (id: string): Promise<void> => {
   const confirmed = await dialog.confirm({
@@ -38,7 +54,7 @@ const requestClear = async (id: string): Promise<void> => {
   clearingId.value = id;
   try {
     await window.api.cache.clear(id);
-    await refresh();
+    await refreshAll();
   } finally {
     clearingId.value = null;
   }
@@ -54,10 +70,30 @@ const requestClearAll = async (): Promise<void> => {
   clearingKind.value = "db";
   try {
     await window.api.cache.clearAllByKind("db");
-    await refresh();
+    await refreshAll();
   } finally {
     clearingKind.value = null;
   }
+};
+
+const requestClearManaged = async (): Promise<void> => {
+  const confirmed = await dialog.confirm({
+    title: t("settings.managedLyrics.clearConfirmTitle"),
+    content: t("settings.managedLyrics.clearConfirmDescription"),
+    type: "error",
+  });
+  if (!confirmed) return;
+  clearingManaged.value = true;
+  try {
+    await window.api.lyrics.clearManaged();
+    await loadManagedStats();
+  } finally {
+    clearingManaged.value = false;
+  }
+};
+
+const openManagedDirectory = async (): Promise<void> => {
+  await window.api.lyrics.openManagedDir();
 };
 </script>
 
@@ -80,7 +116,7 @@ const requestClearAll = async (): Promise<void> => {
           circle
           :loading="loading"
           :title="t('settings.cacheUsage.refresh')"
-          @click="refresh"
+          @click="refreshAll"
         >
           <template #icon><IconLucideRefreshCw /></template>
         </SButton>
@@ -115,10 +151,35 @@ const requestClearAll = async (): Promise<void> => {
           </div>
           <SDivider v-if="idx < dbStats.length - 1" />
         </template>
+        <SDivider v-if="dbStats.length" />
+        <div class="px-4 py-2.5 flex items-center gap-3">
+          <IconLucideFolderOpen class="size-4 shrink-0 text-on-surface-variant" />
+          <div class="flex-1 min-w-0">
+            <div class="text-sm">{{ t("settings.managedLyrics.label") }}</div>
+            <div
+              class="text-xs text-on-surface-variant/60 truncate font-mono"
+              :title="managedStats?.path"
+            >
+              {{ managedStats?.path || "—" }}
+            </div>
+          </div>
+          <div class="shrink-0 w-24 text-right text-sm text-on-surface-variant tabular-nums">
+            {{ formatFileSize(managedStats?.size ?? 0) }}
+          </div>
+          <SButton
+            variant="ghost"
+            circle
+            :loading="clearingManaged"
+            :disabled="!managedStats?.count"
+            :title="t('settings.managedLyrics.clear')"
+            @click="requestClearManaged"
+          >
+            <template #icon><IconLucideTrash2 /></template>
+          </SButton>
+        </div>
       </div>
     </div>
 
-    <!-- 一键清空 -->
     <div
       class="rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5 flex items-center justify-between gap-4"
     >
@@ -137,6 +198,23 @@ const requestClearAll = async (): Promise<void> => {
       >
         {{ t("settings.dbClearAll.button") }}
       </SButton>
+    </div>
+
+    <div
+      class="rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5 flex items-center justify-between gap-4"
+    >
+      <div class="min-w-0 flex-1">
+        <div class="text-base">{{ t("settings.managedLyrics.label") }}</div>
+        <div class="text-sm text-on-surface-variant/70 mt-0.5">
+          {{ t("settings.managedLyrics.openDirectoryDescription") }}
+        </div>
+      </div>
+      <div class="flex shrink-0 flex-wrap justify-end gap-2">
+        <LyricDatabaseManager />
+        <SButton variant="secondary" @click="openManagedDirectory">
+          {{ t("settings.managedLyrics.openDirectoryButton") }}
+        </SButton>
+      </div>
     </div>
   </div>
 </template>

@@ -12,4 +12,5 @@ watchEffect(() => {
 <template>
   <AppBackground />
   <RouterView />
+  <LyricTrackManagerDialog />
 </template>

@@ -61,10 +61,6 @@ export const invalidatePreloadedLyric = (): void => {
  * @param track - 候选歌曲
  */
 export const preloadLyricForTrack = (track: Track): void => {
-  if (track.source === "local") {
-    invalidatePreloadedLyric();
-    return;
-  }
   const trackKey = buildTrackKey(track);
   const contextKey = buildContextKey();
   if (preloaded?.trackKey === trackKey && preloaded.contextKey === contextKey) return;

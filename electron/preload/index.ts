@@ -403,6 +403,59 @@ const api = {
       subscribe<CloudUploadProgress>("cloud:upload-progress", callback),
   },
   lyrics: {
+    // 读取歌曲的手动管理歌词
+    getManaged: (track: unknown) => ipcRenderer.invoke("lyrics:getManaged", track),
+    // 重新扫描歌曲歌词目录并同步数据库
+    refreshManaged: (track: unknown) => ipcRenderer.invoke("lyrics:refreshManaged", track),
+    // 列出手动管理歌词
+    listManaged: () => ipcRenderer.invoke("lyrics:listManaged"),
+    // 搜索本地曲库曲目
+    searchTracks: (query: string) => ipcRenderer.invoke("lyrics:searchTracks", query),
+    // 搜索在线曲目
+    searchOnlineTracks: (query: string) => ipcRenderer.invoke("lyrics:searchOnlineTracks", query),
+    // 将歌词复制到多个曲目
+    copyManaged: (source: unknown, targets: unknown[]) =>
+      ipcRenderer.invoke("lyrics:copyManaged", source, targets),
+    // 删除歌曲的手动管理歌词
+    removeManaged: (track: unknown) => ipcRenderer.invoke("lyrics:removeManaged", track),
+    // 清空全部手动管理歌词
+    clearManaged: () => ipcRenderer.invoke("lyrics:clearManaged"),
+    // 读取手动管理歌词占用
+    getManagedStats: () => ipcRenderer.invoke("lyrics:getManagedStats"),
+    // 打开手动管理歌词目录
+    openManagedDir: () => ipcRenderer.invoke("lyrics:openManagedDir"),
+    // 打开当前歌曲的手动管理歌词目录
+    openManagedTrackDir: (track: unknown) =>
+      ipcRenderer.invoke("lyrics:openManagedTrackDir", track),
+    // 选择手动导入歌词的新目录
+    pickManagedDir: () => ipcRenderer.invoke("lyrics:pickManagedDir"),
+    // 将手动导入歌词迁移到新目录
+    moveManagedDir: (directory: string) => ipcRenderer.invoke("lyrics:moveManagedDir", directory),
+    // 订阅手动管理歌词变更
+    onManagedChanged: (callback: (data: unknown) => void) => {
+      ipcRenderer.removeAllListeners("lyrics:managedChanged");
+      return subscribe("lyrics:managedChanged", callback);
+    },
+    // 选择单曲管理歌词文件
+    pickManagedFile: () => ipcRenderer.invoke("lyrics:pickManagedFile"),
+    // 写入单曲管理歌词
+    setManaged: (track: unknown, lyric: unknown, overwrite?: boolean) =>
+      ipcRenderer.invoke("lyrics:setManaged", track, lyric, overwrite),
+    // 读取单曲歌词来源首选项
+    getTrackPreference: (track: unknown) => ipcRenderer.invoke("lyrics:getTrackPreference", track),
+    // 写入单曲歌词来源首选项
+    setTrackPreference: (track: unknown, preference: unknown) =>
+      ipcRenderer.invoke("lyrics:setTrackPreference", track, preference),
+    // 获取单曲的本地版本和在线匹配候选
+    getTrackCandidates: (track: unknown) => ipcRenderer.invoke("lyrics:getTrackCandidates", track),
+    // 选择并激活歌词候选
+    selectTrackCandidate: (track: unknown, candidate: unknown) =>
+      ipcRenderer.invoke("lyrics:selectTrackCandidate", track, candidate),
+    // 删除非活跃的本地歌词版本
+    deleteManagedVersion: (track: unknown, versionId: string) =>
+      ipcRenderer.invoke("lyrics:deleteManagedVersion", track, versionId),
+    // 批量导入带网易云元数据的 TTML
+    importNeteaseTtmlDirectory: () => ipcRenderer.invoke("lyrics:importNeteaseTtmlDirectory"),
     // 按 id 直取某平台歌词
     matchById: (platform: string, id: string) =>
       ipcRenderer.invoke("lyrics:matchById", platform, id),

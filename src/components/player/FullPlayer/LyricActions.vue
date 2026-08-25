@@ -9,6 +9,11 @@ defineProps<{
   immersive: boolean;
 }>();
 
+const emit = defineEmits<{
+  /** 请求将歌词滚动到当前播放位置 */
+  (e: "locate"): void;
+}>();
+
 const { t } = useI18n();
 const media = useMediaStore();
 const status = useStatusStore();
@@ -69,6 +74,17 @@ const resetLyricOffset = (): void => writeOffset(0);
       @click="copyDialogOpen = true"
     >
       <template #icon><IconLucideCopy /></template>
+    </SButton>
+    <SButton
+      type="cover"
+      variant="ghost"
+      circle
+      :size="40"
+      :disabled="!hasLyric"
+      :title="t('player.locateCurrentLyric')"
+      @click="emit('locate')"
+    >
+      <template #icon><IconLucideLocateFixed /></template>
     </SButton>
     <div class="h-px w-6 bg-cover/25 my-1" />
     <SButton

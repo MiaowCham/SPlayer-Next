@@ -81,6 +81,38 @@ export const initDatabase = (): void => {
       PRIMARY KEY (fingerprint, platform)
     );
 
+    CREATE TABLE IF NOT EXISTS managed_lyrics (
+      track_source TEXT NOT NULL,
+      track_id TEXT NOT NULL,
+      data TEXT NOT NULL,
+      filename TEXT,
+      track_json TEXT,
+      active_version_id TEXT,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (track_source, track_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS managed_lyric_versions (
+      version_id TEXT PRIMARY KEY,
+      track_source TEXT NOT NULL,
+      track_id TEXT NOT NULL,
+      data TEXT NOT NULL,
+      filename TEXT NOT NULL COLLATE NOCASE,
+      origin TEXT NOT NULL,
+      imported_at INTEGER NOT NULL,
+      UNIQUE(track_source, track_id, filename)
+    );
+    CREATE INDEX IF NOT EXISTS idx_managed_lyric_versions_track
+      ON managed_lyric_versions(track_source, track_id, imported_at DESC);
+
+    CREATE TABLE IF NOT EXISTS track_lyric_preferences (
+      track_source TEXT NOT NULL,
+      track_id TEXT NOT NULL,
+      choice_json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (track_source, track_id)
+    );
+
     CREATE TABLE IF NOT EXISTS lyric_ttml_cache (
       platform TEXT NOT NULL,
       id TEXT NOT NULL,
@@ -244,6 +276,7 @@ export {
   getAlbumTracks,
   getArtistTracks,
   getTracksByIds,
+  getTrackById,
   getRandomTrack,
   getRandomTracks,
   getLibraryStats,

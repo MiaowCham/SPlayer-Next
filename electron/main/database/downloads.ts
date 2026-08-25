@@ -1,5 +1,6 @@
 import type { DownloadTask } from "@shared/types/download";
 import type { Track } from "@shared/types/player";
+import { createLocalTrackId } from "@main/utils/localTrack";
 import { getDb } from "./index";
 
 /** sqlite 原始行 */
@@ -26,6 +27,7 @@ const toTask = (raw: RawRow): DownloadTask => ({
   received: raw.received,
   total: raw.total,
   filePath: raw.file_path ?? undefined,
+  localTrackId: raw.file_path ? createLocalTrackId(raw.file_path) : undefined,
   errorCode: raw.error_code ?? undefined,
   tagWarning: raw.tag_warning === 1,
   createdAt: raw.created_at,

@@ -15,6 +15,7 @@ import { init as initMedia, shutdown as shutdownMedia } from "@main/services/med
 import { init as initLastfm } from "@main/services/lastfm";
 import { initGlobalHotkey } from "@main/services/globalHotkey";
 import { initDatabase, closeDatabase } from "@main/database";
+import { migrateLegacyLocalManagedLyrics } from "@main/database/managedLyrics";
 import { init as initSongCache } from "@main/services/songCache";
 import { init as initDownload } from "@main/services/downloadManager";
 import { pluginRegistry } from "@main/plugins/registry";
@@ -105,6 +106,7 @@ export const initApp = (): void => {
     registerIpcHandlers();
     // 初始化数据库
     initDatabase();
+    migrateLegacyLocalManagedLyrics();
     // 创建主窗口
     createMainWindow();
     // 注册 orpheus 协议并处理冷启动唤起

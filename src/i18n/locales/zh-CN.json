@@ -469,6 +469,7 @@
       "title": "歌词偏移",
       "hint": "正值为歌词提前，单位毫秒"
     },
+    "locateCurrentLyric": "定位当前歌词",
     "lyricCredit": "歌词制作",
     "copyLyric": {
       "title": "复制歌词",
@@ -497,6 +498,87 @@
     "shuffleMode": {
       "on": "随机播放",
       "off": "顺序播放"
+    }
+  },
+  "lyricManager": {
+    "trackTitle": "歌词管理",
+    "unknownArtist": "未知歌手",
+    "trackHint": "当前正在使用的歌词",
+    "currentLyric": "当前正在使用的歌词",
+    "currentLyricUnavailable": "当前曲目尚未播放，暂时无法确认实际使用的歌词",
+    "sourceDisplayHint": "点击打开当前歌曲的歌词管理面板",
+    "smartSelectionHint": "当前处于智能选择模式，实际歌词会按来源和格式优先级自动匹配。",
+    "smartSelection": "智能选择",
+    "smartSelectionDescription": "按当前来源和格式优先级自动选择歌词，缺失时继续回退。",
+    "smartSelected": "智能选择",
+    "file": "歌词文件",
+    "unknownFile": "未命名歌词",
+    "format": "格式",
+    "import": "导入",
+    "overwriteTitle": "覆盖同名歌词？",
+    "overwriteDescription": "歌曲目录中已存在“{filename}”，是否覆盖该文件？当前活跃版本不会自动切换。",
+    "refreshLyric": "刷新歌词",
+    "openDatabase": "打开管理面板",
+    "databaseTitle": "手动导入歌词管理面板",
+    "migrateDirectory": "迁移歌词目录",
+    "migrateDirectoryDescription": "将现有手动导入歌词迁移到「{directory}」。同名文件会被替换。",
+    "importNeteaseTtml": "导入网易云 TTML",
+    "emptyManaged": "暂无手动管理歌词",
+    "trackId": "歌曲 ID",
+    "openDirectory": "打开歌词目录",
+    "manageTrack": "管理曲目",
+    "unmatchedTrack": "无法根据 ID 匹配曲目",
+    "deleteLyric": "删除歌词",
+    "deleteLyricFailed": "删除歌词失败",
+    "deleteUnmatchedTitle": "删除无法匹配的歌词？",
+    "deleteUnmatchedDescription": "将删除“{filename}”及其全部本地歌词文件，此操作不可恢复。",
+    "syncToTracks": "同步到其他曲目",
+    "syncTitle": "同步自定义歌词",
+    "searchTrackPlaceholder": "搜索本地或网易云的歌曲名称、歌手或 ID",
+    "searchTrackHint": "搜索后选择要应用同一份歌词的本地或在线曲目",
+    "applyToTracks": "应用到 {count} 首歌曲",
+    "syncFailed": "同步歌词失败，请先导入当前歌曲的手动歌词",
+    "migrateDirectoryFailed": "迁移歌词目录失败，原目录未变更",
+    "matchResults": "歌词匹配结果",
+    "matchResultsHint": "选择可锁定歌词来源；智能模式会标记当前自动采用的候选。右键未在使用的本地歌词可删除。",
+    "matching": "正在匹配不同歌词来源…",
+    "noMatchResults": "没有找到可用歌词",
+    "select": "选择",
+    "selected": "已选择",
+    "localVersion": "本地文件",
+    "deleteVersionHint": "右键删除这份本地歌词",
+    "inUseDeleteHint": "这份歌词正在使用，无法删除",
+    "deleteVersionTitle": "删除本地歌词版本？",
+    "deleteVersionDescription": "将删除“{filename}”，此操作不可恢复。",
+    "deleteVersionFailed": "删除本地歌词失败",
+    "selectFailed": "选择歌词失败",
+    "importFailed": "导入歌词失败；LNT 需要带类型声明并附加到包含行 ID 的 LRCN",
+    "refreshFailed": "刷新歌词匹配结果失败",
+    "matchSource": {
+      "manual": "手动导入",
+      "localTtml": "本地 TTML 歌词库",
+      "amll": "AMLL 在线歌词库",
+      "netease": "网易云音乐",
+      "qqmusic": "QQ 音乐",
+      "kugou": "酷狗音乐"
+    },
+    "activeSource": {
+      "external": "外部歌词",
+      "embedded": "内嵌歌词",
+      "online": "在线歌词",
+      "managed": "手动导入",
+      "amll": "AMLL"
+    },
+    "sourceDisplay": {
+      "external": "来自外部歌词",
+      "embedded": "来自内嵌歌词",
+      "online": "来自在线歌词",
+      "managed": "手动导入",
+      "localTtml": "来自本地 TTML",
+      "amll": "来自 AMLL",
+      "netease": "来自网易云",
+      "qqmusic": "来自 QQ",
+      "kugou": "来自酷狗"
     }
   },
   "songList": {
@@ -530,6 +612,7 @@
       "showInExplorer": "打开文件位置",
       "copyPath": "复制文件路径",
       "editTags": "编辑元数据",
+      "manageLyrics": "管理歌词",
       "download": "下载歌曲",
       "deleteFile": "删除文件",
       "searchSame": "同名搜索",
@@ -732,6 +815,7 @@
       "playControl": "播放控制",
       "audioSource": "播放音源",
       "scrobble": "听歌打卡",
+      "lyricManagement": "歌词管理",
       "lyricContent": "歌词内容",
       "lyricTTML": "TTML 歌词",
       "lyricExclude": "歌词排除",
@@ -762,7 +846,7 @@
       "mediaServerManagement": "媒体源管理",
       "songCache": "歌曲缓存",
       "cache": "缓存管理",
-      "database": "数据库管理",
+      "database": "歌词缓存管理",
       "downloadLocation": "下载配置",
       "downloadGeneral": "下载选项",
       "downloadTags": "写入内容",
@@ -899,15 +983,18 @@
       "label": "歌词来源偏好",
       "description": "匹配在线歌词时的平台优先级",
       "auto": "智能选择",
-      "qqmusic": "优先 QM",
-      "kugou": "优先 KG",
-      "netease": "优先 NCM",
+      "local": "手动导入",
+      "qqmusic": "QM",
+      "kugou": "KG",
+      "netease": "NCM",
       "self": "跟随自身"
     },
     "lyricSourceOrder": {
-      "label": "音源排序",
-      "description": "自定义音源优先级",
-      "hint": "「智能选择」时按此顺序依次尝试匹配，未命中则跳到下一个"
+      "label": "歌词来源排序",
+      "description": "手动导入歌词固定优先，其余来源可拖动排序",
+      "hint": "「智能选择」时优先使用手动导入歌词，未命中再按此顺序尝试其他来源",
+      "amll": "AMLL 在线歌词库",
+      "localTtml": "本地 TTML 歌词库"
     },
     "lyricFormatOrder": {
       "label": "歌词格式优先级",
@@ -1914,8 +2001,8 @@
       "description": "查看缓存占用并清理"
     },
     "dbCacheManager": {
-      "label": "数据库管理",
-      "description": "查看数据库占用并清理"
+      "label": "歌词缓存管理",
+      "description": "查看歌词缓存占用并清理"
     },
     "cacheDir": {
       "label": "缓存目录",
@@ -2032,11 +2119,20 @@
       "confirmDesc": "将删除上方全部文件类缓存，下次使用时会重新生成，不可撤销"
     },
     "dbClearAll": {
-      "label": "清空数据库缓存",
+      "label": "清空歌词缓存",
       "description": "清空歌词及匹配信息等数据库缓存；本地音乐库与账号信息不受影响",
       "button": "清空全部",
-      "confirmTitle": "清空全部数据库缓存？",
-      "confirmDesc": "将删除上方全部数据库缓存，操作不可恢复"
+      "confirmTitle": "清空全部歌词缓存？",
+      "confirmDesc": "将删除上方全部歌词与匹配缓存，操作不可恢复"
+    },
+    "managedLyrics": {
+      "label": "手动导入歌词",
+      "clear": "清空手动歌词",
+      "clearConfirmTitle": "清空手动导入歌词？",
+      "clearConfirmDescription": "将删除全部自定义歌词文件及其关联记录，操作不可恢复。",
+      "openDirectory": "自定义歌词目录",
+      "openDirectoryDescription": "在文件管理器中查看和管理手动导入的歌词文件。",
+      "openDirectoryButton": "打开目录"
     }
   },
   "collection": {

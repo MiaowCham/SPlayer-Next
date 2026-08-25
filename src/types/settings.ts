@@ -21,9 +21,10 @@ export type TimeFormat = "current-total" | "remaining-total" | "current-remainin
  * 歌词来源偏好
  * - auto：智能选择（按打分结果）
  * - Platform（netease / qqmusic / kugou…）：优先该平台
+ * - local：仅使用本地（含手动管理）歌词
  * - self：跟随歌曲自身来源平台
  */
-export type LyricSourcePreference = Platform | "auto" | "self";
+export type LyricSourcePreference = Platform | "auto" | "local" | "self";
 
 /** 布局模式 */
 export type LayoutMode = "default" | "sidebar-full" | "floating";
@@ -51,14 +52,17 @@ export const SPRING_PRESETS: Record<
   noBounce: { mass: 1.0, damping: 30, stiffness: 100 },
 };
 
-/** 音源排序：来源偏好为「智能选择」时，按此顺序依次尝试匹配 */
-export type LyricSourceOrder = Platform[];
+/** 可排序的歌词来源（本地文件始终固定在首位） */
+export type LyricSourceOrderItem = Platform | "amll" | "localTtml";
+
+/** 歌词来源排序：来源偏好为「智能选择」时，按此顺序尝试可用来源 */
+export type LyricSourceOrder = LyricSourceOrderItem[];
 
 /** 歌词格式优先级：决定多种格式可用时的选择，以及 TTML 是否覆盖平台主格式 */
 export type LyricFormatOrder = LyricFormat[];
 
 /** 默认音源顺序 */
-export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = [...ALL_PLATFORMS];
+export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = ["localTtml", "amll", ...ALL_PLATFORMS];
 
 /** 默认格式优先级 */
 export const DEFAULT_LYRIC_FORMAT_ORDER: LyricFormatOrder = [...DEFAULT_LYRIC_FORMAT_ORDER_SHARED];

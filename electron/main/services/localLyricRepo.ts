@@ -43,7 +43,7 @@ let cache: IndexCache | null = null;
 let building: Promise<RepoIndex | null> | null = null;
 
 /** 从 TTML 文本头部提取 AMLL 元信息 */
-const extractMeta = (
+export const extractTtmlMeta = (
   text: string,
 ): { name?: string; artist?: string; ncmId?: string; qqId?: string } => {
   const bodyAt = text.indexOf("<body");
@@ -92,7 +92,7 @@ const buildIndex = async (dir: string): Promise<RepoIndex> => {
     } catch {
       continue;
     }
-    const meta = extractMeta(text);
+    const meta = extractTtmlMeta(text);
     if (meta.ncmId && !index.byNcm.has(meta.ncmId)) index.byNcm.set(meta.ncmId, file);
     if (meta.qqId && !index.byQq.has(meta.qqId)) index.byQq.set(meta.qqId, file);
     if (meta.name) {
