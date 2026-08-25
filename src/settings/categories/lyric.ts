@@ -1,6 +1,7 @@
 import type { SettingCategory } from "@/types/settings-schema";
 import { useSettingsStore } from "@/stores/settings";
 import AmllDbServerConfig from "@/components/settings/custom/AmllDbServerConfig.vue";
+import AppleMusicTTMLConfig from "@/components/settings/custom/AppleMusicTTMLConfig.vue";
 import LocalLyricRepoConfig from "@/components/settings/custom/LocalLyricRepoConfig.vue";
 import LyricSourceOrderConfig from "@/components/settings/custom/LyricSourceOrderConfig.vue";
 import LyricFormatOrderConfig from "@/components/settings/custom/LyricFormatOrderConfig.vue";
@@ -74,6 +75,20 @@ const lyricCategory: SettingCategory = {
               type: "custom",
               component: AmllDbServerConfig,
               binding: { store: "settings", path: "system.lyric.amllDbServer" },
+            },
+          ],
+        },
+        {
+          key: "enableAppleMusicTTMLLyric",
+          type: "switch",
+          binding: { store: "settings", path: "system.lyric.enableAppleMusicTTMLLyric" },
+          defaultValue: false,
+          tag: { text: "Beta" },
+          children: [
+            {
+              key: "appleMusicTTMLConfig",
+              type: "custom",
+              component: AppleMusicTTMLConfig,
             },
           ],
         },

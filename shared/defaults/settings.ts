@@ -97,6 +97,11 @@ export const defaultSystemConfig: SystemConfig = {
   lyric: {
     enableOnlineTTMLLyric: false,
     amllDbServer: "https://amlldb.bikonoo.com/%p/%s.ttml",
+    enableAppleMusicTTMLLyric: false,
+    appleMusicStorefront: "",
+    appleMusicSearchRegions: "cn,jp,tw,kr",
+    appleMusicTranslationLanguage: "zh-Hans-CN",
+    appleMusicTranslationScript: "",
   },
   localLyric: {
     enableLocalTTMLOverride: false,

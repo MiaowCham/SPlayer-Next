@@ -542,7 +542,8 @@
       "embedded": "Embedded Lyrics",
       "online": "Online Lyrics",
       "managed": "Manual Import",
-      "amll": "AMLL"
+      "amll": "AMLL",
+      "appleMusic": "Apple Music"
     },
     "sourceDisplay": {
       "external": "From External Lyrics",
@@ -551,6 +552,7 @@
       "managed": "Manual Import",
       "localTtml": "From Local TTML",
       "amll": "From AMLL",
+      "appleMusic": "From Apple Music",
       "netease": "From Netease",
       "qqmusic": "From QQ",
       "kugou": "From Kugou"
@@ -1029,6 +1031,24 @@
       "placeholders": "%p is the platform path, %s is the song ID",
       "docsHint": "More info at",
       "invalid": "Invalid URL — required placeholders missing"
+    },
+    "enableAppleMusicTTMLLyric": {
+      "label": "Enable Apple Music TTML Lyrics",
+      "description": "Use your Apple Music sign-in token to fetch word-timed TTML lyrics when other lyric sources miss"
+    },
+    "appleMusicTTMLConfig": {
+      "label": "Apple Music TTML Configuration",
+      "warning": "Beta feature. It depends on Apple Music web endpoints and an active subscription, and may be unavailable when the service changes. Follow Apple's terms and lyric copyright rules.",
+      "tokenHint": "After signing in at music.apple.com, copy media-user-token from browser cookies. The token is only used by the main process and is encrypted with system secure storage.",
+      "tokenPlaceholder": "Paste media-user-token; leave empty to keep the saved token",
+      "tokenSaved": "Media-User-Token is stored securely",
+      "tokenMissing": "No Media-User-Token is stored",
+      "storefrontPlaceholder": "Account storefront, e.g. cn; leave empty to detect automatically",
+      "regionsPlaceholder": "Extra storefronts, comma-separated, e.g. cn,jp,tw,kr",
+      "languagePlaceholder": "Lyric language, e.g. zh-Hans-CN; leave empty for original text",
+      "scriptPlaceholder": "Lyric script, e.g. zh-Hans; leave empty to derive automatically",
+      "saved": "Apple Music TTML configuration saved",
+      "saveFailed": "Failed to save Apple Music TTML configuration"
     },
     "enableExcludeLyrics": {
       "label": "Enable Lyric Exclusion",

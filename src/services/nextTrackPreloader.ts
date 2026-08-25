@@ -227,6 +227,11 @@ export const installNextTrackPreloadWatchers = (): void => {
       settings.lyric.lyricFormatOrder.join(","),
       settings.lyric.smartPreferOnline,
       settings.system.lyric.enableOnlineTTMLLyric,
+      settings.system.lyric.enableAppleMusicTTMLLyric,
+      settings.system.lyric.appleMusicStorefront,
+      settings.system.lyric.appleMusicSearchRegions,
+      settings.system.lyric.appleMusicTranslationLanguage,
+      settings.system.lyric.appleMusicTranslationScript,
       settings.system.localLyric.enableLocalTTMLOverride,
       settings.system.localLyric.repoDir,
       plugins.list

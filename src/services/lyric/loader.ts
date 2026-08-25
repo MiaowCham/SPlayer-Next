@@ -11,6 +11,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { DEFAULT_LYRIC_FORMAT_ORDER, DEFAULT_LYRIC_SOURCE_ORDER } from "@/types/settings";
 import {
   embeddedLyricFromDetail,
+  resolveAppleMusicTTML,
   resolveManagedLyric,
   resolveLocalRepoLyric,
   resolveOnlineByPreference,
@@ -178,6 +179,13 @@ const tryPluginFallback = async (token: number, track: Track): Promise<boolean> 
   return resolved ? commitResolvedAndHasParsed(token, resolved) : false;
 };
 
+/** 内置来源都未命中后，尝试 Apple Music TTML 兜底。 */
+const tryAppleMusicFallback = async (token: number, track: Track): Promise<boolean> => {
+  const resolved = await resolveAppleMusicTTML(track);
+  if (token !== currentToken) return false;
+  return resolved ? commitResolvedAndHasParsed(token, resolved) : false;
+};
+
 /**
  * 流媒体歌词加载：按来源偏好解析，失败后使用插件和内嵌歌词兜底
  * @param token - 竞态 token
@@ -199,6 +207,7 @@ const loadStreamingLyric = async (
   const embeddedFallback = embeddedLyricFromDetail(detail);
   if (resolved && commitResolvedAndHasParsed(token, resolved)) return;
   if (token !== currentToken) return;
+  if (await tryAppleMusicFallback(token, track)) return;
   if (await tryPluginFallback(token, track)) return;
   if (embeddedFallback) {
     commit(token, embeddedFallback.source, { content: embeddedFallback.content });
@@ -234,6 +243,7 @@ const loadPlatformLyric = async (
     );
   } else if (
     !(await tryLocalRepo(token, track, choice, true)) &&
+    !(await tryAppleMusicFallback(token, track)) &&
     !(await tryPluginFallback(token, track))
   ) {
     commit(token, null, null);
@@ -322,8 +332,13 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
             ? choice.platform
             : undefined,
       );
-    } else if (!hasUsableLocal && !(await tryPluginFallback(token, track))) {
-      commit(token, null, null);
+    } else if (!hasUsableLocal) {
+      if (
+        !(await tryAppleMusicFallback(token, track)) &&
+        !(await tryPluginFallback(token, track))
+      ) {
+        commit(token, null, null);
+      }
     }
   } catch (err) {
     console.error("[lyricLoader] loadForTrack failed:", err);
@@ -396,6 +411,11 @@ export const watchLyricPreference = (): void => {
       settings.lyric.detectBackgroundLyrics,
       settings.lyric.fallbackTranslation,
       settings.system.lyric.enableOnlineTTMLLyric,
+      settings.system.lyric.enableAppleMusicTTMLLyric,
+      settings.system.lyric.appleMusicStorefront,
+      settings.system.lyric.appleMusicSearchRegions,
+      settings.system.lyric.appleMusicTranslationLanguage,
+      settings.system.lyric.appleMusicTranslationScript,
       settings.system.localLyric.enableLocalTTMLOverride,
       settings.system.localLyric.repoDir,
     ],

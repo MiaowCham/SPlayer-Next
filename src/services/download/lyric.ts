@@ -9,6 +9,7 @@ import type { LyricFormat, LyricInput } from "@shared/types/lyrics";
 import { isPlatform } from "@shared/types/platform";
 import { buildDownloadLyric } from "@/utils/lyric/serialize";
 import {
+  resolveAppleMusicTTML,
   resolveLocalRepoLyric,
   resolveOnlineByPreference,
   resolvePluginLyric,
@@ -64,6 +65,7 @@ export const resolveDownloadLyric = async (track: Track): Promise<DownloadLyric 
   if (track.source === "streaming") {
     return (
       toUsableDownloadLyric(await resolveStreamingByPreference(track)) ??
+      toUsableDownloadLyric(await resolveAppleMusicTTML(track)) ??
       toUsableDownloadLyric(await resolvePluginLyric(track))
     );
   }
@@ -72,6 +74,7 @@ export const resolveDownloadLyric = async (track: Track): Promise<DownloadLyric 
     const online = await resolveOnlineByPreference(track, { hasLocal: false, localFormat: null });
     return (
       (await resolveOnlineDownloadLyric(track, online)) ??
+      toUsableDownloadLyric(await resolveAppleMusicTTML(track)) ??
       toUsableDownloadLyric(await resolvePluginLyric(track))
     );
   }

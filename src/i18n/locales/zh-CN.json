@@ -530,7 +530,8 @@
       "embedded": "内嵌歌词",
       "online": "在线歌词",
       "managed": "手动导入",
-      "amll": "AMLL"
+      "amll": "AMLL",
+      "appleMusic": "Apple Music"
     },
     "sourceDisplay": {
       "external": "来自外部歌词",
@@ -539,6 +540,7 @@
       "managed": "手动导入",
       "localTtml": "来自本地 TTML",
       "amll": "来自 AMLL",
+      "appleMusic": "来自 Apple Music",
       "netease": "来自网易云",
       "qqmusic": "来自 QQ",
       "kugou": "来自酷狗"
@@ -1017,6 +1019,24 @@
       "placeholders": "%p 为平台目录，%s 为歌曲 ID",
       "docsHint": "更多信息可前往",
       "invalid": "请输入正确的网址，需包含指定的占位符"
+    },
+    "enableAppleMusicTTMLLyric": {
+      "label": "启用 Apple Music TTML 歌词",
+      "description": "使用自己的 Apple Music 登录 Token 搜索并获取逐字 TTML 歌词；仅在其他歌词来源未命中时兜底"
+    },
+    "appleMusicTTMLConfig": {
+      "label": "Apple Music TTML 配置",
+      "warning": "Beta 功能：依赖 Apple Music 网页接口与有效订阅，服务变更时可能暂不可用。请自行遵守 Apple 服务条款和歌词版权规则。",
+      "tokenHint": "在 music.apple.com 登录后，从浏览器 Cookie 中复制 media-user-token。令牌仅由主进程使用并通过系统安全存储加密保存。",
+      "tokenPlaceholder": "粘贴 media-user-token（留空则保留已保存的令牌）",
+      "tokenSaved": "已安全保存 Media-User-Token",
+      "tokenMissing": "尚未保存 Media-User-Token",
+      "storefrontPlaceholder": "账号曲库地区，例如 cn；留空自动读取",
+      "regionsPlaceholder": "辅助搜索地区，逗号分隔，例如 cn,jp,tw,kr",
+      "languagePlaceholder": "歌词语言，例如 zh-Hans-CN；留空只请求原文",
+      "scriptPlaceholder": "歌词脚本，例如 zh-Hans；留空自动推导",
+      "saved": "Apple Music TTML 配置已保存",
+      "saveFailed": "保存 Apple Music TTML 配置失败"
     },
     "enableExcludeLyrics": {
       "label": "启用歌词排除",

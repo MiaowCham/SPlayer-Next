@@ -465,6 +465,14 @@ const api = {
     // 获取 AMLL TTML DB 的 TTML
     fetchTTMLOverlay: (track: unknown, platform: string) =>
       ipcRenderer.invoke("lyrics:fetchTTMLOverlay", track, platform),
+    // 搜索 Apple Music 并获取 TTML
+    fetchAppleMusicTTML: (track: unknown) =>
+      ipcRenderer.invoke("lyrics:fetchAppleMusicTTML", track),
+    // 仅读取令牌是否已安全保存
+    getAppleMusicTTMLStatus: () => ipcRenderer.invoke("lyrics:getAppleMusicTTMLStatus"),
+    // 令牌仅透传到主进程安全存储，不会回读到渲染进程
+    setAppleMusicMediaUserToken: (token: string) =>
+      ipcRenderer.invoke("lyrics:setAppleMusicMediaUserToken", token),
     // 在本地 TTML 歌词库目录中按元信息匹配
     matchLocalTTML: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalTTML", track),
     // 选择本地 TTML 歌词库目录

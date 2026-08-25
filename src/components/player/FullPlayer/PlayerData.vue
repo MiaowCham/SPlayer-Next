@@ -132,6 +132,7 @@ const lyricLabel = computed(() => {
   if (lyric.source === "managed") return t("lyricManager.sourceDisplay.managed");
   if (lyric.provider === "amll") return t("lyricManager.sourceDisplay.amll");
   if (lyric.provider === "localTtml") return t("lyricManager.sourceDisplay.localTtml");
+  if (lyric.provider === "appleMusic") return t("lyricManager.sourceDisplay.appleMusic");
   if (lyric.source === "online" && lyric.platform) {
     return t(`lyricManager.sourceDisplay.${lyric.platform}`);
   }

@@ -32,7 +32,7 @@ export type LyricData = {
   /** 在线歌词所属平台，仅 source=online 时有值 */
   platform?: Platform;
   /** 区分平台原始歌词与 AMLL、本地 TTML 等解析提供方 */
-  provider?: "amll" | "localTtml";
+  provider?: "amll" | "localTtml" | "appleMusic";
 } | null;
 
 /** 歌词时间片段 */
@@ -184,6 +184,11 @@ export type LyricMatchResponse =
 /** TTML 抓取 IPC 响应 */
 export type LyricTTMLResponse = { ok: true; data: string | null } | { ok: false; error: string };
 
+/** Apple Music TTML 凭据状态，不暴露令牌明文。 */
+export interface AppleMusicTTMLStatus {
+  hasMediaUserToken: boolean;
+}
+
 /** 渲染端歌词匹配入口 */
 export interface LyricsApi {
   /** 读取歌曲的手动管理歌词 */
@@ -240,6 +245,12 @@ export interface LyricsApi {
   matchByQuery: (platform: Platform, track: Track) => Promise<LyricMatchResponse>;
   /** 抓取 AMLL TTML DB 的 TTML 歌词，仅 NCM/QM 适用 */
   fetchTTMLOverlay: (track: Track, platform: "netease" | "qqmusic") => Promise<LyricTTMLResponse>;
+  /** 搜索并抓取 Apple Music TTML 歌词 */
+  fetchAppleMusicTTML: (track: Track) => Promise<LyricTTMLResponse>;
+  /** 获取 Apple Music TTML 凭据状态，不返回令牌明文 */
+  getAppleMusicTTMLStatus: () => Promise<AppleMusicTTMLStatus>;
+  /** 安全保存或清除 Apple Music Media-User-Token */
+  setAppleMusicMediaUserToken: (token: string) => Promise<AppleMusicTTMLStatus>;
   /** 在本地 TTML 歌词库中按元信息匹配，命中返回 TTML 原文 */
   matchLocalTTML: (track: Track) => Promise<LyricTTMLResponse>;
   /** 弹出目录选择器，返回所选本地 TTML 歌词库目录 */

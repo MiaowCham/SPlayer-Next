@@ -47,3 +47,6 @@ export const requestStreamingLyric = async (track: Track): Promise<string | null
  */
 export const requestTTMLOverlay = (track: Track, platform: "netease" | "qqmusic") =>
   window.api.lyrics.fetchTTMLOverlay(track, platform);
+
+/** 请求 Apple Music TTML 兜底歌词。 */
+export const requestAppleMusicTTML = (track: Track) => window.api.lyrics.fetchAppleMusicTTML(track);

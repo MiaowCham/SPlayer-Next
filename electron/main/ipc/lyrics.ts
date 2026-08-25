@@ -17,6 +17,11 @@ import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
 import { callNetease } from "@main/apis/netease";
 import { fetchTTML } from "@main/apis/common/lyric/ttml";
+import { fetchAppleMusicTTML } from "@main/services/appleMusicLyrics";
+import {
+  hasAppleMusicMediaUserToken,
+  saveAppleMusicMediaUserToken,
+} from "@main/services/appleMusicLyricsToken";
 import { matchLocalTTML } from "@main/services/localLyricRepo";
 import { importNeteaseTtmlDirectory } from "@main/services/managedLyricImport";
 import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
@@ -547,6 +552,28 @@ export const registerLyricsIpc = (): void => {
   ipcMain.handle("lyrics:fetchTTMLOverlay", (_evt, track: Track, platform: "netease" | "qqmusic") =>
     dedup(`ttml:${platform}:${track.id}`, () => resolveTTMLOverlay(track, platform)),
   );
+  ipcMain.handle(
+    "lyrics:fetchAppleMusicTTML",
+    async (_evt, track: Track): Promise<LyricTTMLResponse> => {
+      try {
+        return {
+          ok: true,
+          data: await dedup(`appleMusicTTML:${track.source}:${track.id}`, () =>
+            fetchAppleMusicTTML(track),
+          ),
+        };
+      } catch (err) {
+        coreLog.warn(`[lyrics] fetchAppleMusicTTML(${track.title}) failed:`, err);
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  );
+  ipcMain.handle("lyrics:getAppleMusicTTMLStatus", () => ({
+    hasMediaUserToken: hasAppleMusicMediaUserToken(),
+  }));
+  ipcMain.handle("lyrics:setAppleMusicMediaUserToken", (_evt, token: string) => ({
+    hasMediaUserToken: saveAppleMusicMediaUserToken(token),
+  }));
   ipcMain.handle(
     "lyrics:matchLocalTTML",
     async (_evt, track: Track): Promise<LyricTTMLResponse> => {

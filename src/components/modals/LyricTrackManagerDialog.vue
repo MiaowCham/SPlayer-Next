@@ -155,9 +155,11 @@ const currentLyricDescription = computed(() => {
       ? t("lyricManager.activeSource.amll")
       : active.provider === "localTtml"
         ? t("lyricManager.matchSource.localTtml")
-        : active.source === "online" && active.platform
-          ? t(`lyricManager.matchSource.${active.platform}`)
-          : t(`lyricManager.activeSource.${active.source}`);
+        : active.provider === "appleMusic"
+          ? t("lyricManager.activeSource.appleMusic")
+          : active.source === "online" && active.platform
+            ? t(`lyricManager.matchSource.${active.platform}`)
+            : t(`lyricManager.activeSource.${active.source}`);
   return `${source} · ${active.format.toUpperCase()}`;
 });
 

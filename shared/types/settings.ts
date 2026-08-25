@@ -312,6 +312,16 @@ export interface OnlineLyricSettings {
   enableOnlineTTMLLyric: boolean;
   /** AMLL TTML DB 服务地址，需含 %s 占位符 */
   amllDbServer: string;
+  /** 启用 Apple Music TTML 歌词兜底来源 */
+  enableAppleMusicTTMLLyric: boolean;
+  /** Apple Music 账号曲库地区；为空时自动读取 */
+  appleMusicStorefront: string;
+  /** 辅助搜索的 Apple Music 曲库地区 */
+  appleMusicSearchRegions: string;
+  /** Apple Music 歌词请求的本地化语言 */
+  appleMusicTranslationLanguage: string;
+  /** Apple Music 歌词请求的脚本；为空时由语言自动推导 */
+  appleMusicTranslationScript: string;
 }
 
 /** 本地歌词配置 */

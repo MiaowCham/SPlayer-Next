@@ -6,7 +6,12 @@ import { detectFormat } from "@/utils/lyric/parse";
 import { useSettingsStore } from "@/stores/settings";
 import { usePluginsStore } from "@/stores/plugins";
 import { DEFAULT_LYRIC_FORMAT_ORDER, DEFAULT_LYRIC_SOURCE_ORDER } from "@/types/settings";
-import { requestPlatformLyric, requestStreamingLyric, requestTTMLOverlay } from "./request";
+import {
+  requestAppleMusicTTML,
+  requestPlatformLyric,
+  requestStreamingLyric,
+  requestTTMLOverlay,
+} from "./request";
 
 /** 支持 AMLL TTML DB 的平台列表 */
 const TTML_PLATFORMS = ["netease", "qqmusic"] as const;
@@ -308,6 +313,17 @@ export const resolveLocalRepoLyric = async (track: Track): Promise<ResolvedLyric
   };
 };
 
+/** 从 Apple Music 获取 TTML；作为内置歌词来源的最后兜底。 */
+export const resolveAppleMusicTTML = async (track: Track): Promise<ResolvedLyric | null> => {
+  if (!useSettingsStore().system.lyric.enableAppleMusicTTMLLyric) return null;
+  const response = await requestAppleMusicTTML(track);
+  if (!response.ok || !response.data) return null;
+  return {
+    source: { source: "online", format: "ttml", provider: "appleMusic" },
+    input: { content: response.data },
+  };
+};
+
 /**
  * 从插件解析歌词
  * @param track - 歌曲信息
@@ -381,6 +397,9 @@ export const resolveLyricForPreload = async (
     const streaming = await resolveStreamingByPreference(track, shouldContinue, preference);
     if (!shouldContinue()) return null;
     if (streaming) return streaming;
+    const appleMusic = await resolveAppleMusicTTML(track);
+    if (!shouldContinue()) return null;
+    if (appleMusic) return appleMusic;
     const plugin = await resolvePluginLyric(track);
     return shouldContinue() ? plugin : null;
   }
@@ -405,6 +424,9 @@ export const resolveLyricForPreload = async (
     return ttml ?? { source: online.source, input: online.input };
   }
 
+  const appleMusic = await resolveAppleMusicTTML(track);
+  if (!shouldContinue()) return null;
+  if (appleMusic) return appleMusic;
   const plugin = await resolvePluginLyric(track);
   return shouldContinue() ? plugin : null;
 };
