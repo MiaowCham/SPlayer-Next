@@ -261,6 +261,42 @@
       "playlist": "Go to playlist [{id}]"
     }
   },
+  "recognition": {
+    "title": "Music Recognition",
+    "entry": "Recognize",
+    "description": "Identify the music currently playing",
+    "start": "Start Recognition",
+    "sourceLabel": "Audio source",
+    "hint": {
+      "system": "We will capture a short audio sample from your system to identify the music",
+      "microphone": "Move closer to the source and keep the room quiet for better results"
+    },
+    "source": {
+      "system": "System Audio",
+      "microphone": "Microphone"
+    },
+    "phase": {
+      "capturing": "Listening…",
+      "fingerprinting": "Generating fingerprint…",
+      "matching": "Matching library…"
+    },
+    "empty": "No song identified, move closer to the sound source and retry",
+    "retry": "Try Again",
+    "cancel": "Cancel",
+    "play": "Play",
+    "unavailable": "Music recognition is not supported on this device",
+    "searching": "Search this song",
+    "error": {
+      "unsupported": "System audio capture is not supported on this platform",
+      "no-device": "No audio input device found",
+      "permission-denied": "Microphone permission denied, please grant access in system settings",
+      "capture-failed": "Audio capture failed",
+      "silent-input": "No sound detected, please check audio output",
+      "network": "Matching service unavailable, please try again later",
+      "afp-unavailable": "Audio fingerprint library unavailable",
+      "unknown": "Recognition failed, please try again"
+    }
+  },
   "home": {
     "greetingLine": "{greeting}, {name}",
     "greeting": {
@@ -547,6 +583,11 @@
     "trackId": "Track ID",
     "openDirectory": "Open Lyric Folder",
     "manageTrack": "Manage Track",
+    "unmatchedTrack": "Unable to match a track by ID",
+    "deleteLyric": "Delete Lyrics",
+    "deleteLyricFailed": "Failed to delete lyrics",
+    "deleteUnmatchedTitle": "Delete unmatched lyrics?",
+    "deleteUnmatchedDescription": "This permanently deletes “{filename}” and all of its local lyric files.",
     "syncToTracks": "Sync to Other Tracks",
     "syncTitle": "Sync Custom Lyrics",
     "searchTrackPlaceholder": "Search local or Netease tracks by title, artist, or ID",
@@ -662,7 +703,7 @@
       "selected": "{count} selected",
       "invert": "Invert",
       "addToQueue": "Add to Queue",
-      "download": "Download",
+      "download": "Batch Download",
       "exit": "Exit"
     },
     "delete": {
@@ -753,8 +794,7 @@
     "clearFinished": "Clear finished",
     "clearConfirmTitle": "Clear finished tasks",
     "clearConfirmContent": "This removes all completed and failed task records from the list. Downloaded files on disk are kept. Continue?",
-    "tabAll": "All",
-    "tabActive": "Downloading",
+    "tabActive": "Queue",
     "tabError": "Errors",
     "tabDone": "Completed",
     "colStatus": "Status",
@@ -827,6 +867,7 @@
       "general": "General",
       "player": "Player",
       "lyric": "Lyrics",
+      "experimental": "Experimental Features",
       "externalLyric": "External Lyrics",
       "appearance": "Appearance",
       "hotkeys": "Hotkey Settings",
@@ -861,6 +902,9 @@
       "lyricDisplay": "Display Effects",
       "lyricSpring": "Spring Animation",
       "lyricLayout": "Layout & Opacity",
+      "experimentalGeneral": "Experimental Features",
+      "experimentalBackground": "Experimental Backgrounds",
+      "experimentalLyric": "Lyrics",
       "desktopLyric": "Desktop Lyric",
       "dynamicIsland": "Dynamic Island Lyric",
       "taskbarLyric": "Taskbar Lyric",
@@ -1376,10 +1420,6 @@
       "label": "Disable Emphasis for CJK Lyrics",
       "description": "Disable scale, glow, and float emphasis for CJK lyrics without affecting other text"
     },
-    "raiseAlignPositionOnOverlap": {
-      "label": "Raise Alignment for Overlapping Lines",
-      "description": "Temporarily raise the alignment position to 0.15 while adjacent lyric lines overlap"
-    },
     "enableBlur": {
       "label": "Line Blur",
       "description": "Gradually blur lines further from the active line"
@@ -1387,6 +1427,50 @@
     "hidePassedLines": {
       "label": "Hide Passed Lines",
       "description": "Auto-hide lyrics lines that have been played"
+    },
+    "maxHighlightedLines": {
+      "label": "Max Highlighted Lines",
+      "description": "Limit how many lyric lines can be highlighted at once. Unlimited lines may overflow the screen",
+      "two": "2 Lines",
+      "three": "3 Lines",
+      "unlimited": "Unlimited"
+    },
+    "multiLineOverlapThreshold": {
+      "label": "Multi-line Highlight Threshold",
+      "description": "Allow both main lines to stay highlighted only when the current line continues beyond the next line by more than this duration"
+    },
+    "earlyEndMode": {
+      "label": "Early Line End",
+      "description": "Compress the current tail from the next line time and scroll lead. Conservative accelerates background vocals to completion; Aggressive may cut them",
+      "off": "Off",
+      "conservative": "Conservative (finish background vocals)",
+      "aggressive": "Aggressive (may cut background vocals)"
+    },
+    "earlyEndGapThreshold": {
+      "label": "Gap Threshold",
+      "description": "Enable tail acceleration when the gap from the last main word to the next main line is below this value"
+    },
+    "earlyEndAdvance": {
+      "label": "Early End Lead",
+      "description": "Start accelerating this duration before the scroll handoff point"
+    },
+    "earlyEndScrollLead": {
+      "label": "Scroll Lead",
+      "description": "Reserve this fixed duration before the next line for scrolling; it is also the current-line acceleration endpoint"
+    },
+    "earlyEndAdvanceToNextLine": {
+      "label": "Select Next Line Early",
+      "description": "Scroll to and highlight the next line at the handoff point while keeping its word progress at zero until it starts"
+    },
+    "lineSelectionPreference": {
+      "label": "Line Selection Preference",
+      "description": "Only controls retention of completed lines during overlaps; it does not change early-end timing",
+      "default": "Default",
+      "earlyEnd": "Early End"
+    },
+    "raiseAlignPositionOnOverlap": {
+      "label": "Raise Alignment for Overlapping Lines",
+      "description": "Temporarily raise the alignment position to 0.15 while adjacent lyric lines overlap"
     },
     "springPreset": {
       "label": "Spring Preset",
@@ -1637,7 +1721,22 @@
       "description": "Background type of the full-screen player",
       "blur": "Blur",
       "solid": "Solid",
-      "animation": "Fluid"
+      "animation": "Fluid",
+      "appleMusicDev": "Apple Music Background (Dev)",
+      "appleMusicBeta": "Apple Music Background (Beta)"
+    },
+    "appleMusicBgEnabled": {
+      "label": "Enable Apple Music Background",
+      "description": "Expose the Apple Music Dev and Beta backgrounds; disabling this switches back to the fluid background"
+    },
+    "experimentalFeaturesEnabled": {
+      "label": "Enable Experimental Features",
+      "description": "Hide the experimental settings entry when disabled and switch any active Apple Music background to Fluid"
+    },
+    "experimentalUnlock": {
+      "title": "Enable Experimental Features?",
+      "content": "These features are still under development and may contain bugs, instability, or behavior changes. Continue only if you accept these risks.",
+      "confirm": "Enable Anyway"
     },
     "playerBgFlowSpeed": {
       "label": "Flow Speed",
@@ -1658,6 +1757,42 @@
     "playerBgBeat": {
       "label": "Beat Pulse",
       "description": "Make the fluid background pulse with the low-frequency beat of the music"
+    },
+    "appleMusicBgFlowSpeed": {
+      "label": "Flow Speed",
+      "description": "Speed of the Apple Music background's slow flow and rotation"
+    },
+    "appleMusicBgDistortion": {
+      "label": "Distortion",
+      "description": "Dev only; values below 1 keep edges fixed, while values above 1 progressively warp them"
+    },
+    "appleMusicBgRenderScale": {
+      "label": "Render Quality",
+      "description": "Increase the internal canvas resolution for smoother warped edges at a higher GPU cost"
+    },
+    "appleMusicBgFps": {
+      "label": "Frame Rate",
+      "description": "Maximum render frame rate of the Apple Music background"
+    },
+    "appleMusicBgBlurStrength": {
+      "label": "Blur",
+      "description": "Adjust the warped artwork blur in four discrete levels"
+    },
+    "appleMusicBgDimness": {
+      "label": "Dimness",
+      "description": "Darken the background to improve foreground readability"
+    },
+    "appleMusicBgFreezeOnPause": {
+      "label": "Freeze When Paused",
+      "description": "Stop the base Apple Music background deformation while playback is paused"
+    },
+    "appleMusicBgBeat": {
+      "label": "Beat Pulse",
+      "description": "Make the background bounce mainly through scaling on low-frequency beats"
+    },
+    "appleMusicBgBeatStrength": {
+      "label": "Pulse Strength",
+      "description": "Adjust the background scale bounce caused by low-frequency beats"
     },
     "coverLayout": {
       "label": "Cover Layout",

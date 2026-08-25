@@ -3,6 +3,7 @@ import generalCategory from "./categories/general";
 import appearanceCategory from "./categories/appearance";
 import playerCategory from "./categories/player";
 import lyricCategory from "./categories/lyric";
+import experimentalCategory from "./categories/experimental";
 import hotkeysCategory from "./categories/hotkeys";
 import servicesCategory from "./categories/services";
 import aiIntegrationCategory from "./categories/aiIntegration";
@@ -19,6 +20,7 @@ export const settingsSchema: SettingCategory[] = [
   appearanceCategory,
   playerCategory,
   lyricCategory,
+  experimentalCategory,
   hotkeysCategory,
   servicesCategory,
   aiIntegrationCategory,

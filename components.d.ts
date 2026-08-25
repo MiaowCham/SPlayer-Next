@@ -96,7 +96,6 @@ declare module 'vue' {
     IconLucideEdit: typeof import('~icons/lucide/edit')['default']
     IconLucideEllipsis: typeof import('~icons/lucide/ellipsis')['default']
     IconLucideExternalLink: typeof import('~icons/lucide/external-link')['default']
-    IconLucideFilePenLine: typeof import('~icons/lucide/file-pen-line')['default']
     IconLucideFilePlus2: typeof import('~icons/lucide/file-plus2')['default']
     IconLucideFlame: typeof import('~icons/lucide/flame')['default']
     IconLucideFolderOpen: typeof import('~icons/lucide/folder-open')['default']

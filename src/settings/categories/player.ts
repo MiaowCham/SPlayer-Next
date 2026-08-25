@@ -3,8 +3,11 @@ import { useSettingsStore } from "@/stores/settings";
 import DeviceSelector from "@/components/settings/custom/DeviceSelector.vue";
 import IconLucidePlay from "~icons/lucide/play";
 
-/** 当前是否为流体背景 */
-const isAnimationBg = () => useSettingsStore().player.playerBgType === "animation";
+const isFluidBg = () => useSettingsStore().player.playerBgType === "animation";
+const isAppleMusicBgEnabled = () => {
+  const settings = useSettingsStore();
+  return settings.experimental.enabled && settings.player.appleMusicBgEnabled;
+};
 
 const playerCategory: SettingCategory = {
   id: "player",
@@ -123,15 +126,26 @@ const playerCategory: SettingCategory = {
             { value: "blur", labelKey: "settings.playerBgType.blur" },
             { value: "solid", labelKey: "settings.playerBgType.solid" },
             { value: "animation", labelKey: "settings.playerBgType.animation" },
+            {
+              value: "apple-music-dev",
+              labelKey: "settings.playerBgType.appleMusicDev",
+              visible: isAppleMusicBgEnabled,
+            },
+            {
+              value: "apple-music-beta",
+              labelKey: "settings.playerBgType.appleMusicBeta",
+              visible: isAppleMusicBgEnabled,
+            },
           ],
           defaultValue: "blur",
           confirm: {
-            when: (next) => next === "animation",
+            when: (next) =>
+              next === "animation" || next === "apple-music-dev" || next === "apple-music-beta",
             titleKey: "settings.confirm.highResourceTitle",
             contentKey: "settings.confirm.highResourceContent",
             type: "warning",
           },
-          childrenCondition: isAnimationBg,
+          childrenCondition: isFluidBg,
           hideChildren: true,
           children: [
             {
@@ -143,6 +157,7 @@ const playerCategory: SettingCategory = {
               step: 0.1,
               defaultValue: 4,
               marks: { 0.1: "0.1", 4: "4", 10: "10" },
+              visible: isFluidBg,
             },
             {
               key: "playerBgRenderScale",
@@ -153,6 +168,7 @@ const playerCategory: SettingCategory = {
               step: 0.1,
               defaultValue: 0.5,
               marks: { 0.5: "0.5", 1: "1", 2: "2" },
+              visible: isFluidBg,
             },
             {
               key: "playerBgFps",
@@ -163,18 +179,21 @@ const playerCategory: SettingCategory = {
               step: 2,
               defaultValue: 30,
               marks: { 24: "24", 60: "60", 120: "120" },
+              visible: isFluidBg,
             },
             {
               key: "playerBgFreezeOnPause",
               type: "switch",
               binding: { store: "settings", path: "player.playerBgFreezeOnPause" },
               defaultValue: false,
+              visible: isFluidBg,
             },
             {
               key: "playerBgBeat",
               type: "switch",
               binding: { store: "settings", path: "player.playerBgBeat" },
               defaultValue: false,
+              visible: isFluidBg,
             },
           ],
         },
@@ -243,6 +262,13 @@ const playerCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "player.snapToLyric" },
           defaultValue: false,
+        },
+        {
+          key: "followLyricOnProgressDrag",
+          type: "switch",
+          binding: { store: "settings", path: "player.followLyricOnProgressDrag" },
+          defaultValue: false,
+          tag: { text: "Beta" },
         },
       ],
     },

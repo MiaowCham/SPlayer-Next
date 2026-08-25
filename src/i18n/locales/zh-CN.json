@@ -249,6 +249,42 @@
       "playlist": "前往歌单「{id}」"
     }
   },
+  "recognition": {
+    "title": "听歌识曲",
+    "entry": "听歌识曲",
+    "description": "识别正在播放的音乐",
+    "start": "开始识别",
+    "sourceLabel": "音频来源",
+    "hint": {
+      "system": "我们会采集系统中的一小段声音进行识别",
+      "microphone": "靠近声源并保持环境安静，识别效果会更好"
+    },
+    "source": {
+      "system": "系统声音",
+      "microphone": "麦克风"
+    },
+    "phase": {
+      "capturing": "正在收听…",
+      "fingerprinting": "正在生成指纹…",
+      "matching": "正在匹配曲库…"
+    },
+    "empty": "没有识别到歌曲，请靠近声源重试",
+    "retry": "再试一次",
+    "cancel": "取消",
+    "play": "播放",
+    "unavailable": "当前设备不支持听歌识曲",
+    "searching": "搜索此歌曲",
+    "error": {
+      "unsupported": "当前平台不支持本机采集",
+      "no-device": "未找到可用的音频设备",
+      "permission-denied": "缺少麦克风权限，请在系统设置中授权",
+      "capture-failed": "音频采集失败",
+      "silent-input": "没有采集到声音，请检查音频输出",
+      "network": "匹配服务不可用，请稍后重试",
+      "afp-unavailable": "音频指纹库不可用",
+      "unknown": "识别失败，请重试"
+    }
+  },
   "home": {
     "greetingLine": "{greeting}，{name}",
     "greeting": {
@@ -535,6 +571,11 @@
     "trackId": "歌曲 ID",
     "openDirectory": "打开歌词目录",
     "manageTrack": "管理曲目",
+    "unmatchedTrack": "无法根据 ID 匹配曲目",
+    "deleteLyric": "删除歌词",
+    "deleteLyricFailed": "删除歌词失败",
+    "deleteUnmatchedTitle": "删除无法匹配的歌词？",
+    "deleteUnmatchedDescription": "将删除“{filename}”及其全部本地歌词文件，此操作不可恢复。",
     "syncToTracks": "同步到其他曲目",
     "syncTitle": "同步自定义歌词",
     "searchTrackPlaceholder": "搜索本地或网易云的歌曲名称、歌手或 ID",
@@ -650,7 +691,7 @@
       "selected": "已选 {count} 首",
       "invert": "反选",
       "addToQueue": "添加到播放列表",
-      "download": "下载",
+      "download": "批量下载",
       "exit": "退出"
     },
     "delete": {
@@ -741,8 +782,7 @@
     "clearFinished": "清空已完成",
     "clearConfirmTitle": "清空已完成任务",
     "clearConfirmContent": "将从列表移除所有已完成和出错的任务记录，已下载的本地文件不会被删除。确认清空？",
-    "tabAll": "所有任务",
-    "tabActive": "下载中",
+    "tabActive": "待下载",
     "tabError": "下载出错",
     "tabDone": "已完成",
     "colStatus": "状态",
@@ -815,6 +855,7 @@
       "general": "常规设置",
       "player": "播放设置",
       "lyric": "歌词设置",
+      "experimental": "实验性选项",
       "externalLyric": "外部歌词",
       "appearance": "外观设置",
       "hotkeys": "快捷键配置",
@@ -849,6 +890,9 @@
       "lyricDisplay": "显示效果",
       "lyricSpring": "弹簧动画",
       "lyricLayout": "布局与透明度",
+      "experimentalGeneral": "实验性选项",
+      "experimentalBackground": "实验性背景",
+      "experimentalLyric": "歌词",
       "desktopLyric": "桌面歌词",
       "dynamicIsland": "灵动岛歌词",
       "taskbarLyric": "任务栏歌词",
@@ -1352,10 +1396,6 @@
       "label": "CJK 歌词禁用强调效果",
       "description": "关闭中日韩歌词的缩放、辉光与浮动强调，其他文字不受影响"
     },
-    "raiseAlignPositionOnOverlap": {
-      "label": "多行同亮时抬高对齐位置",
-      "description": "当前歌词与相邻歌词同时亮起时，临时将对齐位置抬高到 0.15"
-    },
     "enableBlur": {
       "label": "逐行模糊",
       "description": "远离当前行的歌词逐渐模糊"
@@ -1363,6 +1403,50 @@
     "hidePassedLines": {
       "label": "隐藏已播放行",
       "description": "播放过的歌词行自动隐藏"
+    },
+    "maxHighlightedLines": {
+      "label": "选择句最多显示行数",
+      "description": "同时高亮显示的歌词最多有几行。不限制行数可能导致显示超出屏幕",
+      "two": "2 行",
+      "three": "3 行",
+      "unlimited": "不限制"
+    },
+    "multiLineOverlapThreshold": {
+      "label": "多行同亮判断阈值",
+      "description": "当前主句在下一主句开始后仍持续超过此时长时，才允许两句同时高亮"
+    },
+    "earlyEndMode": {
+      "label": "提早行结束时间",
+      "description": "按下一句开始时间和滚动衔接时长压缩当前句尾段；保守档加速滚完背景人声，激进档允许截断",
+      "off": "关闭",
+      "conservative": "保守（加速滚完背景人声）",
+      "aggressive": "激进（允许截断背景人声）"
+    },
+    "earlyEndGapThreshold": {
+      "label": "间隔阈值",
+      "description": "下一主句与当前主句最后一字的间隔小于此值时启用尾段加速"
+    },
+    "earlyEndAdvance": {
+      "label": "结束提前量",
+      "description": "从滚动衔接点向前计算尾段加速起点"
+    },
+    "earlyEndScrollLead": {
+      "label": "滚动衔接时长",
+      "description": "在下一句开始前预留的固定滚动时间，同时作为当前句尾段加速的终点"
+    },
+    "earlyEndAdvanceToNextLine": {
+      "label": "结束后提前选择下一行",
+      "description": "在滚动衔接点提前滚动并点亮下一行，下一行开始前逐词进度保持为零"
+    },
+    "lineSelectionPreference": {
+      "label": "选择句逻辑偏好",
+      "description": "只控制多行歌词重叠时已结束句子的保留方式，不改变提早结束时序",
+      "default": "默认",
+      "earlyEnd": "提早结束"
+    },
+    "raiseAlignPositionOnOverlap": {
+      "label": "多行同亮时抬高对齐位置",
+      "description": "当前歌词与相邻歌词同时亮起时，临时将对齐位置抬高到 0.15"
     },
     "springPreset": {
       "label": "弹簧预设",
@@ -1613,7 +1697,22 @@
       "description": "全屏播放器的背景类型",
       "blur": "模糊",
       "solid": "纯色",
-      "animation": "流体"
+      "animation": "流体",
+      "appleMusicDev": "Apple Music 背景 (Dev)",
+      "appleMusicBeta": "Apple Music 背景 (Beta)"
+    },
+    "appleMusicBgEnabled": {
+      "label": "启用 Apple Music 背景",
+      "description": "开放 Apple Music Dev 与 Beta 背景选项；关闭时会切回流体背景"
+    },
+    "experimentalFeaturesEnabled": {
+      "label": "启用实验性选项",
+      "description": "关闭后隐藏实验性选项入口，并将正在使用的 Apple Music 背景切换为流体背景"
+    },
+    "experimentalUnlock": {
+      "title": "启用实验性选项？",
+      "content": "这些功能仍在开发中，可能存在错误、不稳定或行为变化。请确认你愿意承担相关风险。",
+      "confirm": "仍要启用"
     },
     "playerBgFlowSpeed": {
       "label": "流动速度",
@@ -1634,6 +1733,42 @@
     "playerBgBeat": {
       "label": "背景跳动",
       "description": "使流体背景随音乐低频节拍产生脉动效果"
+    },
+    "appleMusicBgFlowSpeed": {
+      "label": "流动速度",
+      "description": "调整 Apple Music 背景缓慢流动与旋转的速度"
+    },
+    "appleMusicBgDistortion": {
+      "label": "扭曲度",
+      "description": "仅用于 Dev；低于 1 时只扭曲内部，超过 1 后逐步放开边缘扭曲"
+    },
+    "appleMusicBgRenderScale": {
+      "label": "渲染精度",
+      "description": "提高内部画布分辨率可让扭曲边缘更细腻，但会增加显卡压力"
+    },
+    "appleMusicBgFps": {
+      "label": "动画帧率",
+      "description": "Apple Music 背景的最大渲染帧率"
+    },
+    "appleMusicBgBlurStrength": {
+      "label": "模糊度",
+      "description": "以四档强度调整扭曲封面的多级模糊"
+    },
+    "appleMusicBgDimness": {
+      "label": "暗淡度",
+      "description": "控制背景整体压暗程度，调高可增强前景内容的可读性"
+    },
+    "appleMusicBgFreezeOnPause": {
+      "label": "暂停时冻结",
+      "description": "暂停播放时停止 Apple Music 背景的基础扭曲动画"
+    },
+    "appleMusicBgBeat": {
+      "label": "背景跳动",
+      "description": "使背景主要通过缩放随音乐低频节拍跳动"
+    },
+    "appleMusicBgBeatStrength": {
+      "label": "跳动幅度",
+      "description": "调整低频节拍触发的背景缩放幅度"
     },
     "coverLayout": {
       "label": "封面布局",

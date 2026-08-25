@@ -11,6 +11,8 @@ export interface SettingOption {
   labelKey?: string;
   /** 字面 label */
   label?: string;
+  /** 条件隐藏 */
+  visible?: () => boolean;
 }
 
 /** 设置项变更前的确认配置 */
@@ -109,4 +111,8 @@ export interface SettingCategory {
   sections?: SettingSection[];
   /** 整页自定义组件 */
   component?: Component;
+  /** 右侧类别标题旁的徽标 */
+  tag?: SettingTag;
+  /** 条件隐藏 */
+  visible?: () => boolean;
 }

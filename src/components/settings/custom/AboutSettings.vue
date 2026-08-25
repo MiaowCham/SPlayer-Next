@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { getContributors, type Contributor } from "@/apis/github";
 import { useCopyText } from "@/composables/useCopyText";
+import { dialog } from "@/composables/useDialog";
+import { useSettingsStore } from "@/stores/settings";
 import { useUpdateStore } from "@/stores/update";
 import { openExternal } from "@/utils/url";
 import {
@@ -22,6 +24,12 @@ import IconLucideChevronDown from "~icons/lucide/chevron-down";
 const { t } = useI18n();
 const { copy } = useCopyText();
 const update = useUpdateStore();
+const settings = useSettingsStore();
+
+const EXPERIMENTAL_UNLOCK_CLICKS = 7;
+const EXPERIMENTAL_CLICK_RESET_MS = 2000;
+let experimentalClickCount = 0;
+let experimentalClickTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** 提交时间 */
 const commitTimeAgo = useTimeAgo(new Date(COMMIT_DATE));
@@ -44,6 +52,33 @@ const handleCheckUpdate = (): void => {
 
 /** 打开日志目录 */
 const handleOpenLogs = (): void => void window.api.system.openLogsDir();
+
+/** 连续点击应用信息区域后确认启用实验性选项。 */
+const handleExperimentalUnlockClick = (): void => {
+  if (settings.experimental.enabled) return;
+  experimentalClickCount += 1;
+  if (experimentalClickTimer) clearTimeout(experimentalClickTimer);
+  experimentalClickTimer = setTimeout(() => {
+    experimentalClickCount = 0;
+    experimentalClickTimer = undefined;
+  }, EXPERIMENTAL_CLICK_RESET_MS);
+  if (experimentalClickCount < EXPERIMENTAL_UNLOCK_CLICKS) return;
+
+  clearTimeout(experimentalClickTimer);
+  experimentalClickTimer = undefined;
+  experimentalClickCount = 0;
+  void dialog
+    .confirm({
+      title: t("settings.experimentalUnlock.title"),
+      content: t("settings.experimentalUnlock.content"),
+      confirmText: t("settings.experimentalUnlock.confirm"),
+      type: "warning",
+      layer: "topmost",
+    })
+    .then((confirmed) => {
+      if (confirmed) settings.experimental.enabled = true;
+    });
+};
 
 interface EnvItem {
   label: string;
@@ -117,6 +152,10 @@ onMounted(async () => {
     console.error("获取贡献者失败:", error);
   }
 });
+
+onBeforeUnmount(() => {
+  if (experimentalClickTimer) clearTimeout(experimentalClickTimer);
+});
 </script>
 
 <template>
@@ -133,13 +172,19 @@ onMounted(async () => {
         radius="xl"
         class="flex flex-wrap items-center gap-4"
       >
-        <SLogo :size="34" />
-        <div class="flex items-center gap-2 mr-auto">
-          <span class="text-lg font-logo text-on-surface">{{ REPO_NAME }}</span>
-          <STag type="primary" size="small" round>v{{ APP_VERSION }}</STag>
-          <STag v-if="IS_APPX" type="primary" size="small" round>
-            {{ t("settings.storeVersion") }}
-          </STag>
+        <div
+          data-testid="experimental-unlock-area"
+          class="flex min-w-0 flex-1 items-center gap-4 self-stretch select-none"
+          @click="handleExperimentalUnlockClick"
+        >
+          <SLogo :size="34" />
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-logo text-on-surface">{{ REPO_NAME }}</span>
+            <STag type="primary" size="small" round>v{{ APP_VERSION }}</STag>
+            <STag v-if="IS_APPX" type="primary" size="small" round>
+              {{ t("settings.storeVersion") }}
+            </STag>
+          </div>
         </div>
         <div class="flex items-center gap-2">
           <SButton variant="secondary" :loading="checking" @click="handleCheckUpdate">

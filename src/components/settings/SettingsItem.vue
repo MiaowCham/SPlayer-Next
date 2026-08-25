@@ -30,10 +30,12 @@ const applyChange = async (next: unknown): Promise<void> => {
 };
 
 const selectOptions = computed(() =>
-  (props.item.options ?? []).map((o) => ({
-    value: o.value,
-    label: o.label ?? (o.labelKey ? t(o.labelKey) : String(o.value)),
-  })),
+  (props.item.options ?? [])
+    .filter((option) => option.visible?.() ?? true)
+    .map((option) => ({
+      value: option.value,
+      label: option.label ?? (option.labelKey ? t(option.labelKey) : String(option.value)),
+    })),
 );
 
 const isChildrenActive = computed(() => {

@@ -16,7 +16,12 @@ const highlightKey = ref(initialHighlight.value);
 const scrollRef = ref<HTMLElement>();
 const isSearchActive = ref(false);
 
-const activeCategory = computed(() => settingsSchema.find((c) => c.id === activeId.value));
+const visibleCategories = computed(() =>
+  settingsSchema.filter((category) => category.visible?.() ?? true),
+);
+const activeCategory = computed(() =>
+  visibleCategories.value.find((category) => category.id === activeId.value),
+);
 
 /** 计算每个 section 的全局起始索引 */
 const sectionStartIndices = computed(() => {
@@ -54,7 +59,7 @@ const onSearchSelect = (categoryId: string, itemKey: string) => {
 
 /** 每次从外部打开设置时重新应用分类与高亮目标。 */
 const applyInitialTarget = (): void => {
-  if (!settingsSchema.some((category) => category.id === initialCategory.value)) return;
+  if (!visibleCategories.value.some((category) => category.id === initialCategory.value)) return;
   if (initialHighlight.value) {
     onSearchSelect(initialCategory.value, initialHighlight.value);
     return;
@@ -70,6 +75,19 @@ watch(
     if (isOpen) applyInitialTarget();
   },
   { flush: "post", immediate: true },
+);
+
+watch(
+  visibleCategories,
+  (categories) => {
+    if (categories.some((category) => category.id === activeId.value)) return;
+    const fallback = categories[0];
+    if (!fallback) return;
+    activeId.value = fallback.id;
+    highlightKey.value = undefined;
+    rememberCategory(fallback.id);
+  },
+  { flush: "sync", immediate: true },
 );
 </script>
 
@@ -91,7 +109,7 @@ watch(
       <Transition name="fade">
         <div v-show="!isSearchActive" class="flex-1 min-h-0 overflow-y-auto -mr-5 pr-5">
           <SettingsMenu
-            :categories="settingsSchema"
+            :categories="visibleCategories"
             :active-id="activeId"
             @select="onCategorySelect"
           />
@@ -114,6 +132,15 @@ watch(
       <div v-if="activeCategory" :key="activeCategory.id" class="animate-fade-in">
         <component :is="activeCategory.component" v-if="activeCategory.component" />
         <template v-else>
+          <h2
+            v-if="activeCategory.tag"
+            class="mb-6 flex items-center gap-2 px-1 text-2xl font-bold text-on-surface"
+          >
+            {{ t(`settings.group.${activeCategory.id}`) }}
+            <STag :type="activeCategory.tag.type ?? 'primary'">
+              {{ activeCategory.tag.text }}
+            </STag>
+          </h2>
           <SettingsSection
             v-for="(sec, si) in activeCategory.sections"
             :key="sec.id"

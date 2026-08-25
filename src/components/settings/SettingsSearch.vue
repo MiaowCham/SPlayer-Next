@@ -27,6 +27,7 @@ const results = computed<SearchResult[]>(() => {
   if (!q) return [];
   const out: SearchResult[] = [];
   for (const cat of settingsSchema) {
+    if (cat.visible && !cat.visible()) continue;
     for (const sec of cat.sections ?? []) {
       for (const item of sec.items) {
         if (item.visible && !item.visible()) continue;

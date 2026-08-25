@@ -20,7 +20,10 @@ export const useSettingsDialog = () => ({
    * @param highlight - 需高亮定位的设置项 key
    */
   show: (category?: string, highlight?: string) => {
-    initialCategory.value = category ?? (useStatusStore().settingsCategory || settingsSchema[0].id);
+    const target = category ?? useStatusStore().settingsCategory;
+    initialCategory.value =
+      settingsSchema.find((candidate) => candidate.id === target && (candidate.visible?.() ?? true))
+        ?.id ?? settingsSchema[0].id;
     initialHighlight.value = highlight;
     open.value = true;
   },

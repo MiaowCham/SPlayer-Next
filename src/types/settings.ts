@@ -4,7 +4,24 @@ import type { Platform } from "@shared/types/platform";
 import type { QualityLevel } from "@/utils/quality";
 
 /** 播放器背景类型 */
-export type PlayerBgType = "blur" | "solid" | "animation";
+export type AppleMusicBackgroundVariant = "dev" | "beta";
+export type AppleMusicPlayerBgType = `apple-music-${AppleMusicBackgroundVariant}`;
+export type PlayerBgType = "blur" | "solid" | "animation" | AppleMusicPlayerBgType;
+
+/** 将旧版背景设置迁移到当前类型。 */
+export const normalizePlayerBgType = (value: unknown): PlayerBgType => {
+  if (value === "apple-music") return "apple-music-dev";
+  if (
+    value === "blur" ||
+    value === "solid" ||
+    value === "animation" ||
+    value === "apple-music-dev" ||
+    value === "apple-music-beta"
+  ) {
+    return value;
+  }
+  return "blur";
+};
 export type CoverLayout = "default" | "fullscreen";
 
 /**
@@ -45,6 +62,22 @@ export type ChineseScriptPreference = "default" | "simplified" | "traditional";
 
 /** 逐字上浮动画强度 */
 export type LyricFloatAnimationIntensity = "low" | "medium" | "high" | "very-high" | "extreme";
+
+/** 同时保持高亮的最大歌词行数 */
+export type MaxHighlightedLines = 2 | 3 | "unlimited";
+
+/** 歌词行提早结束策略 */
+export type LyricEarlyEndMode = "off" | "conservative" | "aggressive";
+
+/** 迁移旧版歌词行提早结束策略。 */
+export const normalizeLyricEarlyEndMode = (value: unknown): LyricEarlyEndMode => {
+  if (value === "super-aggressive") return "aggressive";
+  if (value === "off" || value === "conservative" || value === "aggressive") return value;
+  return "off";
+};
+
+/** 多行重叠时的选择句逻辑 */
+export type LyricLineSelectionPreference = "default" | "early-end";
 
 /** 弹簧预设参数映射 */
 export const SPRING_PRESETS: Record<
@@ -139,7 +172,23 @@ export interface LyricSettings {
   enableEmphasizeEffect: boolean;
   /** 禁用 CJK 歌词的强调效果 */
   disableCjkEmphasis: boolean;
-  /** 多行同时高亮时是否临时抬高歌词对齐位置 */
+  /** 同时保持高亮的最大歌词行数 */
+  maxHighlightedLines: MaxHighlightedLines;
+  /** 允许多行同时高亮的最小重叠时长（ms） */
+  multiLineOverlapThreshold: number;
+  /** 歌词行提早结束策略 */
+  earlyEndMode: LyricEarlyEndMode;
+  /** 提早结束的主句间隔阈值（ms） */
+  earlyEndGapThreshold: number;
+  /** 相对下一主句开始时间的结束提前量（ms） */
+  earlyEndAdvance: number;
+  /** 滚动到下一行预留的衔接时长（ms） */
+  earlyEndScrollLead: number;
+  /** 是否在滚动衔接点提前滚动并选中下一行 */
+  earlyEndAdvanceToNextLine: boolean;
+  /** 多行重叠时的选择句逻辑 */
+  lineSelectionPreference: LyricLineSelectionPreference;
+  /** 多行同亮时是否临时抬高歌词对齐位置 */
   raiseAlignPositionOnOverlap: boolean;
   /** 逐行模糊效果 */
   enableBlur: boolean;
@@ -185,6 +234,8 @@ export interface LyricSettings {
 export interface PlayerSettings {
   /** 播放器背景类型 */
   playerBgType: PlayerBgType;
+  /** 是否开放 Apple Music 实验背景 */
+  appleMusicBgEnabled: boolean;
   /** 流体背景帧率（fps） */
   playerBgFps: number;
   /** 流体背景流动速度 */
@@ -195,6 +246,24 @@ export interface PlayerSettings {
   playerBgFreezeOnPause: boolean;
   /** 流体背景随低频节拍脉动 */
   playerBgBeat: boolean;
+  /** Apple Music 背景帧率（fps） */
+  appleMusicBgFps: number;
+  /** Apple Music 背景流动速度 */
+  appleMusicBgFlowSpeed: number;
+  /** Apple Music Dev 背景扭曲程度 */
+  appleMusicBgDistortion: number;
+  /** Apple Music 背景渲染缩放 */
+  appleMusicBgRenderScale: number;
+  /** Apple Music 背景模糊等级 */
+  appleMusicBgBlurStrength: number;
+  /** Apple Music 背景压暗程度 */
+  appleMusicBgDimness: number;
+  /** 暂停播放时冻结 Apple Music 背景 */
+  appleMusicBgFreezeOnPause: boolean;
+  /** Apple Music 背景随低频节拍脉动 */
+  appleMusicBgBeat: boolean;
+  /** Apple Music 背景低频跳动幅度 */
+  appleMusicBgBeatStrength: number;
   /** 全屏播放器封面布局 */
   coverLayout: CoverLayout;
   /** 无歌词时自动居中封面并隐藏歌词区域 */
@@ -205,7 +274,7 @@ export interface PlayerSettings {
   followCoverColor: boolean;
   /** 全屏播放器自动进入沉浸模式（隐藏顶/底栏与鼠标） */
   autoImmersive: boolean;
-  /** 输出设备名称，null 表示跟随系统默认 */
+  /** 输出设备 ID（cpal DeviceId），null 表示跟随系统默认 */
   outputDevice: string | null;
   /** 切换输出设备时暂停播放 */
   pauseOnDeviceSwitch: boolean;
@@ -233,6 +302,12 @@ export interface PlayerSettings {
   showLyricInBar: boolean;
   /** 播放时提前获取下一首的播放数据 */
   preloadNextTrack: boolean;
+}
+
+/** 实验性功能设置 */
+export interface ExperimentalSettings {
+  /** 是否显示并启用实验性设置入口 */
+  enabled: boolean;
 }
 
 /** 外观设置 */
