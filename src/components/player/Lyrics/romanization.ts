@@ -73,8 +73,26 @@ export const promoteDefaultPronunciation = (
 export const resolveAmlLineRomanization = (line: LyricLine, enabled: boolean): string =>
   enabled && !hasWordRomanization(line) ? line.romanLyric : "";
 
-/** 给逐字发音音节补上分隔空格，保留源数据已有的尾随空白。 */
-const spacedPronunciation = (value: string): string => (/\s$/.test(value) ? value : `${value} `);
+/** 根据原歌词音节的书写方式决定发音后是否需要分隔空格。 */
+const adaptPronunciationSpacing = (
+  value: string,
+  original: string,
+  nextOriginal: string | undefined,
+): string => {
+  const pronunciation = value.trimEnd();
+  const isCjkSyllable =
+    /[\p{Unified_Ideograph}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(
+      original,
+    );
+  const hasInternalWhitespace = /\s/u.test(original.trim());
+  const hasTrailingWhitespace = /\s$/u.test(original);
+  const hasLeadingWhitespaceInNext = !!nextOriginal?.trim() && /^\s/u.test(nextOriginal);
+  const hasOriginalWhitespace =
+    hasInternalWhitespace || hasTrailingWhitespace || hasLeadingWhitespaceInNext;
+  return (isCjkSyllable || hasOriginalWhitespace) && pronunciation
+    ? `${pronunciation} `
+    : pronunciation;
+};
 
 const westernPunctuation: Record<string, string> = {
   "、": ",",
@@ -181,7 +199,7 @@ export const promotePronunciation = (line: LyricLine, mode: "line" | "word"): Ly
       ...line,
       language: "und-Latn",
       __amllSkipWhitespaceSplit: true,
-      words: line.words.map((word) => {
+      words: line.words.map((word, index) => {
         const pronunciation = word.romanWord;
         if (!pronunciation?.trim()) return { ...word };
         const { ruby: _ruby, ...plainWord } = word;
@@ -198,7 +216,11 @@ export const promotePronunciation = (line: LyricLine, mode: "line" | "word"): Ly
         );
         return {
           ...plainWord,
-          word: spacedPronunciation(displayedPronunciation),
+          word: adaptPronunciationSpacing(
+            displayedPronunciation,
+            word.word,
+            line.words[index + 1]?.word,
+          ),
           romanWord: word.word,
         };
       }),

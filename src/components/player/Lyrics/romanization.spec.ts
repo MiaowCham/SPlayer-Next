@@ -52,7 +52,7 @@ describe("歌词音译渲染准备", () => {
     expect(shouldForceAmlLinePronunciationMode([lineOnly], false)).toBe(false);
   });
 
-  it("提升逐字发音时保留内部空格并给不同字音节补分隔空格", () => {
+  it("提升 CJK 逐字发音时保留内部空格并给每个音节补分隔空格", () => {
     const line = createLine("", ["词0", "ku taru"]);
     const promoted = promotePronunciation(line, "word");
 
@@ -60,6 +60,47 @@ describe("歌词音译渲染准备", () => {
       { word: "词0", romanWord: "词0" },
       { word: "ku taru ", romanWord: "词1" },
     ]);
+  });
+
+  it("提升非 CJK 逐字发音时跟随原歌词音节内的空格", () => {
+    const line = createLine("", ["hel-lo ", "world "]);
+    line.words[0].word = "hello world";
+    line.words[1].word = "again";
+
+    const promoted = promotePronunciation(line, "word");
+
+    expect(promoted.words.map((word) => word.word)).toEqual(["hel-lo ", "world"]);
+  });
+
+  it("提升日文假名逐字发音时也给每个音节补分隔空格", () => {
+    const line = createLine("", ["ko", "ko ro"]);
+    line.words[0].word = "こ";
+    line.words[1].word = "ころ";
+
+    const promoted = promotePronunciation(line, "word");
+
+    expect(promoted.words.map((word) => word.word)).toEqual(["ko ", "ko ro "]);
+  });
+
+  it("提升非 CJK 逐字发音时识别相邻音节之间的空格", () => {
+    const line = createLine("", ["həlo", "wɜːld "]);
+    line.words[0].word = "hello";
+    line.words[1].word = " world";
+
+    const promoted = promotePronunciation(line, "word");
+
+    expect(promoted.words.map((word) => word.word)).toEqual(["həlo ", "wɜːld"]);
+  });
+
+  it("提升非 CJK 逐字发音时保留独立空白词元且不重复补空格", () => {
+    const line = createLine("", ["həlo", undefined, "wɜːld"]);
+    line.words[0].word = "hello";
+    line.words[1].word = " ";
+    line.words[2].word = "world";
+
+    const promoted = promotePronunciation(line, "word");
+
+    expect(promoted.words.map((word) => word.word)).toEqual(["həlo", " ", "wɜːld"]);
   });
 
   it("强制模式使用逐行发音替换逐字主歌词并让整首保持逐句结构", () => {
