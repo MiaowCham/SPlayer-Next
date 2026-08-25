@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
+import type { LargerLyricText, LyricFloatAnimationIntensity } from "@/types/settings";
 import { LyricRenderer } from "./engine";
 import type { SpringParams } from "./engine/spring";
 import { DEFAULTS } from "./engine/constants";
 import { applyScrollPreroll } from "./utils/scroll-preroll";
+import { promoteDefaultPronunciation } from "./romanization";
 import "./renderer.css";
 
 const props = withDefaults(
@@ -77,20 +79,25 @@ const props = withDefaults(
      * @default true
      */
     enableWordHighlight?: boolean;
-    /**
-     * 是否启用逐字上浮动画
-     * @default false
-     */
-    enableFloatAnimation?: boolean;
+    /** 逐字上浮动画强度 @default medium */
+    floatAnimationIntensity?: LyricFloatAnimationIntensity;
     /**
      * 是否启用强调效果（缩放 + 辉光 + 正弦浮动）
      * @default false
      */
     enableEmphasizeEffect?: boolean;
+    /** 是否禁用 CJK 歌词的强调效果 @default false */
+    disableCjkEmphasis?: boolean;
+    /** 多行同时高亮时是否临时抬高歌词对齐位置 @default false */
+    raiseAlignPositionOnOverlap?: boolean;
     /** 是否显示翻译歌词 @default true */
     showTranslation?: boolean;
     /** 是否显示音译歌词 @default true */
     showRomanization?: boolean;
+    /** 歌词与发音同时显示时的大字体内容 */
+    largerLyricText?: LargerLyricText;
+    /** 是否强制将逐字歌词的逐行发音提升为逐句主歌词 */
+    forceLinePronunciationAsMain?: boolean;
     /** 挂载时的初始播放时间（毫秒）@default 0 */
     initialTime?: number;
   }>(),
@@ -107,10 +114,14 @@ const props = withDefaults(
     hidePassedLines: DEFAULTS.hidePassedLines,
     enableBlur: DEFAULTS.enableBlur,
     enableWordHighlight: DEFAULTS.enableWordHighlight,
-    enableFloatAnimation: DEFAULTS.enableFloatAnimation,
+    floatAnimationIntensity: DEFAULTS.floatAnimationIntensity,
     enableEmphasizeEffect: DEFAULTS.enableEmphasizeEffect,
+    disableCjkEmphasis: DEFAULTS.disableCjkEmphasis,
+    raiseAlignPositionOnOverlap: DEFAULTS.raiseAlignPositionOnOverlap,
     showTranslation: true,
     showRomanization: true,
+    largerLyricText: "lyrics",
+    forceLinePronunciationAsMain: false,
     initialTime: 0,
   },
 );
@@ -181,7 +192,7 @@ onMounted(() => {
     renderer.setCurrentTime(props.initialTime);
   }
   if (props.lyricLines.length > 0) {
-    renderer.setLyrics(applyScrollPreroll(props.lyricLines));
+    renderer.setLyrics(prepareLyrics());
   }
   bottomLineEl.value = renderer.getBottomLineElement();
 });
@@ -193,12 +204,21 @@ onUnmounted(() => {
 
 /** 重建歌词 DOM（应用滚动预滚后的克隆数据） */
 const rebuildLyrics = (): void => {
-  const prepared = applyScrollPreroll(props.lyricLines);
+  const prepared = prepareLyrics();
   if (isFrozen) {
     pendingLyrics = prepared;
   } else {
     renderer?.setLyrics(prepared);
   }
+};
+
+/** 按发音来源准备默认渲染器的主歌词结构。 */
+const prepareLyrics = (): LyricLine[] => {
+  const lines = applyScrollPreroll(props.lyricLines);
+  if (props.largerLyricText !== "pronunciation" || !props.showRomanization) {
+    return lines;
+  }
+  return promoteDefaultPronunciation(lines, props.forceLinePronunciationAsMain);
 };
 
 watch(() => props.lyricLines, rebuildLyrics);
@@ -273,9 +293,9 @@ watch(
 
 // 上浮/强调开关变化需要重建 DOM（影响 span 结构和动画创建）
 watch(
-  () => props.enableFloatAnimation,
+  () => props.floatAnimationIntensity,
   (v) => {
-    renderer?.setConfig({ enableFloatAnimation: v });
+    renderer?.setConfig({ floatAnimationIntensity: v });
     rebuildLyrics();
   },
 );
@@ -286,6 +306,19 @@ watch(
     renderer?.setConfig({ enableEmphasizeEffect: v });
     rebuildLyrics();
   },
+);
+
+watch(
+  () => props.disableCjkEmphasis,
+  (v) => {
+    renderer?.setConfig({ disableCjkEmphasis: v });
+    rebuildLyrics();
+  },
+);
+
+watch(
+  () => props.raiseAlignPositionOnOverlap,
+  (v) => renderer?.setConfig({ raiseAlignPositionOnOverlap: v }),
 );
 
 // 翻译/音译开关变化需要重建 DOM（影响 sub 行的创建）
@@ -304,6 +337,8 @@ watch(
     rebuildLyrics();
   },
 );
+
+watch([() => props.largerLyricText, () => props.forceLinePronunciationAsMain], rebuildLyrics);
 </script>
 
 <template>

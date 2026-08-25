@@ -10,6 +10,8 @@ import { buildWordSpans, type WordMeasurement, type WordAnimTarget } from "./wor
 export interface LineBuildOptions {
   /** 是否启用强调效果（影响 span 结构） */
   enableEmphasizeEffect: boolean;
+  /** 是否禁用 CJK 歌词的强调效果 */
+  disableCjkEmphasis: boolean;
   /** 是否显示翻译歌词 */
   showTranslation: boolean;
   /** 是否显示音译歌词 */
@@ -71,7 +73,8 @@ export const buildLineElements = (
     if (line.language) mainDiv.lang = line.language;
 
     // 行歌词是否静态（≤1 个单词，无逐字动画）
-    const isStatic = line.words.length === 0 || (line.words.length === 1 && !hasMultiWordLine);
+    const isStatic =
+      line.isLineLyric || line.words.length === 0 || (line.words.length === 1 && !hasMultiWordLine);
 
     if (isStatic) {
       mainDiv.appendChild(document.createTextNode(line.words.map((w) => w.word).join("")));
@@ -84,7 +87,12 @@ export const buildLineElements = (
       lineAnimTargets[i] = [];
     } else {
       // 构建单词 span + 动画目标描述
-      const result = buildWordSpans(line.words, mainDiv, options.enableEmphasizeEffect);
+      const result = buildWordSpans(
+        line.words,
+        mainDiv,
+        options.enableEmphasizeEffect,
+        options.disableCjkEmphasis,
+      );
       wordMeasurements[i] = result.measurements;
       lineAnimTargets[i] = result.animTargets;
     }

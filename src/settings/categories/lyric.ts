@@ -178,6 +178,45 @@ const lyricCategory: SettingCategory = {
           ],
           defaultValue: "normal",
         },
+      ],
+    },
+    {
+      id: "lyricTranslationPronunciation",
+      items: [
+        {
+          key: "largerLyricText",
+          type: "select",
+          binding: { store: "settings", path: "lyric.largerLyricText" },
+          options: [
+            { value: "lyrics", labelKey: "settings.largerLyricText.lyrics" },
+            { value: "pronunciation", labelKey: "settings.largerLyricText.pronunciation" },
+          ],
+          defaultValue: "lyrics",
+          disabled: () => !useSettingsStore().lyric.showRomanization,
+          tag: { text: "Beta" },
+        },
+        {
+          key: "forceLinePronunciationAsMain",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.forceLinePronunciationAsMain" },
+          defaultValue: false,
+          disabled: () => !useSettingsStore().lyric.showRomanization,
+          tag: { text: "Beta" },
+        },
+        {
+          key: "independentWordRomanizationProgress",
+          type: "switch",
+          binding: {
+            store: "settings",
+            path: "lyric.independentWordRomanizationProgress",
+          },
+          defaultValue: false,
+          visible: () => lyricEngine() === "amll",
+          disabled: () =>
+            !useSettingsStore().lyric.showRomanization ||
+            !useSettingsStore().lyric.amllShowWordRomanization,
+          tag: { text: "Beta" },
+        },
         {
           key: "showTranslation",
           type: "switch",
@@ -195,7 +234,6 @@ const lyricCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "lyric.showRomanization" },
           defaultValue: true,
-          visible: () => lyricEngine() === "physics",
         },
         {
           key: "amllShowLineRomanization",
@@ -221,21 +259,45 @@ const lyricCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "lyric.enableWordHighlight" },
           defaultValue: true,
-          visible: () => lyricEngine() === "physics",
         },
         {
-          key: "enableFloatAnimation",
-          type: "switch",
-          binding: { store: "settings", path: "lyric.enableFloatAnimation" },
-          defaultValue: false,
-          visible: () => lyricEngine() === "physics",
+          key: "floatAnimationIntensity",
+          type: "select",
+          binding: { store: "settings", path: "lyric.floatAnimationIntensity" },
+          options: [
+            { value: "low", labelKey: "settings.floatAnimationIntensity.low" },
+            { value: "medium", labelKey: "settings.floatAnimationIntensity.medium" },
+            { value: "high", labelKey: "settings.floatAnimationIntensity.high" },
+            { value: "very-high", labelKey: "settings.floatAnimationIntensity.veryHigh" },
+            { value: "extreme", labelKey: "settings.floatAnimationIntensity.extreme" },
+          ],
+          defaultValue: "medium",
         },
         {
           key: "enableEmphasizeEffect",
           type: "switch",
           binding: { store: "settings", path: "lyric.enableEmphasizeEffect" },
           defaultValue: false,
-          visible: () => lyricEngine() === "physics",
+        },
+        {
+          key: "disableCjkEmphasis",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.disableCjkEmphasis" },
+          defaultValue: false,
+          disabled: () => !useSettingsStore().lyric.enableEmphasizeEffect,
+        },
+        {
+          key: "raiseAlignPositionOnOverlap",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.raiseAlignPositionOnOverlap" },
+          defaultValue: false,
+        },
+        {
+          key: "followLyricOnProgressDrag",
+          type: "switch",
+          binding: { store: "settings", path: "player.followLyricOnProgressDrag" },
+          defaultValue: false,
+          tag: { text: "Beta" },
         },
         {
           key: "enableBlur",

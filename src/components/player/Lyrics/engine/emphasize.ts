@@ -7,6 +7,7 @@
  */
 
 import type { LyricWord } from "@shared/types/lyrics";
+import type { LyricFloatAnimationIntensity } from "@/types/settings";
 import { isCJK } from "../utils/split-words";
 
 const FRAME_COUNT = 32;
@@ -34,10 +35,10 @@ const scaleMatrix3dCSS = (s: number): string =>
  * - CJK：持续时间 ≥ 1000ms
  * - 非 CJK：持续时间 ≥ 1000ms 且长度 2~7
  */
-export const shouldEmphasize = (word: LyricWord): boolean => {
+export const shouldEmphasize = (word: LyricWord, disableCjkEmphasis = false): boolean => {
   const duration = word.endTime - word.startTime;
   if (duration < 1000) return false;
-  if (isCJK(word.word)) return true;
+  if (isCJK(word.word)) return !disableCjkEmphasis;
   const len = word.word.trim().length;
   return len > 1 && len <= 7;
 };
@@ -45,8 +46,8 @@ export const shouldEmphasize = (word: LyricWord): boolean => {
 /**
  * 判断一组 chunk 是否应该启用强调效果
  */
-export const shouldChunkEmphasize = (chunk: LyricWord[]): boolean => {
-  if (chunk.some(shouldEmphasize)) return true;
+export const shouldChunkEmphasize = (chunk: LyricWord[], disableCjkEmphasis = false): boolean => {
+  if (chunk.some((word) => shouldEmphasize(word, disableCjkEmphasis))) return true;
   // 合并后再检查
   if (chunk.length > 1) {
     const merged: LyricWord = {
@@ -54,7 +55,7 @@ export const shouldChunkEmphasize = (chunk: LyricWord[]): boolean => {
       startTime: Math.min(...chunk.map((w) => w.startTime)),
       endTime: Math.max(...chunk.map((w) => w.endTime)),
     };
-    if (!isCJK(merged.word)) return shouldEmphasize(merged);
+    if (!isCJK(merged.word)) return shouldEmphasize(merged, disableCjkEmphasis);
   }
   return false;
 };
@@ -72,8 +73,16 @@ export const createFloatAnimation = (
   delay: number,
   duration: number,
   isBG: boolean,
+  intensity: LyricFloatAnimationIntensity,
 ): Animation => {
-  let up = 0.05;
+  const intensityScale: Record<LyricFloatAnimationIntensity, number> = {
+    low: 0.5,
+    medium: 1,
+    high: 1.5,
+    "very-high": 2,
+    extreme: 3,
+  };
+  let up = 0.05 * intensityScale[intensity];
   if (isBG) up *= 2;
   const dur = Math.max(1000, duration);
   const del = Math.max(0, delay);

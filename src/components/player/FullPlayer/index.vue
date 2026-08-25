@@ -51,11 +51,11 @@ const pendingTrackLocate = ref(false);
 let delayedTrackLocateTimer: ReturnType<typeof setTimeout> | null = null;
 let secondDelayedTrackLocateTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingTrackKey = "";
-let progressLyricDragging = false;
+const progressLyricDragging = ref(false);
 let progressLyricPreviewTime: number | null = null;
 
 const resetProgressLyricFollow = (): void => {
-  progressLyricDragging = false;
+  progressLyricDragging.value = false;
   progressLyricPreviewTime = null;
 };
 
@@ -70,7 +70,7 @@ const resolveLyricProgressTime = (currentMs: number): { time: number; isSeek: bo
     return { time: currentMs, isSeek: isPlaying.value && player.isSeeking() };
   }
 
-  if (progressLyricDragging && progressLyricPreviewTime !== null) {
+  if (progressLyricDragging.value && progressLyricPreviewTime !== null) {
     return { time: progressLyricPreviewTime, isSeek: true };
   }
 
@@ -165,6 +165,15 @@ watch(
 );
 
 watch(
+  [
+    () => settings.lyric.largerLyricText,
+    () => settings.lyric.forceLinePronunciationAsMain,
+    () => settings.lyric.independentWordRomanizationProgress,
+  ],
+  () => nextTick(locateCurrentLyric),
+);
+
+watch(
   () => (media.track ? `${media.track.source}:${media.track.id}` : ""),
   (trackKey, previousTrackKey) => {
     clearDelayedTrackLocate();
@@ -206,11 +215,19 @@ const locateCurrentLyric = (): void => {
   lyricRef.value?.scrollToTime(getCurrentTime() + status.lyricOffsetMs);
 };
 
-const springConfig = computed(() => ({
-  mass: settings.lyric.springMass,
-  damping: settings.lyric.springDamping,
-  stiffness: settings.lyric.springStiffness,
-}));
+const minimizeLyricSpring = computed(
+  () => settings.player.followLyricOnProgressDrag && progressLyricDragging.value,
+);
+
+const springConfig = computed(() =>
+  minimizeLyricSpring.value
+    ? { mass: 0.1, damping: 1, stiffness: 10 }
+    : {
+        mass: settings.lyric.springMass,
+        damping: settings.lyric.springDamping,
+        stiffness: settings.lyric.springStiffness,
+      },
+);
 
 const lyricFontSize = computed(() =>
   settings.lyric.adaptiveFontSize
@@ -250,12 +267,12 @@ const onSeekDragEnd = (value: number): void => {
 
 const onSeekDragStart = (value: number): void => {
   if (!settings.player.followLyricOnProgressDrag) return;
-  progressLyricDragging = true;
+  progressLyricDragging.value = true;
   progressLyricPreviewTime = value;
 };
 
 const onSeekDragChange = (value: number): void => {
-  if (!settings.player.followLyricOnProgressDrag || !progressLyricDragging) return;
+  if (!settings.player.followLyricOnProgressDrag || !progressLyricDragging.value) return;
   progressLyricPreviewTime = value;
 };
 
@@ -417,12 +434,22 @@ const showComments = (): void => {
                 :word-fade-width="settings.lyric.wordFadeWidth"
                 :hide-passed-lines="settings.lyric.hidePassedLines"
                 :enable-blur="settings.lyric.enableBlur"
+                :enable-word-highlight="settings.lyric.enableWordHighlight"
+                :float-animation-intensity="settings.lyric.floatAnimationIntensity"
+                :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
+                :disable-cjk-emphasis="settings.lyric.disableCjkEmphasis"
+                :minimize-spring-params="minimizeLyricSpring"
                 :show-translation="settings.lyric.showTranslation"
                 :show-line-romanization="
                   settings.lyric.showRomanization && settings.lyric.amllShowLineRomanization
                 "
                 :show-word-romanization="
                   settings.lyric.showRomanization && settings.lyric.amllShowWordRomanization
+                "
+                :larger-lyric-text="settings.lyric.largerLyricText"
+                :force-line-pronunciation-as-main="settings.lyric.forceLinePronunciationAsMain"
+                :independent-word-romanization-progress="
+                  settings.lyric.independentWordRomanizationProgress
                 "
                 @seek="handleLyricSeek"
               >
@@ -454,10 +481,14 @@ const showComments = (): void => {
                 :hide-passed-lines="settings.lyric.hidePassedLines"
                 :enable-blur="settings.lyric.enableBlur"
                 :enable-word-highlight="settings.lyric.enableWordHighlight"
-                :enable-float-animation="settings.lyric.enableFloatAnimation"
+                :float-animation-intensity="settings.lyric.floatAnimationIntensity"
                 :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
+                :disable-cjk-emphasis="settings.lyric.disableCjkEmphasis"
+                :raise-align-position-on-overlap="settings.lyric.raiseAlignPositionOnOverlap"
                 :show-translation="settings.lyric.showTranslation"
                 :show-romanization="settings.lyric.showRomanization"
+                :larger-lyric-text="settings.lyric.largerLyricText"
+                :force-line-pronunciation-as-main="settings.lyric.forceLinePronunciationAsMain"
                 @seek="handleLyricSeek"
               >
                 <template #bottom>
@@ -718,12 +749,11 @@ const showComments = (): void => {
 
 .lyric-credit-line {
   font-size: max(0.5em, 10px);
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-start;
+  display: block;
   text-align: left;
   width: 100%;
+  pointer-events: none;
+  overflow-wrap: anywhere;
 }
 
 .lyric-credit {

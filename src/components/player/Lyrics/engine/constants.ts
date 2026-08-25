@@ -3,6 +3,7 @@
  * 类型定义与默认配置
  */
 
+import type { LyricFloatAnimationIntensity } from "@/types/settings";
 import type { SpringParams } from "./spring";
 
 export const DEFAULTS = {
@@ -28,10 +29,14 @@ export const DEFAULTS = {
   enableBlur: false,
   /** 是否启用逐字高亮效果 */
   enableWordHighlight: true,
-  /** 是否启用逐字上浮动画 */
-  enableFloatAnimation: false,
+  /** 逐字上浮动画强度 */
+  floatAnimationIntensity: "medium" as LyricFloatAnimationIntensity,
   /** 是否启用强调效果：缩放 + 辉光 + 正弦浮动 */
   enableEmphasizeEffect: false,
+  /** 是否禁用 CJK 歌词的强调效果 */
+  disableCjkEmphasis: false,
+  /** 多行同时高亮时是否临时抬高歌词对齐位置 */
+  raiseAlignPositionOnOverlap: false,
   /** 是否显示翻译歌词 */
   showTranslation: true,
   /** 是否显示音译歌词 */
@@ -66,10 +71,14 @@ export interface RendererConfig {
   enableBlur: boolean;
   /** 是否启用逐字高亮效果（默认 true） */
   enableWordHighlight: boolean;
-  /** 是否启用逐字上浮动画（默认 true） */
-  enableFloatAnimation: boolean;
+  /** 逐字上浮动画强度（默认 medium） */
+  floatAnimationIntensity: LyricFloatAnimationIntensity;
   /** 是否启用强调效果：缩放 + 辉光 + 正弦浮动（默认 true） */
   enableEmphasizeEffect: boolean;
+  /** 是否禁用 CJK 歌词的强调效果（默认 false） */
+  disableCjkEmphasis: boolean;
+  /** 多行同时高亮时是否临时抬高歌词对齐位置（默认 false） */
+  raiseAlignPositionOnOverlap: boolean;
   /** 是否显示翻译歌词（默认 true） */
   showTranslation: boolean;
   /** 是否显示音译歌词（默认 true） */

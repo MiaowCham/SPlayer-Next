@@ -6,6 +6,7 @@
  */
 
 import type { LyricLine } from "@shared/types/lyrics";
+import type { LyricFloatAnimationIntensity } from "@/types/settings";
 import type { WordAnimTarget } from "./word-builder";
 import { createFloatAnimation, createEmphasizeAnimations } from "./emphasize";
 
@@ -13,8 +14,8 @@ import { createFloatAnimation, createEmphasizeAnimations } from "./emphasize";
 export interface ActivateOptions {
   /** 是否正在播放 */
   playing: boolean;
-  /** 是否启用逐字上浮动画 */
-  float: boolean;
+  /** 逐字上浮动画强度 */
+  floatIntensity: LyricFloatAnimationIntensity;
   /** 是否启用强调效果 */
   emphasize: boolean;
 }
@@ -73,23 +74,22 @@ export class LineAnimationController {
         anim.cancel();
       }
 
-    if (!targets?.length || (!options.float && !options.emphasize)) return;
+    if (!targets?.length) return;
 
     const relativeTime = Math.max(0, currentTime - line.startTime);
     const anims: Animation[] = [];
 
     for (const target of targets) {
       // 基础上浮动画
-      if (options.float) {
-        anims.push(
-          createFloatAnimation(
-            target.element,
-            target.word.startTime - line.startTime,
-            target.word.endTime - target.word.startTime,
-            line.isBG,
-          ),
-        );
-      }
+      anims.push(
+        createFloatAnimation(
+          target.element,
+          target.word.startTime - line.startTime,
+          target.word.endTime - target.word.startTime,
+          line.isBG,
+          options.floatIntensity,
+        ),
+      );
       // 强调动画（缩放 + 辉光 + 正弦浮动）
       if (options.emphasize && target.isEmphasize && target.charElements.length > 0) {
         anims.push(

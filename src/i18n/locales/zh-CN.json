@@ -82,7 +82,6 @@
     "reject": "不同意并退出"
   },
   "common": {
-    "back": "返回",
     "confirm": "确认",
     "cancel": "取消",
     "close": "关闭",
@@ -211,42 +210,6 @@
       "album": "前往专辑「{id}」",
       "artist": "前往歌手「{id}」",
       "playlist": "前往歌单「{id}」"
-    }
-  },
-  "recognition": {
-    "title": "听歌识曲",
-    "entry": "听歌识曲",
-    "description": "识别正在播放的音乐",
-    "start": "开始识别",
-    "sourceLabel": "音频来源",
-    "hint": {
-      "system": "我们会采集系统中的一小段声音进行识别",
-      "microphone": "靠近声源并保持环境安静，识别效果会更好"
-    },
-    "source": {
-      "system": "系统声音",
-      "microphone": "麦克风"
-    },
-    "phase": {
-      "capturing": "正在收听…",
-      "fingerprinting": "正在生成指纹…",
-      "matching": "正在匹配曲库…"
-    },
-    "empty": "没有识别到歌曲，请靠近声源重试",
-    "retry": "再试一次",
-    "cancel": "取消",
-    "play": "播放",
-    "unavailable": "当前设备不支持听歌识曲",
-    "searching": "搜索此歌曲",
-    "error": {
-      "unsupported": "当前平台不支持本机采集",
-      "no-device": "未找到可用的音频设备",
-      "permission-denied": "缺少麦克风权限，请在系统设置中授权",
-      "capture-failed": "音频采集失败",
-      "silent-input": "没有采集到声音，请检查音频输出",
-      "network": "匹配服务不可用，请稍后重试",
-      "afp-unavailable": "音频指纹库不可用",
-      "unknown": "识别失败，请重试"
     }
   },
   "home": {
@@ -460,10 +423,7 @@
       "loading": "正在开启私人 FM…",
       "entered": "已开启私人 FM",
       "already": "已处于私人 FM",
-      "failed": "私人 FM 开启失败，请稍后重试",
-      "modeSettings": "私人 FM 模式选择",
-      "modeTooltip": "FM 模式与场景",
-      "modeSettingsTip": "选择喜好的推荐模式与场景"
+      "failed": "私人 FM 开启失败，请稍后重试"
     },
     "lyricOffset": {
       "title": "歌词偏移",
@@ -476,7 +436,9 @@
       "hidePronunciation": "隐藏发音"
     },
     "locateCurrentLyric": "定位当前歌词",
-    "lyricCredit": "歌词制作",
+    "lyricCredit": "创作者：",
+    "lyricProduction": "歌词制作：",
+    "songProduction": "创作者：",
     "copyLyric": {
       "title": "复制歌词",
       "contentLabel": "要复制的内容",
@@ -512,7 +474,7 @@
     "trackHint": "当前正在使用的歌词",
     "currentLyric": "当前正在使用的歌词",
     "currentLyricUnavailable": "当前曲目尚未播放，暂时无法确认实际使用的歌词",
-    "sourceDisplayHint": "点击打开当前歌曲的歌词管理面板",
+    "sourceDisplayHint": "管理歌词",
     "smartSelectionHint": "当前处于智能选择模式，实际歌词会按来源和格式优先级自动匹配。",
     "smartSelection": "智能选择",
     "smartSelectionDescription": "按当前来源和格式优先级自动选择歌词，缺失时继续回退。",
@@ -533,11 +495,6 @@
     "trackId": "歌曲 ID",
     "openDirectory": "打开歌词目录",
     "manageTrack": "管理曲目",
-    "unmatchedTrack": "无法根据 ID 匹配曲目",
-    "deleteLyric": "删除歌词",
-    "deleteLyricFailed": "删除歌词失败",
-    "deleteUnmatchedTitle": "删除无法匹配的歌词？",
-    "deleteUnmatchedDescription": "将删除“{filename}”及其全部本地歌词文件，此操作不可恢复。",
     "syncToTracks": "同步到其他曲目",
     "syncTitle": "同步自定义歌词",
     "searchTrackPlaceholder": "搜索本地或网易云的歌曲名称、歌手或 ID",
@@ -632,7 +589,7 @@
       "selected": "已选 {count} 首",
       "invert": "反选",
       "addToQueue": "添加到播放列表",
-      "download": "批量下载",
+      "download": "下载",
       "exit": "退出"
     },
     "delete": {
@@ -723,7 +680,8 @@
     "clearFinished": "清空已完成",
     "clearConfirmTitle": "清空已完成任务",
     "clearConfirmContent": "将从列表移除所有已完成和出错的任务记录，已下载的本地文件不会被删除。确认清空？",
-    "tabActive": "待下载",
+    "tabAll": "所有任务",
+    "tabActive": "下载中",
     "tabError": "下载出错",
     "tabDone": "已完成",
     "colStatus": "状态",
@@ -826,6 +784,7 @@
       "lyricTTML": "TTML 歌词",
       "lyricExclude": "歌词排除",
       "lyricGeneral": "内容样式",
+      "lyricTranslationPronunciation": "翻译与发音",
       "lyricDisplay": "显示效果",
       "lyricSpring": "弹簧动画",
       "lyricLayout": "布局与透明度",
@@ -1019,25 +978,6 @@
       "label": "自动识别背景歌词",
       "description": "根据括号识别背景人声，误判时可关闭"
     },
-    "cjkTransform": {
-      "label": "繁简转换",
-      "description": "对歌词文本进行简繁中文或日文汉字转换",
-      "none": "不转换",
-      "s2t": "简体 → 繁体",
-      "t2s": "繁体 → 简体",
-      "s2tw": "简体 → 台湾正体",
-      "tw2s": "台湾正体 → 简体",
-      "s2hk": "简体 → 香港繁体",
-      "hk2s": "香港繁体 → 简体",
-      "s2twp": "简体 → 台湾正体",
-      "tw2sp": "台湾正体 → 简体",
-      "t2tw": "繁体 → 台湾正体",
-      "tw2t": "台湾正体 → 繁体",
-      "t2hk": "繁体 → 香港繁体",
-      "hk2t": "香港繁体 → 繁体",
-      "jp2t": "日本新字体 → 繁体",
-      "t2jp": "繁体 → 日本新字体"
-    },
     "enableOnlineTTMLLyric": {
       "label": "启用在线 TTML 歌词",
       "description": "从 AMLL TTML DB 获取歌词，支持逐字、翻译、发音"
@@ -1194,6 +1134,16 @@
       "screen": "Screen",
       "plusLighter": "Plus Lighter"
     },
+    "largerLyricText": {
+      "label": "更大字体",
+      "description": "同时显示时，选择要以更大字体显示歌词还是发音。",
+      "lyrics": "歌词",
+      "pronunciation": "发音"
+    },
+    "forceLinePronunciationAsMain": {
+      "label": "强制选择逐行更大发音",
+      "description": "逐字歌词仅有逐行发音时，将发音作为主句显示并按逐句歌词滚动。"
+    },
     "followCoverColor": {
       "label": "跟随封面颜色",
       "description": "歌词颜色跟随当前封面主色调"
@@ -1222,17 +1172,34 @@
       "label": "显示逐词发音",
       "description": "在逐字歌词中，显示每个字词的发音文本"
     },
+    "independentWordRomanizationProgress": {
+      "label": "独立计算逐词发音滚动进度",
+      "description": "让逐词发音按照自身文字独立计算滚动遮罩，包括发音作为主歌词时；不包含排版空白"
+    },
     "enableWordHighlight": {
       "label": "逐字高亮",
       "description": "逐字显示歌词高亮进度"
     },
-    "enableFloatAnimation": {
-      "label": "逐字上浮",
-      "description": "播放到的文字向上微浮"
+    "floatAnimationIntensity": {
+      "label": "逐字上浮强度",
+      "description": "调整播放到的文字向上浮动的幅度",
+      "low": "低",
+      "medium": "中（默认）",
+      "high": "高",
+      "veryHigh": "超高",
+      "extreme": "极端"
     },
     "enableEmphasizeEffect": {
       "label": "强调效果",
       "description": "长音节文字显示缩放和辉光动画"
+    },
+    "disableCjkEmphasis": {
+      "label": "CJK 歌词禁用强调效果",
+      "description": "关闭中日韩歌词的缩放、辉光与浮动强调，其他文字不受影响"
+    },
+    "raiseAlignPositionOnOverlap": {
+      "label": "多行同亮时抬高对齐位置",
+      "description": "当前歌词与相邻歌词同时亮起时，临时将对齐位置抬高到 0.15"
     },
     "enableBlur": {
       "label": "逐行模糊",

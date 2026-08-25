@@ -32,13 +32,6 @@ const playerCategory: SettingCategory = {
           defaultValue: true,
         },
         {
-          key: "followLyricOnProgressDrag",
-          type: "switch",
-          binding: { store: "settings", path: "player.followLyricOnProgressDrag" },
-          defaultValue: false,
-          tag: { text: "Beta" },
-        },
-        {
           key: "fadeEnabled",
           type: "switch",
           binding: { store: "settings", path: "system.player.fadeEnabled" },

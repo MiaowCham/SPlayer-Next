@@ -1,12 +1,29 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
+import type { LargerLyricText, LyricFloatAnimationIntensity } from "@/types/settings";
 import { LyricPlayer as CoreLyricPlayer } from "@applemusic-like-lyrics/core";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { getCurrentTime } from "@/services/playback";
-import { resolveAmlLineRomanization } from "./romanization";
+import {
+  canPromoteLinePronunciation,
+  collapseToLineLyric,
+  hasWordRomanization,
+  promotePronunciation,
+  resolveAmlLineRomanization,
+  shouldForceAmlLinePronunciationMode,
+} from "./romanization";
 import "@applemusic-like-lyrics/core/style.css";
 import "./renderer.css";
+
+type AmlLyricLine = LyricLine & {
+  __amllDisableWordHighlight?: true;
+  __amllDisableEmphasize?: true;
+  __amllDisableCjkEmphasis?: true;
+  __amllFloatAnimationIntensity?: LyricFloatAnimationIntensity;
+  __amllIndependentMainWordMask?: true;
+  __amllIndependentRomanWordMask?: true;
+};
 
 const props = withDefaults(
   defineProps<{
@@ -22,12 +39,28 @@ const props = withDefaults(
     hidePassedLines?: boolean;
     /** 是否启用逐行模糊效果 */
     enableBlur?: boolean;
+    /** 是否启用逐字高亮 */
+    enableWordHighlight?: boolean;
+    /** 逐字上浮动画强度 */
+    floatAnimationIntensity?: LyricFloatAnimationIntensity;
+    /** 是否启用强调效果 */
+    enableEmphasizeEffect?: boolean;
+    /** 是否禁用 CJK 歌词的强调效果 */
+    disableCjkEmphasis?: boolean;
+    /** 是否临时将弹簧参数降至设置范围下限 */
+    minimizeSpringParams?: boolean;
     /** 是否显示翻译歌词 */
     showTranslation?: boolean;
     /** 是否显示逐行音译 */
     showLineRomanization?: boolean;
     /** 是否显示逐词音译 */
     showWordRomanization?: boolean;
+    /** 歌词与发音同时显示时的大字体内容 */
+    largerLyricText?: LargerLyricText;
+    /** 是否强制将逐字歌词的逐行发音提升为逐句主歌词 */
+    forceLinePronunciationAsMain?: boolean;
+    /** 是否独立计算逐词发音遮罩进度 */
+    independentWordRomanizationProgress?: boolean;
     /** 挂载时的初始播放时间（毫秒） */
     initialTime?: number;
   }>(),
@@ -37,9 +70,17 @@ const props = withDefaults(
     wordFadeWidth: 0.5,
     hidePassedLines: false,
     enableBlur: false,
+    enableWordHighlight: true,
+    floatAnimationIntensity: "medium",
+    enableEmphasizeEffect: true,
+    disableCjkEmphasis: false,
+    minimizeSpringParams: false,
     showTranslation: true,
     showLineRomanization: true,
     showWordRomanization: true,
+    largerLyricText: "lyrics",
+    forceLinePronunciationAsMain: false,
+    independentWordRomanizationProgress: false,
     initialTime: 0,
   },
 );
@@ -69,14 +110,52 @@ const isPreviousHidden = ref(false);
 // 处理多语言显隐及音译偏好的本地高效清洗
 const processedLyrics = computed(() => {
   if (!props.lyricLines) return [];
+  const forceLineMode =
+    props.largerLyricText === "pronunciation" &&
+    props.showLineRomanization &&
+    shouldForceAmlLinePronunciationMode(props.lyricLines, props.forceLinePronunciationAsMain);
   return props.lyricLines.map((line) => {
-    const newLine = {
-      ...line,
-      translatedLyric: props.showTranslation ? line.translatedLyric : "",
-      romanLyric: resolveAmlLineRomanization(line, props.showLineRomanization),
+    const wordPronunciationVisible = props.showWordRomanization && hasWordRomanization(line);
+    const linePronunciationVisible =
+      props.showLineRomanization && !hasWordRomanization(line) && !!line.romanLyric.trim();
+    const linePronunciationCanBePromoted =
+      linePronunciationVisible && canPromoteLinePronunciation(line, false);
+    const displayLine =
+      forceLineMode && canPromoteLinePronunciation(line, true)
+        ? promotePronunciation(line, "line")
+        : forceLineMode
+          ? collapseToLineLyric(line)
+          : props.largerLyricText === "pronunciation" && wordPronunciationVisible
+            ? promotePronunciation(line, "word")
+            : props.largerLyricText === "pronunciation" && linePronunciationCanBePromoted
+              ? promotePronunciation(line, "line")
+              : line;
+    const translation = props.showTranslation ? displayLine.translatedLyric : "";
+    const pronunciation = resolveAmlLineRomanization(displayLine, props.showLineRomanization);
+    const newLine: AmlLyricLine = {
+      ...displayLine,
+      translatedLyric: translation,
+      romanLyric: pronunciation,
     };
-    if (line.words) {
-      newLine.words = line.words.map((word) => {
+    if (!props.enableWordHighlight) {
+      newLine.__amllDisableWordHighlight = true;
+    }
+    if (!props.enableEmphasizeEffect) {
+      newLine.__amllDisableEmphasize = true;
+    }
+    if (props.disableCjkEmphasis) {
+      newLine.__amllDisableCjkEmphasis = true;
+    }
+    newLine.__amllFloatAnimationIntensity = props.floatAnimationIntensity;
+    if (props.independentWordRomanizationProgress && wordPronunciationVisible) {
+      if (props.largerLyricText === "pronunciation") {
+        newLine.__amllIndependentMainWordMask = true;
+      } else {
+        newLine.__amllIndependentRomanWordMask = true;
+      }
+    }
+    if (displayLine.words) {
+      newLine.words = displayLine.words.map((word) => {
         const newWord = { ...word };
         if (!props.showWordRomanization) {
           delete newWord.romanWord;
@@ -108,6 +187,8 @@ const processLyricLanguage = (player = playerRef.value) => {
       const lyricLine = line?.getLine();
       const lyricLineElement = line?.getElement();
       if (!lyricLine || !lyricLineElement) continue;
+
+      lyricLineElement.classList.toggle("amll-line-lyric", !!(lyricLine as LyricLine).isLineLyric);
 
       const lyricMainLineElement = lyricLineElement.firstChild;
       if (lyricMainLineElement instanceof HTMLElement) {
@@ -227,18 +308,26 @@ watchEffect(() => {
     playerRef.value.setEnableSpring(useSpring);
     playerRef.value.setEnableScale(useSpring);
 
-    playerRef.value.setLinePosYSpringParams({
-      mass: settings.lyric.amllVerticalSpringMass,
-      damping: settings.lyric.amllVerticalSpringDamping,
-      stiffness: settings.lyric.amllVerticalSpringStiffness,
-      soft: settings.lyric.amllVerticalSpringSoft,
-    });
-    playerRef.value.setLineScaleSpringParams({
-      mass: settings.lyric.amllScaleSpringMass,
-      damping: settings.lyric.amllScaleSpringDamping,
-      stiffness: settings.lyric.amllScaleSpringStiffness,
-      soft: settings.lyric.amllScaleSpringSoft,
-    });
+    playerRef.value.setLinePosYSpringParams(
+      props.minimizeSpringParams
+        ? { mass: 0.1, damping: 0, stiffness: 1, soft: false }
+        : {
+            mass: settings.lyric.amllVerticalSpringMass,
+            damping: settings.lyric.amllVerticalSpringDamping,
+            stiffness: settings.lyric.amllVerticalSpringStiffness,
+            soft: settings.lyric.amllVerticalSpringSoft,
+          },
+    );
+    playerRef.value.setLineScaleSpringParams(
+      props.minimizeSpringParams
+        ? { mass: 0.1, damping: 0, stiffness: 1, soft: false }
+        : {
+            mass: settings.lyric.amllScaleSpringMass,
+            damping: settings.lyric.amllScaleSpringDamping,
+            stiffness: settings.lyric.amllScaleSpringStiffness,
+            soft: settings.lyric.amllScaleSpringSoft,
+          },
+    );
   }
 });
 
@@ -327,6 +416,11 @@ defineExpose({
 
 :deep(:lang(und-Latn)) {
   font-family: var(--lyric-font-latin, inherit);
+}
+
+:deep(.amll-line-lyric > :first-child *) {
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
 }
 
 :deep(.lp-line.lp-credit) {

@@ -98,6 +98,8 @@ export const useSettingsStore = defineStore(
       fontSize: 48,
       fontWeight: 700,
       lyricBlendMode: "normal",
+      largerLyricText: "lyrics",
+      forceLinePronunciationAsMain: false,
       fontFamily: "",
       fontFamilyLatin: "",
       fontFamilyJapanese: "",
@@ -108,9 +110,12 @@ export const useSettingsStore = defineStore(
       showRomanization: true,
       amllShowLineRomanization: true,
       amllShowWordRomanization: true,
+      independentWordRomanizationProgress: false,
       enableWordHighlight: true,
-      enableFloatAnimation: false,
+      floatAnimationIntensity: "medium",
       enableEmphasizeEffect: false,
+      disableCjkEmphasis: false,
+      raiseAlignPositionOnOverlap: false,
       enableBlur: false,
       hidePassedLines: false,
       springPreset: "default",
@@ -283,6 +288,28 @@ export const useSettingsStore = defineStore(
         }
         if (typeof lyric.fallbackTranslation !== "boolean") {
           lyric.fallbackTranslation = true;
+        }
+        if (!(["lyrics", "pronunciation"] as const).includes(lyric.largerLyricText)) {
+          lyric.largerLyricText = "lyrics";
+        }
+        if (typeof lyric.forceLinePronunciationAsMain !== "boolean") {
+          lyric.forceLinePronunciationAsMain = false;
+        }
+        if (typeof lyric.independentWordRomanizationProgress !== "boolean") {
+          lyric.independentWordRomanizationProgress = false;
+        }
+        if (typeof lyric.disableCjkEmphasis !== "boolean") {
+          lyric.disableCjkEmphasis = false;
+        }
+        if (typeof lyric.raiseAlignPositionOnOverlap !== "boolean") {
+          lyric.raiseAlignPositionOnOverlap = false;
+        }
+        if (
+          !(["low", "medium", "high", "very-high", "extreme"] as const).includes(
+            lyric.floatAnimationIntensity,
+          )
+        ) {
+          lyric.floatAnimationIntensity = "medium";
         }
         lyric.lyricSourceOrder = reconcileOrder(lyric.lyricSourceOrder, DEFAULT_LYRIC_SOURCE_ORDER);
         lyric.lyricFormatOrder = reconcileOrder(lyric.lyricFormatOrder, DEFAULT_LYRIC_FORMAT_ORDER);

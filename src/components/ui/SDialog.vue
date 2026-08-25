@@ -145,7 +145,7 @@ const setOpen = (val: boolean): void => {
         <div v-if="title" class="shrink-0 px-5 pt-4 pb-3 pr-12">
           <DialogTitle class="flex items-center gap-2 text-lg font-semibold">
             <span>{{ title }}</span>
-            <STag v-if="titleTag" type="warning" size="tiny">{{ titleTag }}</STag>
+            <STag v-if="titleTag" type="primary">{{ titleTag }}</STag>
           </DialogTitle>
           <DialogDescription
             v-if="description"

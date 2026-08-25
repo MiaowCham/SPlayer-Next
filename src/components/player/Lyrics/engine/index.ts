@@ -140,6 +140,8 @@ export class LyricRenderer {
 
   /** 激活行在容器中的对齐位置（0~1） */
   private alignPosition = DEFAULTS.alignPosition;
+  /** 多行同时高亮时是否临时抬高歌词对齐位置 */
+  private raiseAlignPositionOnOverlap = DEFAULTS.raiseAlignPositionOnOverlap;
   /** 是否正在播放 */
   private isPlaying = true;
   /** 逐字掩码渐变宽度比例 */
@@ -166,10 +168,12 @@ export class LyricRenderer {
   private enableBlur = DEFAULTS.enableBlur;
   /** 是否启用逐字高亮 */
   private enableWordHighlight = DEFAULTS.enableWordHighlight;
-  /** 是否启用逐字上浮动画 */
-  private enableFloatAnimation = DEFAULTS.enableFloatAnimation;
+  /** 逐字上浮动画强度 */
+  private floatAnimationIntensity = DEFAULTS.floatAnimationIntensity;
   /** 是否启用强调效果（缩放 + 辉光） */
   private enableEmphasizeEffect = DEFAULTS.enableEmphasizeEffect;
+  /** 是否禁用 CJK 歌词的强调效果 */
+  private disableCjkEmphasis = DEFAULTS.disableCjkEmphasis;
   /** 是否显示翻译歌词 */
   private showTranslation = DEFAULTS.showTranslation;
   /** 是否显示音译歌词 */
@@ -356,6 +360,7 @@ export class LyricRenderer {
     // 构建 DOM
     const built = buildLineElements(lines, {
       enableEmphasizeEffect: this.enableEmphasizeEffect,
+      disableCjkEmphasis: this.disableCjkEmphasis,
       showTranslation: this.showTranslation,
       showRomanization: this.showRomanization,
     });
@@ -474,10 +479,18 @@ export class LyricRenderer {
     if (config.hidePassedLines != null) this.hidePassedLines = config.hidePassedLines;
     if (config.enableBlur != null) this.enableBlur = config.enableBlur;
     if (config.enableWordHighlight != null) this.enableWordHighlight = config.enableWordHighlight;
-    if (config.enableFloatAnimation != null)
-      this.enableFloatAnimation = config.enableFloatAnimation;
+    if (config.floatAnimationIntensity != null)
+      this.floatAnimationIntensity = config.floatAnimationIntensity;
     if (config.enableEmphasizeEffect != null)
       this.enableEmphasizeEffect = config.enableEmphasizeEffect;
+    if (config.disableCjkEmphasis != null) this.disableCjkEmphasis = config.disableCjkEmphasis;
+    if (
+      config.raiseAlignPositionOnOverlap != null &&
+      config.raiseAlignPositionOnOverlap !== this.raiseAlignPositionOnOverlap
+    ) {
+      this.raiseAlignPositionOnOverlap = config.raiseAlignPositionOnOverlap;
+      layoutDirty = true;
+    }
     if (config.showTranslation != null) this.showTranslation = config.showTranslation;
     if (config.showRomanization != null) this.showRomanization = config.showRomanization;
 
@@ -696,7 +709,12 @@ export class LyricRenderer {
       heightAccum += this.lineHeights[i] || 40;
     }
     position -= heightAccum;
-    position += viewHeight * this.alignPosition - (this.lineHeights[targetIdx] || 40) / 2;
+    const activeMainLineCount = [...this.activeLineSet].filter((index) => !lines[index]?.isBG).length;
+    const effectiveAlignPosition =
+      this.raiseAlignPositionOnOverlap && this.alignPosition > 0.15 && activeMainLineCount > 1
+        ? 0.15
+        : this.alignPosition;
+    position += viewHeight * effectiveAlignPosition - (this.lineHeights[targetIdx] || 40) / 2;
     // 激活主行带置顶背景行时，主行会被背景行下推，整体上移以保持主行居中
     if (this.isBgAbove[targetIdx + 1] && this.activeLineSet.has(targetIdx + 1)) {
       position -= this.lineHeights[targetIdx + 1] || 40;
@@ -1022,7 +1040,7 @@ export class LyricRenderer {
       currentTime,
       {
         playing: this.isPlaying,
-        float: this.enableFloatAnimation,
+        floatIntensity: this.floatAnimationIntensity,
         emphasize: this.enableEmphasizeEffect,
       },
     );

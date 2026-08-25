@@ -94,7 +94,6 @@
     "reject": "Decline & Exit"
   },
   "common": {
-    "back": "Back",
     "confirm": "Confirm",
     "cancel": "Cancel",
     "close": "Close",
@@ -223,42 +222,6 @@
       "album": "Go to album [{id}]",
       "artist": "Go to artist [{id}]",
       "playlist": "Go to playlist [{id}]"
-    }
-  },
-  "recognition": {
-    "title": "Music Recognition",
-    "entry": "Recognize",
-    "description": "Identify the music currently playing",
-    "start": "Start Recognition",
-    "sourceLabel": "Audio source",
-    "hint": {
-      "system": "We will capture a short audio sample from your system to identify the music",
-      "microphone": "Move closer to the source and keep the room quiet for better results"
-    },
-    "source": {
-      "system": "System Audio",
-      "microphone": "Microphone"
-    },
-    "phase": {
-      "capturing": "Listening…",
-      "fingerprinting": "Generating fingerprint…",
-      "matching": "Matching library…"
-    },
-    "empty": "No song identified, move closer to the sound source and retry",
-    "retry": "Try Again",
-    "cancel": "Cancel",
-    "play": "Play",
-    "unavailable": "Music recognition is not supported on this device",
-    "searching": "Search this song",
-    "error": {
-      "unsupported": "System audio capture is not supported on this platform",
-      "no-device": "No audio input device found",
-      "permission-denied": "Microphone permission denied, please grant access in system settings",
-      "capture-failed": "Audio capture failed",
-      "silent-input": "No sound detected, please check audio output",
-      "network": "Matching service unavailable, please try again later",
-      "afp-unavailable": "Audio fingerprint library unavailable",
-      "unknown": "Recognition failed, please try again"
     }
   },
   "home": {
@@ -472,10 +435,7 @@
       "loading": "Starting Personal FM…",
       "entered": "Personal FM started",
       "already": "Already in Personal FM",
-      "failed": "Failed to start Personal FM, please try again later",
-      "modeSettings": "Personal FM Mode",
-      "modeTooltip": "FM Mode & Scene",
-      "modeSettingsTip": "Select preferred recommendation mode and scene"
+      "failed": "Failed to start Personal FM, please try again later"
     },
     "lyricOffset": {
       "title": "Lyric Offset",
@@ -488,7 +448,9 @@
       "hidePronunciation": "Hide Pronunciation"
     },
     "locateCurrentLyric": "Locate Current Lyric",
-    "lyricCredit": "Lyrics by",
+    "lyricCredit": "Written by:",
+    "lyricProduction": "Lyric production:",
+    "songProduction": "Song Production:",
     "copyLyric": {
       "title": "Copy Lyrics",
       "contentLabel": "Content to copy",
@@ -524,7 +486,7 @@
     "trackHint": "Currently Used Lyrics",
     "currentLyric": "Currently Used Lyrics",
     "currentLyricUnavailable": "This track is not playing, so the lyric currently in use cannot be confirmed",
-    "sourceDisplayHint": "Click to open lyric management for the current track",
+    "sourceDisplayHint": "Manage lyrics",
     "smartSelectionHint": "Smart Selection is active and chooses lyrics using the configured source and format priorities.",
     "smartSelection": "Smart Selection",
     "smartSelectionDescription": "Automatically choose by source and format priority, falling back when unavailable.",
@@ -545,11 +507,6 @@
     "trackId": "Track ID",
     "openDirectory": "Open Lyric Folder",
     "manageTrack": "Manage Track",
-    "unmatchedTrack": "Unable to match a track by ID",
-    "deleteLyric": "Delete Lyrics",
-    "deleteLyricFailed": "Failed to delete lyrics",
-    "deleteUnmatchedTitle": "Delete unmatched lyrics?",
-    "deleteUnmatchedDescription": "This permanently deletes “{filename}” and all of its local lyric files.",
     "syncToTracks": "Sync to Other Tracks",
     "syncTitle": "Sync Custom Lyrics",
     "searchTrackPlaceholder": "Search local or Netease tracks by title, artist, or ID",
@@ -644,7 +601,7 @@
       "selected": "{count} selected",
       "invert": "Invert",
       "addToQueue": "Add to Queue",
-      "download": "Batch Download",
+      "download": "Download",
       "exit": "Exit"
     },
     "delete": {
@@ -735,7 +692,8 @@
     "clearFinished": "Clear finished",
     "clearConfirmTitle": "Clear finished tasks",
     "clearConfirmContent": "This removes all completed and failed task records from the list. Downloaded files on disk are kept. Continue?",
-    "tabActive": "Queue",
+    "tabAll": "All",
+    "tabActive": "Downloading",
     "tabError": "Errors",
     "tabDone": "Completed",
     "colStatus": "Status",
@@ -838,6 +796,7 @@
       "lyricTTML": "TTML Lyrics",
       "lyricExclude": "Metadata Stripping",
       "lyricGeneral": "Content & Style",
+      "lyricTranslationPronunciation": "Translation & Pronunciation",
       "lyricDisplay": "Display Effects",
       "lyricSpring": "Spring Animation",
       "lyricLayout": "Layout & Opacity",
@@ -1031,25 +990,6 @@
       "label": "Auto-Detect Background Lyrics",
       "description": "Detect backing vocals from brackets. Disable this if lyrics are misdetected"
     },
-    "cjkTransform": {
-      "label": "Chinese Conversion",
-      "description": "Convert lyric text between Simplified and Traditional Chinese or Japanese Kanji",
-      "none": "Off",
-      "s2t": "Simplified → Traditional",
-      "t2s": "Traditional → Simplified",
-      "s2tw": "Simplified → Traditional (Taiwan)",
-      "tw2s": "Traditional (Taiwan) → Simplified",
-      "s2hk": "Simplified → Traditional (Hong Kong)",
-      "hk2s": "Traditional (Hong Kong) → Simplified",
-      "s2twp": "Simplified → Traditional (Taiwan)",
-      "tw2sp": "Traditional (Taiwan) → Simplified",
-      "t2tw": "Traditional → Traditional (Taiwan)",
-      "tw2t": "Traditional (Taiwan) → Traditional",
-      "t2hk": "Traditional → Traditional (Hong Kong)",
-      "hk2t": "Traditional (Hong Kong) → Traditional",
-      "jp2t": "Japanese Shinjitai → Traditional",
-      "t2jp": "Traditional → Japanese Shinjitai"
-    },
     "enableOnlineTTMLLyric": {
       "label": "Enable Online TTML Lyrics",
       "description": "Fetch lyrics from AMLL TTML DB. Supports word-level timing, translation, and pronunciation."
@@ -1206,6 +1146,16 @@
       "screen": "Screen",
       "plusLighter": "Plus Lighter"
     },
+    "largerLyricText": {
+      "label": "Larger Text",
+      "description": "Choose whether lyrics or pronunciation appears larger when both are displayed.",
+      "lyrics": "Lyrics",
+      "pronunciation": "Pronunciation"
+    },
+    "forceLinePronunciationAsMain": {
+      "label": "Force Larger Line Pronunciation",
+      "description": "When word-timed lyrics only have line pronunciation, show pronunciation as the main line and use line-by-line scrolling."
+    },
     "followCoverColor": {
       "label": "Follow Cover Color",
       "description": "Lyric color follows the current cover art"
@@ -1234,17 +1184,34 @@
       "label": "Show Word Pronunciation",
       "description": "Display pronunciation for each word in word-by-word lyrics"
     },
+    "independentWordRomanizationProgress": {
+      "label": "Independent Word Pronunciation Progress",
+      "description": "Calculate each word-pronunciation mask from its own text, including when pronunciation is the main lyric; excludes layout whitespace"
+    },
     "enableWordHighlight": {
       "label": "Word Highlight",
       "description": "Show word-by-word lyric highlight progress"
     },
-    "enableFloatAnimation": {
-      "label": "Word Float",
-      "description": "Active words float up slightly"
+    "floatAnimationIntensity": {
+      "label": "Word Float Intensity",
+      "description": "Adjust how far active words float upward",
+      "low": "Low",
+      "medium": "Medium (Default)",
+      "high": "High",
+      "veryHigh": "Very High",
+      "extreme": "Extreme"
     },
     "enableEmphasizeEffect": {
       "label": "Emphasize Effect",
       "description": "Scale and glow animation for long syllables"
+    },
+    "disableCjkEmphasis": {
+      "label": "Disable Emphasis for CJK Lyrics",
+      "description": "Disable scale, glow, and float emphasis for CJK lyrics without affecting other text"
+    },
+    "raiseAlignPositionOnOverlap": {
+      "label": "Raise Alignment for Overlapping Lines",
+      "description": "Temporarily raise the alignment position to 0.15 while adjacent lyric lines overlap"
     },
     "enableBlur": {
       "label": "Line Blur",

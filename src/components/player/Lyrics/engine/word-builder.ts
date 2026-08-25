@@ -47,6 +47,7 @@ export const buildWordSpans = (
   words: LyricWord[],
   mainDiv: HTMLDivElement,
   enableEmphasize = true,
+  disableCjkEmphasis = false,
 ): BuildResult => {
   const chunks = chunkAndSplitLyricWords(words);
   const measurements: WordMeasurement[] = [];
@@ -68,7 +69,8 @@ export const buildWordSpans = (
     let previousText = "";
     for (const chunk of chunks) {
       const atoms = Array.isArray(chunk) ? chunk : [chunk];
-      const isEmp = enableEmphasize && atoms.length > 0 && shouldChunkEmphasize(atoms);
+      const isEmp =
+        enableEmphasize && atoms.length > 0 && shouldChunkEmphasize(atoms, disableCjkEmphasis);
       const isLast = chunk === lastChunk;
 
       const firstText = atoms[0]?.word.trim();
@@ -107,7 +109,7 @@ export const buildWordSpans = (
   for (const chunk of chunks) {
     if (Array.isArray(chunk)) {
       const mergedText = chunk.map((word) => word.word).join("");
-      const isEmp = enableEmphasize && shouldChunkEmphasize(chunk);
+      const isEmp = enableEmphasize && shouldChunkEmphasize(chunk, disableCjkEmphasis);
       const isLast = chunk === lastChunk;
 
       if (mergedText.trimStart() !== mergedText) {
@@ -145,7 +147,7 @@ export const buildWordSpans = (
       previousText = "";
     } else {
       const text = chunk.word;
-      const isEmp = enableEmphasize && shouldChunkEmphasize([chunk]);
+      const isEmp = enableEmphasize && shouldChunkEmphasize([chunk], disableCjkEmphasis);
       const isLast = chunk === lastChunk;
 
       if (text.trimStart() !== text) {
@@ -273,15 +275,11 @@ export const measureAndApplyWordMasks = (
       const wordData = measurement.word;
       const totalMaskWidth = elementWidth + gradientWidth;
       const wordDuration = Math.abs(wordData.endTime - wordData.startTime) || 1;
-      // preRoll：在 startTime 之前提前开始扫动，让相邻词亮区衔接而非硬切
-      const preRoll = Math.min(80, wordDuration * 0.3);
-      const adjustedStart = Math.max(lineStart, wordData.startTime - preRoll);
-      const adjustedDuration = Math.max(1, wordData.endTime - adjustedStart);
       const startPos = padding - totalMaskWidth;
       const endPos = padding;
-      const speed = totalMaskWidth / adjustedDuration;
+      const speed = totalMaskWidth / wordDuration;
       const maskPosition = Number.isFinite(speed)
-        ? `clamp(${startPos}px,calc(${startPos}px + (var(--t,${lineStart}) - ${adjustedStart}) * ${speed}px),${endPos}px) 0px,left top`
+        ? `clamp(${startPos}px,calc(${startPos}px + (var(--t,${lineStart}) - ${wordData.startTime}) * ${speed}px),${endPos}px) 0px,left top`
         : `${startPos}px 0px,left top`;
       const style = measurement.element.style;
       style.setProperty("mask-image", maskImage);

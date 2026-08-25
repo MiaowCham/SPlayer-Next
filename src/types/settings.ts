@@ -39,6 +39,12 @@ export type SpringPreset =
 /** 歌词混合模式 */
 export type LyricBlendMode = "normal" | "screen" | "plus-lighter";
 
+/** 歌词与发音同时显示时的大字体内容 */
+export type LargerLyricText = "lyrics" | "pronunciation";
+
+/** 逐字上浮动画强度 */
+export type LyricFloatAnimationIntensity = "low" | "medium" | "high" | "very-high" | "extreme";
+
 /** 弹簧预设参数映射 */
 export const SPRING_PRESETS: Record<
   Exclude<SpringPreset, "custom">,
@@ -89,6 +95,10 @@ export interface LyricSettings {
   fontWeight: number;
   /** 歌词混合模式 */
   lyricBlendMode: LyricBlendMode;
+  /** 歌词与发音同时显示时的大字体内容 */
+  largerLyricText: LargerLyricText;
+  /** 逐字歌词仅有逐行发音时，是否强制将发音作为逐句主歌词 */
+  forceLinePronunciationAsMain: boolean;
   /** 歌词字体 */
   fontFamily: string;
   /** 拉丁文字歌词字体（为空时跟随歌词字体） */
@@ -109,12 +119,18 @@ export interface LyricSettings {
   amllShowLineRomanization: boolean;
   /** AMLL 是否显示逐词音译 */
   amllShowWordRomanization: boolean;
+  /** AMLL 是否独立计算逐词发音遮罩进度 */
+  independentWordRomanizationProgress: boolean;
   /** 逐字高亮效果 */
   enableWordHighlight: boolean;
-  /** 逐字上浮动画 */
-  enableFloatAnimation: boolean;
+  /** 逐字上浮动画强度 */
+  floatAnimationIntensity: LyricFloatAnimationIntensity;
   /** 强调效果（缩放 + 辉光 + 正弦浮动） */
   enableEmphasizeEffect: boolean;
+  /** 禁用 CJK 歌词的强调效果 */
+  disableCjkEmphasis: boolean;
+  /** 多行同时高亮时是否临时抬高歌词对齐位置 */
+  raiseAlignPositionOnOverlap: boolean;
   /** 逐行模糊效果 */
   enableBlur: boolean;
   /** 隐藏已播放行 */
@@ -179,7 +195,7 @@ export interface PlayerSettings {
   followCoverColor: boolean;
   /** 全屏播放器自动进入沉浸模式（隐藏顶/底栏与鼠标） */
   autoImmersive: boolean;
-  /** 输出设备 ID（cpal DeviceId），null 表示跟随系统默认 */
+  /** 输出设备名称，null 表示跟随系统默认 */
   outputDevice: string | null;
   /** 切换输出设备时暂停播放 */
   pauseOnDeviceSwitch: boolean;

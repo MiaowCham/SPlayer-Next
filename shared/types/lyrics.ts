@@ -76,6 +76,8 @@ export interface LyricLine {
   isBG: boolean;
   /** 是否为对唱歌词行 */
   isDuet: boolean;
+  /** 是否强制按逐句歌词渲染，不使用逐字高亮 */
+  isLineLyric?: boolean;
 }
 
 /**
