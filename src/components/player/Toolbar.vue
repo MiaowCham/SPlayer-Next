@@ -2,6 +2,7 @@
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
+import { useTrackMoreMenu } from "@/composables/useTrackMoreMenu";
 import * as player from "@/core/player";
 import IconLucideSliders from "~icons/lucide/sliders-horizontal";
 import IconLucideGauge from "~icons/lucide/gauge";
@@ -21,6 +22,9 @@ const props = withDefaults(
 const { t } = useI18n();
 const status = useStatusStore();
 const settings = useSettingsStore();
+const currentTrack = computed(() => status.currentTrack);
+const { item: trackMoreMenuItem, handleSelect: handleTrackMoreSelect } =
+  useTrackMoreMenu(currentTrack);
 const { isDesktopLyricOpen } = storeToRefs(settings);
 
 const buttonType = computed<"default" | "cover">(() => (props.cover ? "cover" : "default"));
@@ -65,20 +69,22 @@ const moreMenuItems = computed<DropdownMenuItem[]>(() => [
   { key: "speed", label: t("speed.title"), icon: IconLucideGauge },
   { key: "abLoop", label: t("abLoop.title"), icon: IconLucideRepeat2 },
   { key: "autoClose", label: t("autoClose.title"), icon: IconLucideClock },
+  { ...trackMoreMenuItem.value, separator: true, show: !!currentTrack.value },
 ]);
 
-const onMoreMenuSelect = (key: string): void => {
+const onMoreMenuSelect = async (key: string): Promise<void> => {
   if (key === "equalizer") equalizerOpen.value = true;
   else if (key === "speed") speedOpen.value = true;
   else if (key === "abLoop") abLoopOpen.value = true;
   else if (key === "autoClose") autoCloseOpen.value = true;
+  else await handleTrackMoreSelect(key);
 };
 </script>
 
 <template>
   <div class="flex items-center gap-1">
     <!-- 在线音质 -->
-    <QualityControl v-if="settings.appearance.showQualitySwitch" :cover="cover" />
+    <QualityControl v-if="settings.appearance.showQualitySwitch && !cover" :cover="cover" />
     <SPopover trigger="hover" side="top" :cover="cover" content-class="px-3 pb-2 pt-3">
       <template #trigger>
         <SButton

@@ -9,9 +9,9 @@ import { usePluginsStore } from "@/stores/plugins";
 import { useStatusStore } from "@/stores/status";
 import { useCopyText } from "@/composables/useCopyText";
 import { useLyricTrackManagerDialog } from "@/composables/useLyricTrackManagerDialog";
+import { useTrackMoreMenu } from "@/composables/useTrackMoreMenu";
 import { toast } from "@/composables/useToast";
 import { buildDownloadQualityItems } from "@/composables/useDownload";
-import { getTrackShareUrl } from "@/utils/format/shareUrl";
 import { openExternal } from "@/utils/url";
 import IconPlay from "~icons/lucide/play";
 import IconListEnd from "~icons/lucide/list-end";
@@ -26,7 +26,6 @@ import IconCloudOff from "~icons/lucide/cloud-off";
 import IconSearch from "~icons/lucide/search";
 import IconMessageCircle from "~icons/lucide/message-circle";
 import IconFilePenLine from "~icons/lucide/file-pen-line";
-import IconMoreHorizontal from "~icons/lucide/more-horizontal";
 import IconPuzzle from "~icons/lucide/puzzle";
 
 export interface TrackMenuOptions {
@@ -68,6 +67,7 @@ export const useTrackMenu = (
   const plugins = usePluginsStore();
   const { copy } = useCopyText();
   const lyricManager = useLyricTrackManagerDialog();
+  const { item: moreMenuItem, handleSelect: handleMoreSelect } = useTrackMoreMenu(track);
   const isPlaylist = options.collectionType === "playlist";
   const isCloudView = options.collectionType === "cloud";
   const showPlay = !options.hidePlayActions;
@@ -79,7 +79,6 @@ export const useTrackMenu = (
     const isCue = !!track.value?.cuePath;
     const showCloudRemove = isCloudView && track.value?.cloud === true;
     const canAddToPlaylist = source === "local" || source === "netease";
-    const isOnline = source !== "local" && source !== "streaming";
     const base: DropdownMenuItem[] = [
       { key: "play", label: t("songList.context.play"), icon: markRaw(IconPlay), show: showPlay },
       {
@@ -160,30 +159,7 @@ export const useTrackMenu = (
         icon: markRaw(IconFilePenLine),
         separator: true,
       },
-      {
-        key: "more",
-        label: t("songList.context.more"),
-        icon: markRaw(IconMoreHorizontal),
-        children: [
-          {
-            key: "copyTitle",
-            label: t("songList.context.copyTitle"),
-            icon: markRaw(IconCopy),
-          },
-          {
-            key: "copyId",
-            label: t("songList.context.copyId"),
-            icon: markRaw(IconCopy),
-            show: !isLocal,
-          },
-          {
-            key: "copyUrl",
-            label: t("songList.context.copyUrl"),
-            icon: markRaw(IconCopy),
-            show: isOnline,
-          },
-        ],
-      },
+      moreMenuItem.value,
     ];
     // 插件贡献：每个有 ui 权限的插件折叠成一个以插件名命名的子菜单
     const pluginGroups: DropdownMenuItem[] = [];
@@ -206,6 +182,7 @@ export const useTrackMenu = (
   const handleSelect = async (key: string): Promise<void> => {
     const current = track.value;
     if (!current) return;
+    if (await handleMoreSelect(key)) return;
     // 下载子菜单：download:<音质>，空音质表示默认
     if (key.startsWith("download:")) {
       const quality = key.slice("download:".length);
@@ -272,15 +249,6 @@ export const useTrackMenu = (
         break;
       case "manageLyrics":
         lyricManager.show(current, "context-menu");
-        break;
-      case "copyTitle":
-        await copy(current.title);
-        break;
-      case "copyId":
-        await copy(current.id);
-        break;
-      case "copyUrl":
-        await copy(getTrackShareUrl(current));
         break;
     }
   };
