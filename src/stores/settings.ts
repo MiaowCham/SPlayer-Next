@@ -1,4 +1,5 @@
 import type {
+  ChineseScriptPreference,
   PlayerSettings,
   LyricSettings,
   AppearanceSettings,
@@ -93,7 +94,7 @@ export const useSettingsStore = defineStore(
       lyricFormatOrder: [...DEFAULT_LYRIC_FORMAT_ORDER],
       smartPreferOnline: false,
       detectBackgroundLyrics: true,
-      cjkTransform: "none",
+      chineseScriptPreference: "default",
       adaptiveFontSize: true,
       fontSize: 48,
       fontWeight: 700,
@@ -283,6 +284,30 @@ export const useSettingsStore = defineStore(
       omit: ["system"],
       afterHydrate: ({ store }) => {
         const { lyric } = store as unknown as { lyric: LyricSettings };
+        const legacyLyric = lyric as LyricSettings & { cjkTransform?: string };
+        const legacyPreferenceMap: Record<string, ChineseScriptPreference> = {
+          none: "default",
+          t2s: "simplified",
+          tw2s: "simplified",
+          hk2s: "simplified",
+          tw2sp: "simplified",
+          s2t: "traditional",
+          s2tw: "traditional",
+          s2hk: "traditional",
+          s2twp: "traditional",
+        };
+        if (legacyLyric.cjkTransform) {
+          lyric.chineseScriptPreference =
+            legacyPreferenceMap[legacyLyric.cjkTransform] ?? "default";
+          delete legacyLyric.cjkTransform;
+        }
+        if (
+          !(["default", "simplified", "traditional"] as const).includes(
+            lyric.chineseScriptPreference,
+          )
+        ) {
+          lyric.chineseScriptPreference = "default";
+        }
         if (typeof lyric.detectBackgroundLyrics !== "boolean") {
           lyric.detectBackgroundLyrics = true;
         }

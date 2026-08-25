@@ -990,6 +990,32 @@
       "label": "Auto-Detect Background Lyrics",
       "description": "Detect backing vocals from brackets. Disable this if lyrics are misdetected"
     },
+    "chineseScriptPreference": {
+      "label": "Chinese Script Preference",
+      "description": "Converts only lyrics confidently identified as Chinese to avoid changing Japanese and other Han text",
+      "default": "Default",
+      "simplified": "Prefer Simplified",
+      "traditional": "Prefer Traditional"
+    },
+    "cjkTransform": {
+      "label": "Lyric Text Conversion",
+      "description": "Converts lyric text with OpenCC; legacy values are migrated to the Chinese script preference",
+      "none": "No Conversion",
+      "s2t": "Simplified to Traditional",
+      "t2s": "Traditional to Simplified",
+      "s2tw": "Simplified to Taiwan Traditional",
+      "tw2s": "Taiwan Traditional to Simplified",
+      "s2twp": "Simplified to Taiwan Traditional with Phrases",
+      "tw2sp": "Taiwan Traditional to Simplified with Phrases",
+      "s2hk": "Simplified to Hong Kong Traditional",
+      "hk2s": "Hong Kong Traditional to Simplified",
+      "t2tw": "Traditional to Taiwan Traditional",
+      "tw2t": "Taiwan Traditional to Traditional",
+      "t2hk": "Traditional to Hong Kong Traditional",
+      "hk2t": "Hong Kong Traditional to Traditional",
+      "jp2t": "Japanese Shinjitai to Traditional",
+      "t2jp": "Traditional to Japanese Shinjitai"
+    },
     "enableOnlineTTMLLyric": {
       "label": "Enable Online TTML Lyrics",
       "description": "Fetch lyrics from AMLL TTML DB. Supports word-level timing, translation, and pronunciation."

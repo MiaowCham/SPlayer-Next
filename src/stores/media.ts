@@ -124,9 +124,12 @@ export const useMediaStore = defineStore("media", () => {
   /** 简繁转换竞态 token */
   let transformToken = 0;
 
-  // 监听简繁转换及强迫症设置变化并重新解析当前歌词
+  // 监听中文繁简偏好及强迫症设置变化并重新解析当前歌词
   watch(
-    () => [useSettingsStore().lyric.cjkTransform, useSettingsStore().preset.uncensorProfanity],
+    () => [
+      useSettingsStore().lyric.chineseScriptPreference,
+      useSettingsStore().preset.uncensorProfanity,
+    ],
     () => {
       if (activeLyric.value && lyricContent.value) {
         setLyric(activeLyric.value, lyricContent.value);
@@ -140,6 +143,7 @@ export const useMediaStore = defineStore("media", () => {
    * @param input - 主歌词 + 可选翻译 / 音译；传 null 即清空
    */
   const setLyric = (source: LyricData, input: LyricInput | null): void => {
+    const currentTransformToken = ++transformToken;
     let nextLines: LyricLine[] = [];
     const settings = useSettingsStore();
     if (source && input) {
@@ -174,11 +178,10 @@ export const useMediaStore = defineStore("media", () => {
     syncToMain();
 
     // 应用 OpenCC 简繁转换
-    const cjkMode = settings.lyric.cjkTransform;
-    if (hasContent && cjkMode && cjkMode !== "none") {
-      const token = ++transformToken;
-      applyLyricCjkTransform(nextLines, cjkMode).then((transformed) => {
-        if (token !== transformToken) return;
+    const chineseScriptPreference = settings.lyric.chineseScriptPreference;
+    if (hasContent && chineseScriptPreference !== "default") {
+      applyLyricCjkTransform(nextLines, chineseScriptPreference).then((transformed) => {
+        if (currentTransformToken !== transformToken) return;
         parsedLyric.value = transformed;
         syncToMain();
       });

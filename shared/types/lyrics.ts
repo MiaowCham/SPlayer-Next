@@ -22,8 +22,8 @@ export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
 /** 歌词来源 */
 export type LyricSource = "external" | "embedded" | "online" | "managed";
 
-/** 歌词行语言；und-Latn 表示语言未知的拉丁文字 */
-export type LyricLanguage = "ja" | "ko" | "zh-CN" | "und-Latn";
+/** 歌词行语言；und-Hani 与 und-Latn 分别表示语言未知的汉字与拉丁文字 */
+export type LyricLanguage = "ja" | "ko" | "zh-CN" | "und-Hani" | "und-Latn";
 
 /** 歌词数据 */
 export type LyricData = {

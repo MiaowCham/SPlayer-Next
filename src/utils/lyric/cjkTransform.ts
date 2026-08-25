@@ -4,18 +4,20 @@
 
 import type { LyricLine } from "@shared/types/lyrics";
 import type { CjkTransformMode } from "@shared/types/opencc";
+import type { ChineseScriptPreference } from "@/types/settings";
+import { isConfirmedChineseText } from "./language";
 
 /**
  * 对歌词行数组应用 OpenCC 简繁转换
  * @param lines - 原始歌词行数组
- * @param mode - 转换模式
+ * @param preference - 中文字形偏好
  * @returns 转换后的歌词行数组（深拷贝结构）
  */
 export const applyLyricCjkTransform = async (
   lines: LyricLine[],
-  mode: CjkTransformMode,
+  preference: ChineseScriptPreference,
 ): Promise<LyricLine[]> => {
-  if (!lines || lines.length === 0 || !mode || mode === "none") {
+  if (!lines || lines.length === 0 || preference === "default") {
     return lines;
   }
 
@@ -23,46 +25,32 @@ export const applyLyricCjkTransform = async (
     return lines;
   }
 
-  // 收集所有需要转换的文本片段并记录位置
+  const mode: CjkTransformMode = preference === "simplified" ? "t2s" : "s2t";
+
+  // 收集所有可确认是中文的文本片段并记录位置。
+  // 不转换 ruby、罗马音或日文/韩文行，避免破坏发音与其他语言中的汉字。
   const textsToConvert: string[] = [];
   const textPositions: Array<
     | { type: "translated"; lineIndex: number }
     | { type: "word"; lineIndex: number; wordIndex: number }
-    | { type: "ruby"; lineIndex: number; wordIndex: number; rubyIndex: number }
   > = [];
 
   for (let lIdx = 0; lIdx < lines.length; lIdx++) {
     const line = lines[lIdx];
 
-    // 翻译文本
-    if (line.translatedLyric) {
+    // 翻译没有独立语言元数据时，只处理含明确简体中文证据的内容。
+    if (line.translatedLyric && isConfirmedChineseText(line.translatedLyric)) {
       textsToConvert.push(line.translatedLyric);
       textPositions.push({ type: "translated", lineIndex: lIdx });
     }
 
-    // 逐字文本
-    if (line.words) {
+    // 正文只处理语言识别为中文的行。
+    if (line.language === "zh-CN") {
       for (let wIdx = 0; wIdx < line.words.length; wIdx++) {
         const word = line.words[wIdx];
         if (word.word) {
           textsToConvert.push(word.word);
           textPositions.push({ type: "word", lineIndex: lIdx, wordIndex: wIdx });
-        }
-
-        // 注音文本
-        if (word.ruby) {
-          for (let rIdx = 0; rIdx < word.ruby.length; rIdx++) {
-            const ruby = word.ruby[rIdx];
-            if (ruby.word) {
-              textsToConvert.push(ruby.word);
-              textPositions.push({
-                type: "ruby",
-                lineIndex: lIdx,
-                wordIndex: wIdx,
-                rubyIndex: rIdx,
-              });
-            }
-          }
         }
       }
     }
@@ -78,9 +66,9 @@ export const applyLyricCjkTransform = async (
     // 深拷贝原始结构，避免直接突变可能导致的缓存污染
     const resultLines: LyricLine[] = lines.map((line) => ({
       ...line,
-      words: line.words.map((w) => ({
-        ...w,
-        ruby: w.ruby ? w.ruby.map((r) => ({ ...r })) : undefined,
+      words: line.words.map((word) => ({
+        ...word,
+        ruby: word.ruby?.map((ruby) => ({ ...ruby })),
       })),
     }));
 
@@ -90,13 +78,8 @@ export const applyLyricCjkTransform = async (
 
       if (pos.type === "translated") {
         resultLines[pos.lineIndex].translatedLyric = converted;
-      } else if (pos.type === "word") {
+      } else {
         resultLines[pos.lineIndex].words[pos.wordIndex].word = converted;
-      } else if (pos.type === "ruby") {
-        const rubyArr = resultLines[pos.lineIndex].words[pos.wordIndex].ruby;
-        if (rubyArr && rubyArr[pos.rubyIndex]) {
-          rubyArr[pos.rubyIndex].word = converted;
-        }
       }
     }
 

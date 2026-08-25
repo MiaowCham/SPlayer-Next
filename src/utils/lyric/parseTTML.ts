@@ -11,7 +11,7 @@
  * - 逐字间有意义的空格保留
  */
 
-import type { LyricLine, LyricWord } from "@shared/types/lyrics";
+import type { LyricLanguage, LyricLine, LyricWord } from "@shared/types/lyrics";
 import { parseTTMLTime } from "./timestamp";
 import { pickTranslationIndex } from "./translationLanguage";
 
@@ -29,6 +29,22 @@ const getAttr = (el: Element, name: string): string | null => {
     }
   }
   return null;
+};
+
+/**
+ * 读取元素或祖先提供的语言标签，并映射到歌词行支持的语言范围。
+ * @param el 目标元素
+ */
+const getInheritedLanguage = (el: Element): LyricLanguage | undefined => {
+  let current: Element | null = el;
+  while (current) {
+    const language = getAttr(current, "lang")?.toLowerCase();
+    if (language?.startsWith("zh")) return "zh-CN";
+    if (language?.startsWith("ja")) return "ja";
+    if (language?.startsWith("ko")) return "ko";
+    current = current.parentElement;
+  }
+  return undefined;
 };
 
 /**
@@ -87,6 +103,142 @@ interface TransCandidate {
   bg: string;
 }
 
+/** 背景行相对主行的位置。 */
+type BackgroundPosition = "leading" | "trailing";
+
+/** 同一歌词键的单条背景行布局。 */
+interface BackgroundLayout {
+  position: BackgroundPosition;
+}
+
+/** 取元素及其后代的时间范围。 */
+const getTimeRange = (el: Element): { startTime: number; endTime: number } | null => {
+  const timedElements = [el, ...Array.from(el.querySelectorAll("[begin][end]"))];
+  const ranges = timedElements.flatMap((item) => {
+    const begin = getAttr(item, "begin");
+    const end = getAttr(item, "end");
+    return begin && end ? [{ startTime: parseTTMLTime(begin), endTime: parseTTMLTime(end) }] : [];
+  });
+  if (!ranges.length) return null;
+  return {
+    startTime: Math.min(...ranges.map((range) => range.startTime)),
+    endTime: Math.max(...ranges.map((range) => range.endTime)),
+  };
+};
+
+/** 判断节点是否为歌词正文内容。 */
+const isContentNode = (node: ChildNode): boolean => {
+  if (node.nodeType === Node.TEXT_NODE) return !!node.textContent?.trim();
+  if (node.nodeType !== Node.ELEMENT_NODE) return false;
+  const role = getAttr(node as Element, "role");
+  return role !== "x-translation" && role !== "x-roman";
+};
+
+/**
+ * 收集拥有唯一直接背景行的歌词键及其相对位置。
+ * 时间关系明确时优先采用时间，重叠时仅使用背景节点位于正文首尾的结构信息。
+ * @param doc XML 文档
+ */
+const collectBackgroundLayouts = (doc: Document): Map<string, BackgroundLayout> => {
+  const layouts = new Map<string, BackgroundLayout>();
+  const ambiguousKeys = new Set<string>();
+  const seenKeys = new Set<string>();
+
+  for (const p of Array.from(doc.querySelectorAll("p"))) {
+    if (!getAttr(p, "begin") || !getAttr(p, "end")) continue;
+    const key = getAttr(p, "key");
+    if (!key || ambiguousKeys.has(key)) continue;
+    if (seenKeys.has(key)) {
+      layouts.delete(key);
+      ambiguousKeys.add(key);
+      continue;
+    }
+    seenKeys.add(key);
+
+    const contentNodes = Array.from(p.childNodes).filter(isContentNode);
+    const backgrounds = contentNodes.filter(
+      (node): node is Element =>
+        node.nodeType === Node.ELEMENT_NODE &&
+        (node as Element).localName === "span" &&
+        getAttr(node as Element, "role") === "x-bg",
+    );
+    if (backgrounds.length !== 1) {
+      if (backgrounds.length > 1) {
+        layouts.delete(key);
+        ambiguousKeys.add(key);
+      }
+      continue;
+    }
+
+    const background = backgrounds[0];
+    const mainNodes = contentNodes.filter((node) => node !== background);
+    if (!mainNodes.length) {
+      layouts.delete(key);
+      ambiguousKeys.add(key);
+      continue;
+    }
+
+    const mainRanges = mainNodes.flatMap((node) =>
+      node.nodeType === Node.ELEMENT_NODE ? [getTimeRange(node as Element)] : [],
+    );
+    const validMainRanges = mainRanges.filter(
+      (range): range is { startTime: number; endTime: number } => range !== null,
+    );
+    const mainRange = validMainRanges.length
+      ? {
+          startTime: Math.min(...validMainRanges.map((range) => range.startTime)),
+          endTime: Math.max(...validMainRanges.map((range) => range.endTime)),
+        }
+      : getTimeRange(p);
+    const backgroundRange = getTimeRange(background);
+    const backgroundIndex = contentNodes.indexOf(background);
+
+    let position: BackgroundPosition | null = null;
+    if (mainRange && backgroundRange) {
+      if (backgroundRange.endTime <= mainRange.startTime) position = "leading";
+      else if (backgroundRange.startTime >= mainRange.endTime) position = "trailing";
+    }
+    if (!position && backgroundIndex === 0) position = "leading";
+    if (!position && backgroundIndex === contentNodes.length - 1) position = "trailing";
+    if (position) layouts.set(key, { position });
+  }
+
+  return layouts;
+};
+
+/**
+ * 将纯文本翻译中可确定归属的首尾括号背景内容拆分出来。
+ * @param text 纯文本翻译
+ * @param position 背景行相对主行的位置
+ */
+const splitPlainTextBackgroundTranslation = (
+  text: string,
+  position: BackgroundPosition,
+): { main: string; bg: string } | null => {
+  let remaining = text.trim();
+  const backgrounds: string[] = [];
+  const leadingPattern = /^(?:\(([^()（）]+)\)|（([^()（）]+)）)/;
+  const trailingPattern = /\s+(?:\(([^()（）]+)\)|（([^()（）]+)）)\s*$/;
+  const pattern = position === "leading" ? leadingPattern : trailingPattern;
+
+  while (true) {
+    const matched = remaining.match(pattern);
+    if (!matched) break;
+    const background = (matched[1] ?? matched[2]).trim();
+    if (!background) return null;
+    if (position === "leading") {
+      backgrounds.push(background);
+      remaining = remaining.slice(matched[0].length);
+    } else {
+      backgrounds.unshift(background);
+      remaining = remaining.slice(0, remaining.length - matched[0].length);
+    }
+  }
+
+  const main = remaining.trim();
+  return backgrounds.length && main ? { main, bg: backgrounds.join(" ") } : null;
+};
+
 /**
  * 收集 iTunes 翻译元数据（translations 段中的 text[for] 元素）
  * 同一行可能有多个语言的 translation 块，按偏好语言挑选最匹配的
@@ -97,6 +249,7 @@ const collectTranslations = (
   doc: Document,
   preferredLang: string,
   fallbackTranslation: boolean,
+  backgroundLayouts: ReadonlyMap<string, BackgroundLayout>,
 ): Map<string, { main: string; bg: string }> => {
   const candidates = new Map<string, TransCandidate[]>();
 
@@ -109,6 +262,9 @@ const collectTranslations = (
     const key = textEl.getAttribute("for");
     if (!key) continue;
 
+    const isPlainText = Array.from(textEl.childNodes).every(
+      (node) => node.nodeType === Node.TEXT_NODE,
+    );
     let main = "";
     let bg = "";
     for (const node of Array.from(textEl.childNodes)) {
@@ -127,6 +283,14 @@ const collectTranslations = (
 
     main = main.trim();
     bg = stripParens(bg);
+    const layout = backgroundLayouts.get(key);
+    if (isPlainText && !bg && layout) {
+      const split = splitPlainTextBackgroundTranslation(main, layout.position);
+      if (split) {
+        main = split.main;
+        bg = split.bg;
+      }
+    }
     if (!main && !bg) continue;
 
     const lang = getAttr(parent, "lang");
@@ -288,7 +452,13 @@ export const parseTTML = (
   }
 
   const { mainAgent, agentTypes } = collectAgents(doc);
-  const translations = collectTranslations(doc, preferredLang, fallbackTranslation);
+  const backgroundLayouts = collectBackgroundLayouts(doc);
+  const translations = collectTranslations(
+    doc,
+    preferredLang,
+    fallbackTranslation,
+    backgroundLayouts,
+  );
   const transliterations = collectTransliterations(doc);
   const lines: LyricLine[] = [];
 
@@ -316,6 +486,7 @@ export const parseTTML = (
         : !!lineAgent && lineAgent !== mainAgent && agentTypes.get(lineAgent) !== "group",
       startTime: begin ? parseTTMLTime(begin) : 0,
       endTime: end ? parseTTMLTime(end) : 0,
+      language: getInheritedLanguage(el),
     };
 
     // 应用 iTunes 翻译与行级音译

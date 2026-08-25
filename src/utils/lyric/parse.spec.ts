@@ -103,6 +103,74 @@ describe("lyric parse", () => {
     ).toBe("");
   });
 
+  it("TTML 纯文本翻译会按同键后置背景行拆分末尾括号内容", () => {
+    const content =
+      '<tt xmlns="http://www.w3.org/ns/ttml"><head><metadata><translations><translation><text for="L1">用你的方式爱我 啦 啦 用你的方式爱我 （用你的方式）</text></translation></translations></metadata></head><body><div><p begin="1s" end="3s" key="L1"><span begin="1s" end="2s">主行</span><span role="x-bg" begin="2s" end="3s">背景</span></p></div></body></tt>';
+
+    const lines = parseLyric({ content }, "ttml");
+
+    expect(lines.map((line) => line.translatedLyric)).toEqual([
+      "用你的方式爱我 啦 啦 用你的方式爱我",
+      "用你的方式",
+    ]);
+  });
+
+  it("TTML 纯文本翻译会按同键前置背景行拆分紧邻括号内容", () => {
+    const content =
+      '<tt xmlns="http://www.w3.org/ns/ttml"><head><metadata><translations><translation><text for="L1">（用你的方式）用你的方式爱我</text></translation></translations></metadata></head><body><div><p begin="1s" end="3s" key="L1"><span role="x-bg" begin="1s" end="2s">背景</span><span begin="2s" end="3s">主行</span></p></div></body></tt>';
+
+    const lines = parseLyric({ content }, "ttml");
+
+    expect(lines.map((line) => line.translatedLyric)).toEqual(["用你的方式爱我", "用你的方式"]);
+  });
+
+  it("TTML 纯文本翻译支持后置英文括号背景内容", () => {
+    const content =
+      '<tt xmlns="http://www.w3.org/ns/ttml"><head><metadata><translations><translation><text for="L1">Main lyric (Backing lyric)</text></translation></translations></metadata></head><body><div><p begin="1s" end="3s" key="L1"><span begin="1s" end="2s">主行</span><span role="x-bg" begin="2s" end="3s">背景</span></p></div></body></tt>';
+
+    const lines = parseLyric({ content }, "ttml");
+
+    expect(lines.map((line) => line.translatedLyric)).toEqual(["Main lyric", "Backing lyric"]);
+  });
+
+  it("TTML 保留继承的中日韩语言标签", () => {
+    const japanese =
+      '<tt xmlns="http://www.w3.org/ns/ttml" xml:lang="ja-JP"><body><div><p begin="1s" end="2s">愛</p></div></body></tt>';
+    const traditionalChinese =
+      '<tt xmlns="http://www.w3.org/ns/ttml" xml:lang="zh-Hant"><body><div><p begin="1s" end="2s">愛</p></div></body></tt>';
+
+    expect(parseLyric({ content: japanese }, "ttml")[0].language).toBe("ja");
+    expect(parseLyric({ content: traditionalChinese }, "ttml")[0].language).toBe("zh-CN");
+  });
+
+  it("TTML 仅在背景行位置可确定时拆分纯文本翻译括号", () => {
+    const content =
+      '<tt xmlns="http://www.w3.org/ns/ttml"><head><metadata><translations><translation><text for="L1">Main (not backing)</text><text for="L2">Main (not backing)</text><text for="L3">Main (not backing)</text></translation></translations></metadata></head><body><div><p begin="1s" end="2s" key="L1"><span begin="1s" end="2s">主行</span></p><p begin="2s" end="4s" key="L2"><span begin="2s" end="4s">主行</span><span role="x-bg" begin="2.5s" end="3.5s">背景</span><span begin="3s" end="4s">主行后段</span></p><p begin="4s" end="6s" key="L3"><span begin="4s" end="5s">主行</span><span role="x-bg" begin="5s" end="6s">背景一</span><span role="x-bg" begin="5s" end="6s">背景二</span></p></div></body></tt>';
+
+    const lines = parseLyric({ content }, "ttml");
+
+    expect(lines.filter((line) => !line.isBG).map((line) => line.translatedLyric)).toEqual([
+      "Main (not backing)",
+      "Main (not backing)",
+      "Main (not backing)",
+    ]);
+    expect(lines.filter((line) => line.isBG).every((line) => !line.translatedLyric)).toBe(true);
+  });
+
+  it("TTML 保留显式背景翻译，且后置拆分要求空白边界", () => {
+    const content =
+      '<tt xmlns="http://www.w3.org/ns/ttml"><head><metadata><translations><translation><text for="L1">Main<span role="x-bg">Explicit backing</span></text><text for="L2">Main(not backing)</text></translation></translations></metadata></head><body><div><p begin="1s" end="3s" key="L1"><span begin="1s" end="2s">主行</span><span role="x-bg" begin="2s" end="3s">背景</span></p><p begin="3s" end="5s" key="L2"><span begin="3s" end="4s">主行</span><span role="x-bg" begin="4s" end="5s">背景</span></p></div></body></tt>';
+
+    const lines = parseLyric({ content }, "ttml");
+
+    expect(lines.map((line) => line.translatedLyric)).toEqual([
+      "Main",
+      "Explicit backing",
+      "Main(not backing)",
+      "",
+    ]);
+  });
+
   it("按应用语言选择 LRCN Trans 翻译，并保留无语言标记时的首个翻译", () => {
     const content =
       "[Lyrics Next]\n[lyrics: format@LRCN]\n[1.000,2.000,,L1]原文\n[translate: format@LRCN Trans]\n[lang:en-US]\n[1.000,L1]English translation\n[translate: format@LRCN Trans]\n[lang:zh-CN]\n[1.000,L1]中文翻译";

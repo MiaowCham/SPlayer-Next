@@ -978,6 +978,32 @@
       "label": "自动识别背景歌词",
       "description": "根据括号识别背景人声，误判时可关闭"
     },
+    "chineseScriptPreference": {
+      "label": "中文繁简体偏好",
+      "description": "仅转换可确认是中文的歌词，避免改动日文等语言中的汉字",
+      "default": "默认",
+      "simplified": "偏好简体",
+      "traditional": "偏好繁体"
+    },
+    "cjkTransform": {
+      "label": "歌词文字转换",
+      "description": "使用 OpenCC 转换歌词文字；旧设置会自动迁移为中文繁简体偏好",
+      "none": "不转换",
+      "s2t": "简体转繁体",
+      "t2s": "繁体转简体",
+      "s2tw": "简体转台湾正体",
+      "tw2s": "台湾正体转简体",
+      "s2twp": "简体转台湾正体（含词汇）",
+      "tw2sp": "台湾正体转简体（含词汇）",
+      "s2hk": "简体转香港繁体",
+      "hk2s": "香港繁体转简体",
+      "t2tw": "繁体转台湾正体",
+      "tw2t": "台湾正体转繁体",
+      "t2hk": "繁体转香港繁体",
+      "hk2t": "香港繁体转繁体",
+      "jp2t": "日本新字体转繁体",
+      "t2jp": "繁体转日本新字体"
+    },
     "enableOnlineTTMLLyric": {
       "label": "启用在线 TTML 歌词",
       "description": "从 AMLL TTML DB 获取歌词，支持逐字、翻译、发音"
