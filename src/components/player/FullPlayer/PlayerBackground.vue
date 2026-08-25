@@ -2,14 +2,17 @@
 import { useSettingsStore } from "@/stores/settings";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
+import { normalizePlayerBgType } from "@/types/settings";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
 import BackgroundRender from "./BackgroundRender.vue";
+import AppleMusicBackground from "./AppleMusicBackground.vue";
 
 const media = useMediaStore();
 const settings = useSettingsStore();
 const status = useStatusStore();
 
-const bgType = computed(() => settings.player.playerBgType as string);
+const bgType = computed(() => normalizePlayerBgType(settings.player.playerBgType));
+const appleMusicBgVariant = computed(() => (bgType.value === "apple-music-beta" ? "beta" : "dev"));
 
 /**
  * 背景是否就绪
@@ -41,10 +44,15 @@ watch(
 
 onBeforeUnmount(() => clearTimeout(bgReadyTimer));
 
-// 流体背景播放态
-const bgPlaying = computed(() => {
+const fluidBgPlaying = computed(() => {
   if (!status.isPlayerExpanded) return false;
   if (!status.isPlaying && settings.player.playerBgFreezeOnPause) return false;
+  return true;
+});
+
+const appleMusicBgPlaying = computed(() => {
+  if (!status.isPlayerExpanded) return false;
+  if (!status.isPlaying && settings.player.appleMusicBgFreezeOnPause) return false;
   return true;
 });
 
@@ -131,12 +139,36 @@ onBeforeUnmount(() => {
     <div v-if="bgReady" class="absolute inset-0 overflow-hidden -z-1">
       <BackgroundRender
         :album="media.track?.cover || DEFAULT_COVER"
-        :playing="bgPlaying"
+        :playing="fluidBgPlaying"
         :fps="settings.player.playerBgFps"
         :flow-speed="settings.player.playerBgFlowSpeed"
         :render-scale="settings.player.playerBgRenderScale"
         :has-lyric="media.parsedLyric.length > 0"
         :enable-beat="settings.player.playerBgBeat"
+      />
+    </div>
+  </Transition>
+  <!-- Apple Music 风格封面纹理背景 -->
+  <Transition
+    v-else-if="bgType === 'apple-music-dev' || bgType === 'apple-music-beta'"
+    name="bg-fade"
+  >
+    <div v-if="bgReady" class="absolute inset-0 overflow-hidden -z-1">
+      <AppleMusicBackground
+        :key="appleMusicBgVariant"
+        :album="media.track?.cover || media.track?.coverOriginal || DEFAULT_COVER"
+        :active="appleMusicBgPlaying"
+        :variant="appleMusicBgVariant"
+        :audio-enabled="
+          status.isPlayerExpanded && status.isPlaying && settings.player.appleMusicBgBeat
+        "
+        :fps="settings.player.appleMusicBgFps"
+        :flow-speed="settings.player.appleMusicBgFlowSpeed"
+        :render-scale="settings.player.appleMusicBgRenderScale"
+        :blur-level="settings.player.appleMusicBgBlurStrength"
+        :distortion="settings.player.appleMusicBgDistortion"
+        :dimness="settings.player.appleMusicBgDimness"
+        :beat-strength="settings.player.appleMusicBgBeatStrength"
       />
     </div>
   </Transition>
