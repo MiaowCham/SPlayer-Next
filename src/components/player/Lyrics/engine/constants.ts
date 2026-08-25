@@ -3,7 +3,12 @@
  * 类型定义与默认配置
  */
 
-import type { LyricFloatAnimationIntensity } from "@/types/settings";
+import type {
+  LyricEarlyEndMode,
+  LyricFloatAnimationIntensity,
+  LyricLineSelectionPreference,
+  MaxHighlightedLines,
+} from "@/types/settings";
 import type { SpringParams } from "./spring";
 
 export const DEFAULTS = {
@@ -35,7 +40,15 @@ export const DEFAULTS = {
   enableEmphasizeEffect: false,
   /** 是否禁用 CJK 歌词的强调效果 */
   disableCjkEmphasis: false,
-  /** 多行同时高亮时是否临时抬高歌词对齐位置 */
+  /** 同时保持高亮的最大主歌词行数 */
+  maxHighlightedLines: "unlimited" as MaxHighlightedLines,
+  /** 允许多行同时高亮的最小重叠时长 */
+  multiLineOverlapThreshold: 490,
+  /** 提早结束行档位 */
+  earlyEndMode: "off" as LyricEarlyEndMode,
+  /** 多行重叠时的选择句逻辑 */
+  lineSelectionPreference: "default" as LyricLineSelectionPreference,
+  /** 多行同亮时是否临时抬高对齐位置 */
   raiseAlignPositionOnOverlap: false,
   /** 是否显示翻译歌词 */
   showTranslation: true,
@@ -79,7 +92,15 @@ export interface RendererConfig {
   enableEmphasizeEffect: boolean;
   /** 是否禁用 CJK 歌词的强调效果（默认 false） */
   disableCjkEmphasis: boolean;
-  /** 多行同时高亮时是否临时抬高歌词对齐位置（默认 false） */
+  /** 同时保持高亮的最大主歌词行数 */
+  maxHighlightedLines: MaxHighlightedLines;
+  /** 允许多行同时高亮的最小重叠时长 */
+  multiLineOverlapThreshold: number;
+  /** 提早结束行档位 */
+  earlyEndMode: LyricEarlyEndMode;
+  /** 多行重叠时的选择句逻辑 */
+  lineSelectionPreference: LyricLineSelectionPreference;
+  /** 多行同亮时是否临时抬高对齐位置 */
   raiseAlignPositionOnOverlap: boolean;
   /** 是否显示翻译歌词（默认 true） */
   showTranslation: boolean;

@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from "node:url";
 import vue from "@vitejs/plugin-vue";
 import AutoImport from "unplugin-auto-import/vite";
+import Icons from "unplugin-icons/vite";
 import { defineConfig } from "vitest/config";
 import pkg from "./package.json" with { type: "json" };
 
@@ -12,6 +13,8 @@ export default defineConfig({
     __APP_AUTHOR__: JSON.stringify(pkg.author.name),
     __APP_HOMEPAGE__: JSON.stringify(pkg.homepage),
     __APP_AUTHOR_URL__: JSON.stringify(pkg.author.url),
+    __COMMIT_HASH__: JSON.stringify("test"),
+    __COMMIT_DATE__: JSON.stringify("test"),
   },
   resolve: {
     alias: {
@@ -24,6 +27,7 @@ export default defineConfig({
   },
   plugins: [
     vue(),
+    Icons({ compiler: "vue3" }),
     AutoImport({
       imports: ["vue", "pinia", "vue-router", "@vueuse/core", "vue-i18n"],
     }),

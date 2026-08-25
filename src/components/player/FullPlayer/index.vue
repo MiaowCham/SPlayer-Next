@@ -13,10 +13,10 @@ import { useTimeFormat } from "@/composables/useTimeFormat";
 import { useProgressLyric } from "@/composables/useProgressLyric";
 import Lyrics from "@/components/player/Lyrics/index.vue";
 import AMLLLyrics from "@/components/player/Lyrics/AMLLLyrics.vue";
+import { prepareLyricDisplayLines } from "@/components/player/Lyrics/display-timing";
 import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
 import { useWindowControls } from "@/composables/useWindowControls";
 import * as player from "@/core/player";
-import { openExternal } from "@/utils/url";
 import IconFavorite from "~icons/material-symbols/favorite-rounded";
 import IconFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
 import IconLucideListPlus from "~icons/lucide/list-plus";
@@ -114,7 +114,26 @@ const locatePendingTrack = (): void => {
 /** 加载中的歌曲使用队列当前项兜底，避免全屏播放器出现空白。 */
 const displayTrack = computed(() => media.track ?? status.currentTrack);
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
+const displayLyricLines = computed(() =>
+  prepareLyricDisplayLines(media.parsedLyric, settings.lyric.earlyEndMode, {
+    gapThresholdMs: settings.lyric.earlyEndGapThreshold,
+    advanceMs: settings.lyric.earlyEndAdvance,
+    scrollLeadMs: settings.lyric.earlyEndScrollLead,
+    advanceToNextLine: settings.lyric.earlyEndAdvanceToNextLine,
+  }),
+);
 const hasTrack = computed(() => !!displayTrack.value);
+const isChineseLocale = computed(() => settings.locale.startsWith("zh"));
+const lyricCreatorsText = computed(() =>
+  media.lyricAuthors.join(isChineseLocale.value ? "、" : ", "),
+);
+const lyricCreditKey = computed(() =>
+  media.lyricAuthorKind === "lyric-production"
+    ? "player.lyricProduction"
+    : media.lyricAuthorKind === "song-production"
+      ? "player.songProduction"
+      : "player.lyricCredit",
+);
 
 /** 精确播放时间（毫秒） */
 const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
@@ -160,11 +179,7 @@ watch(
   () => {
     const currentTime = getCurrentTime() + status.lyricOffsetMs;
     lyricRef.value?.setCurrentTime(currentTime);
-    nextTick(() => {
-      locatePendingTrack();
-      // 同一首歌切换歌词来源时也需立刻定位，避免停留在旧歌词的滚动位置。
-      if (!pendingTrackLocate.value) lyricRef.value?.scrollToTime(currentTime);
-    });
+    nextTick(locatePendingTrack);
   },
 );
 
@@ -222,6 +237,9 @@ const locateCurrentLyric = (): void => {
 const minimizeLyricSpring = computed(
   () => settings.player.followLyricOnProgressDrag && progressLyricDragging.value,
 );
+
+/** 拖动跟随期间关闭模糊，避免大范围跳转时残留过渡画面。 */
+const lyricBlurEnabled = computed(() => settings.lyric.enableBlur && !minimizeLyricSpring.value);
 
 const springConfig = computed(() =>
   minimizeLyricSpring.value
@@ -431,17 +449,21 @@ const showComments = (): void => {
               <AMLLLyrics
                 v-if="lyricMounted && hasLyric && settings.lyric.engine === 'amll'"
                 ref="lyricRef"
-                :lyric-lines="media.parsedLyric"
+                :lyric-lines="displayLyricLines"
                 :initial-time="initialLyricTimeMs"
                 :playing="isPlaying"
                 :align-position="settings.lyric.alignPosition"
                 :word-fade-width="settings.lyric.wordFadeWidth"
                 :hide-passed-lines="settings.lyric.hidePassedLines"
-                :enable-blur="settings.lyric.enableBlur"
+                :enable-blur="lyricBlurEnabled"
                 :enable-word-highlight="settings.lyric.enableWordHighlight"
                 :float-animation-intensity="settings.lyric.floatAnimationIntensity"
                 :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
                 :disable-cjk-emphasis="settings.lyric.disableCjkEmphasis"
+                :max-highlighted-lines="settings.lyric.maxHighlightedLines"
+                :multi-line-overlap-threshold="settings.lyric.multiLineOverlapThreshold"
+                :early-end-mode="settings.lyric.earlyEndMode"
+                :line-selection-preference="settings.lyric.lineSelectionPreference"
                 :raise-align-position-on-overlap="settings.lyric.raiseAlignPositionOnOverlap"
                 :minimize-spring-params="minimizeLyricSpring"
                 :show-translation="settings.lyric.showTranslation"
@@ -461,23 +483,16 @@ const showComments = (): void => {
               >
                 <template #bottom>
                   <div v-if="media.lyricAuthors.length > 0" class="lyric-credit-line">
-                    <span class="lyric-credit-prefix">{{ $t("player.lyricCredit") }}</span>
-                    <template v-for="(author, idx) in media.lyricAuthors" :key="author">
-                      <span v-if="idx > 0" class="mx-1">,</span>
-                      <span
-                        class="lp-content lyric-credit"
-                        @click.stop="openExternal(`https://github.com/${author}`)"
-                      >
-                        {{ "@" + author }}
-                      </span>
-                    </template>
+                    <strong class="lyric-credit-prefix">{{ $t(lyricCreditKey) }}</strong>
+                    <span v-if="!isChineseLocale">&nbsp;</span>
+                    <span class="lyric-credit-content">{{ lyricCreatorsText }}</span>
                   </div>
                 </template>
               </AMLLLyrics>
               <Lyrics
                 v-else-if="lyricMounted && hasLyric"
                 ref="lyricRef"
-                :lyric-lines="media.parsedLyric"
+                :lyric-lines="displayLyricLines"
                 :initial-time="initialLyricTimeMs"
                 :playing="isPlaying"
                 :align-position="settings.lyric.alignPosition"
@@ -485,11 +500,15 @@ const showComments = (): void => {
                 :spring-config="springConfig"
                 :inactive-alpha="settings.lyric.inactiveAlpha"
                 :hide-passed-lines="settings.lyric.hidePassedLines"
-                :enable-blur="settings.lyric.enableBlur"
+                :enable-blur="lyricBlurEnabled"
                 :enable-word-highlight="settings.lyric.enableWordHighlight"
                 :float-animation-intensity="settings.lyric.floatAnimationIntensity"
                 :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
                 :disable-cjk-emphasis="settings.lyric.disableCjkEmphasis"
+                :max-highlighted-lines="settings.lyric.maxHighlightedLines"
+                :multi-line-overlap-threshold="settings.lyric.multiLineOverlapThreshold"
+                :early-end-mode="settings.lyric.earlyEndMode"
+                :line-selection-preference="settings.lyric.lineSelectionPreference"
                 :raise-align-position-on-overlap="settings.lyric.raiseAlignPositionOnOverlap"
                 :show-translation="settings.lyric.showTranslation"
                 :show-romanization="settings.lyric.showRomanization"
@@ -500,16 +519,9 @@ const showComments = (): void => {
               >
                 <template #bottom>
                   <div v-if="media.lyricAuthors.length > 0" class="lyric-credit-line">
-                    <span class="lyric-credit-prefix">{{ $t("player.lyricCredit") }}</span>
-                    <template v-for="(author, idx) in media.lyricAuthors" :key="author">
-                      <span v-if="idx > 0" class="mx-1">,</span>
-                      <span
-                        class="lp-content lyric-credit"
-                        @click.stop="openExternal(`https://github.com/${author}`)"
-                      >
-                        {{ "@" + author }}
-                      </span>
-                    </template>
+                    <strong class="lyric-credit-prefix">{{ $t(lyricCreditKey) }}</strong>
+                    <span v-if="!isChineseLocale">&nbsp;</span>
+                    <span class="lyric-credit-content">{{ lyricCreatorsText }}</span>
                   </div>
                 </template>
               </Lyrics>
@@ -763,7 +775,7 @@ const showComments = (): void => {
   overflow-wrap: anywhere;
 }
 
-.lyric-credit {
-  margin-left: 0.5em;
+.lyric-credit-content {
+  cursor: default;
 }
 </style>

@@ -1,10 +1,23 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
-import type { LargerLyricText, LyricFloatAnimationIntensity } from "@/types/settings";
+import type {
+  LargerLyricText,
+  LyricEarlyEndMode,
+  LyricFloatAnimationIntensity,
+  MaxHighlightedLines,
+  LyricLineSelectionPreference,
+} from "@/types/settings";
 import { LyricPlayer as CoreLyricPlayer } from "@applemusic-like-lyrics/core";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { getCurrentTime } from "@/services/playback";
+import {
+  LyricDisplayScheduler,
+  isAdvanceHandoffSnapshot,
+  resolveEffectiveAlignPosition,
+  type LyricDisplaySnapshot,
+} from "./display-timing";
+import { applyScrollPreroll } from "./utils/scroll-preroll";
 import {
   canPromoteLinePronunciation,
   collapseToLineLyric,
@@ -23,6 +36,25 @@ type AmlLyricLine = LyricLine & {
   __amllFloatAnimationIntensity?: LyricFloatAnimationIntensity;
   __amllIndependentMainWordMask?: true;
   __amllIndependentRomanWordMask?: true;
+};
+
+type ExtendedCoreLyricPlayer = CoreLyricPlayer & {
+  setMaxHighlightedLines: (limit: number) => void;
+  setEarlyEndSelection: (enabled: boolean) => void;
+  setOptimizeOptions: (options: {
+    resetLineTimestamps?: boolean;
+    convertExcessiveBackgroundLines?: boolean;
+    syncMainAndBackgroundLines?: boolean;
+    cleanUnintentionalOverlaps?: boolean;
+    tryAdvanceStartTime?: boolean;
+  }) => void;
+  calcLayout: () => void;
+  timelineState: {
+    hotGroups: Set<number>;
+    bufferedGroups: Set<number>;
+    scrollToIndex: number;
+  };
+  currentLyricGroups: Array<{ enable: () => void; disable: () => void }>;
 };
 
 const props = withDefaults(
@@ -47,7 +79,15 @@ const props = withDefaults(
     enableEmphasizeEffect?: boolean;
     /** 是否禁用 CJK 歌词的强调效果 */
     disableCjkEmphasis?: boolean;
-    /** 多行同亮时是否临时抬高歌词对齐位置 */
+    /** 同时保持高亮的最大主歌词行数 */
+    maxHighlightedLines?: MaxHighlightedLines;
+    /** 允许多行同时高亮的最小重叠时长 */
+    multiLineOverlapThreshold?: number;
+    /** 提早结束行档位 */
+    earlyEndMode?: LyricEarlyEndMode;
+    /** 多行重叠时的选择句逻辑 */
+    lineSelectionPreference?: LyricLineSelectionPreference;
+    /** 多行同亮时是否临时抬高对齐位置 */
     raiseAlignPositionOnOverlap?: boolean;
     /** 是否临时将弹簧参数降至设置范围下限 */
     minimizeSpringParams?: boolean;
@@ -78,6 +118,10 @@ const props = withDefaults(
     floatAnimationIntensity: "medium",
     enableEmphasizeEffect: true,
     disableCjkEmphasis: false,
+    maxHighlightedLines: "unlimited",
+    multiLineOverlapThreshold: 490,
+    earlyEndMode: "off",
+    lineSelectionPreference: "default",
     raiseAlignPositionOnOverlap: false,
     minimizeSpringParams: false,
     showTranslation: true,
@@ -101,39 +145,102 @@ const emit = defineEmits<Emits>();
 const settings = useSettingsStore();
 const status = useStatusStore();
 const wrapperRef = ref<HTMLDivElement | null>(null);
-const playerRef = ref<CoreLyricPlayer>();
+const playerRef = ref<ExtendedCoreLyricPlayer>();
 const bottomLineEl = ref<HTMLElement>();
 const clockInitialized = ref(false);
 // 父组件的冻结标志（由 FullPlayer 的 freeze/resume 控制）
 const isFrozen = ref(false);
 // 冻结期间缓存的待应用歌词
 let pendingLyrics: LyricLine[] | null = null;
+let displayScheduler = new LyricDisplayScheduler([]);
 let lastCurrentTime = props.initialTime;
+let lastEffectiveAlign = Number.NaN;
+let alignLayoutDirty = false;
 // 页面隐藏状态的响应式跟踪
 const isPageHidden = ref(false);
 // 之前隐藏的标记，用于检测从隐藏恢复的时刻
 const isPreviousHidden = ref(false);
 
-/** 同时激活多个主歌词行时，使用较高的滚动对齐点。 */
-const syncAlignPosition = (time: number): void => {
-  const player = playerRef.value;
-  if (!player) return;
-  const activeMainLineCount = processedLyrics.value.filter(
-    (line) => !line.isBG && line.startTime <= time && line.endTime > time,
-  ).length;
-  const alignPosition =
-    props.raiseAlignPositionOnOverlap && props.alignPosition > 0.15 && activeMainLineCount > 1
-      ? 0.15
-      : props.alignPosition;
-  player.setAlignPosition(alignPosition);
-  player.setAlignAnchor(alignPosition > 0.4 ? "center" : "top");
+/** 为 AMLL 创建只影响滚动锚点、不修改语义时间的共享调度器。 */
+const createDisplayScheduler = (lines: readonly LyricLine[]): LyricDisplayScheduler =>
+  new LyricDisplayScheduler(applyScrollPreroll(lines));
+
+/** 比较 Core 可变集合与只读调度集合。 */
+const setsEqual = (left: Set<number>, right: ReadonlySet<number>): boolean => {
+  if (left.size !== right.size) return false;
+  for (const value of left) {
+    if (!right.has(value)) return false;
+  }
+  return true;
 };
 
-/** 同步时间前先更新当前重叠段的对齐位置。 */
-const syncCurrentTime = (time: number, isSeek?: boolean): void => {
+/** 在 Core 处理时间前同步当前重叠段使用的有效对齐位置。 */
+const syncAlignPosition = (time: number, isSeek = false): LyricDisplaySnapshot | undefined => {
+  const player = playerRef.value;
+  if (!player) return undefined;
+  const options = {
+    maxHighlightedLines: props.maxHighlightedLines,
+    multiLineOverlapThresholdMs: props.multiLineOverlapThreshold,
+    earlyEndMode: props.earlyEndMode,
+    lineSelectionPreference: props.lineSelectionPreference,
+  };
+  const snapshot = isSeek
+    ? displayScheduler.seek(time, options)
+    : displayScheduler.update(time, options);
+  const effectiveAlign = resolveEffectiveAlignPosition(
+    snapshot.highlightedGroupIds.size,
+    props.alignPosition,
+    props.raiseAlignPositionOnOverlap,
+  );
+  if (effectiveAlign !== lastEffectiveAlign) {
+    lastEffectiveAlign = effectiveAlign;
+    alignLayoutDirty = true;
+    player.setAlignPosition(effectiveAlign);
+    player.setAlignAnchor(effectiveAlign > 0.4 ? "center" : "top");
+  }
+  return snapshot;
+};
+
+/** 用共享调度快照覆盖 Core 内部的高亮缓冲，确保两个渲染器语义一致。 */
+const enforceDisplaySnapshot = (snapshot: LyricDisplaySnapshot): void => {
+  const player = playerRef.value;
+  if (!player) return;
+  const desired = snapshot.selectedGroupIds;
+  const previous = player.timelineState.bufferedGroups;
+  let layoutDirty = alignLayoutDirty;
+  alignLayoutDirty = false;
+
+  for (const id of previous) {
+    if (desired.has(id)) continue;
+    player.currentLyricGroups[id]?.disable();
+    layoutDirty = true;
+  }
+  for (const id of desired) {
+    if (previous.has(id)) continue;
+    player.currentLyricGroups[id]?.enable();
+    layoutDirty = true;
+  }
+
+  const targetGroupId =
+    displayScheduler.groups.find((group) => group.mainIndex === snapshot.scrollTargetLineIndex)
+      ?.id ?? displayScheduler.groups.length;
+  if (player.timelineState.scrollToIndex !== targetGroupId) layoutDirty = true;
+  if (!setsEqual(player.timelineState.hotGroups, snapshot.hotGroupIds)) {
+    player.timelineState.hotGroups = new Set(snapshot.hotGroupIds);
+  }
+  if (!setsEqual(previous, desired)) {
+    player.timelineState.bufferedGroups = new Set(desired);
+  }
+  player.timelineState.scrollToIndex = targetGroupId;
+  if (layoutDirty) player.calcLayout(isAdvanceHandoffSnapshot(snapshot));
+};
+
+/** 同步 Core 时间并同时更新动态对齐。 */
+const syncCurrentTime = (time: number, isSeek = false): void => {
   lastCurrentTime = time;
-  syncAlignPosition(time);
+  const snapshot = syncAlignPosition(time, isSeek);
   playerRef.value?.setCurrentTime(time, isSeek);
+  if (snapshot) enforceDisplaySnapshot(snapshot);
 };
 
 // 处理多语言显隐及音译偏好的本地高效清洗
@@ -256,7 +363,14 @@ const handleVisibility = () => {
 onMounted(() => {
   if (!wrapperRef.value) return;
   // 创建 AMLL Core 歌词播放器实例
-  playerRef.value = new CoreLyricPlayer();
+  playerRef.value = new CoreLyricPlayer() as ExtendedCoreLyricPlayer;
+  playerRef.value.setOptimizeOptions({
+    resetLineTimestamps: false,
+    convertExcessiveBackgroundLines: false,
+    syncMainAndBackgroundLines: false,
+    cleanUnintentionalOverlaps: false,
+    tryAdvanceStartTime: false,
+  });
 
   // 挂载到容器中
   const el = playerRef.value.getElement();
@@ -275,6 +389,7 @@ onMounted(() => {
   playerRef.value.addEventListener("line-click", handleLineClick);
 
   if (processedLyrics.value.length > 0) {
+    displayScheduler = createDisplayScheduler(processedLyrics.value);
     playerRef.value.setLyricLines(processedLyrics.value, props.initialTime);
     syncCurrentTime(props.initialTime, true);
     processLyricLanguage();
@@ -328,10 +443,12 @@ watchEffect(() => {
 // 监听其他配置项变动并同步到底层 Core 实例
 watchEffect(() => {
   if (playerRef.value) {
-    syncAlignPosition(lastCurrentTime);
     playerRef.value.setWordFadeWidth(props.wordFadeWidth);
     playerRef.value.setHidePassedLines(props.hidePassedLines);
     playerRef.value.setEnableBlur(props.enableBlur);
+    playerRef.value.setMaxHighlightedLines(Number.POSITIVE_INFINITY);
+    playerRef.value.setEarlyEndSelection(false);
+    syncCurrentTime(lastCurrentTime);
 
     const useSpring = settings.lyric.useAMSpring;
     playerRef.value.setEnableSpring(useSpring);
@@ -366,7 +483,10 @@ watch(processedLyrics, (newLyrics) => {
   if (isFrozen.value) {
     pendingLyrics = newLyrics;
   } else {
+    displayScheduler = createDisplayScheduler(newLyrics);
+    lastEffectiveAlign = Number.NaN;
     playerRef.value.setLyricLines(newLyrics, props.initialTime);
+    syncCurrentTime(lastCurrentTime, true);
     processLyricLanguage();
   }
 });
@@ -392,7 +512,10 @@ const freeze = () => {
 // 恢复播放和滚动测量
 const resume = () => {
   if (pendingLyrics) {
+    displayScheduler = createDisplayScheduler(pendingLyrics);
+    lastEffectiveAlign = Number.NaN;
     playerRef.value?.setLyricLines(pendingLyrics);
+    syncCurrentTime(lastCurrentTime, true);
     processLyricLanguage();
     pendingLyrics = null;
   }
@@ -429,6 +552,11 @@ defineExpose({
   --amll-lp-color: var(--lp-color, #fff);
   width: 100%;
   height: 100%;
+}
+
+:deep(.FmKaba_lyricLine) {
+  contain: layout style;
+  overflow: visible;
 }
 
 :deep(:lang(zh)) {

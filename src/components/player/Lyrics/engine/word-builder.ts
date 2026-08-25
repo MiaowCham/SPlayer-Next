@@ -275,11 +275,15 @@ export const measureAndApplyWordMasks = (
       const wordData = measurement.word;
       const totalMaskWidth = elementWidth + gradientWidth;
       const wordDuration = Math.abs(wordData.endTime - wordData.startTime) || 1;
+      // preRoll：在 startTime 之前提前开始扫动，让相邻词亮区衔接而非硬切
+      const preRoll = Math.min(80, wordDuration * 0.3);
+      const adjustedStart = Math.max(lineStart, wordData.startTime - preRoll);
+      const adjustedDuration = Math.max(1, wordData.endTime - adjustedStart);
       const startPos = padding - totalMaskWidth;
       const endPos = padding;
-      const speed = totalMaskWidth / wordDuration;
+      const speed = totalMaskWidth / adjustedDuration;
       const maskPosition = Number.isFinite(speed)
-        ? `clamp(${startPos}px,calc(${startPos}px + (var(--t,${lineStart}) - ${wordData.startTime}) * ${speed}px),${endPos}px) 0px,left top`
+        ? `clamp(${startPos}px,calc(${startPos}px + (var(--t,${lineStart}) - ${adjustedStart}) * ${speed}px),${endPos}px) 0px,left top`
         : `${startPos}px 0px,left top`;
       const style = measurement.element.style;
       style.setProperty("mask-image", maskImage);

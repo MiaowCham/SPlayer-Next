@@ -1,7 +1,12 @@
 import { Spring, type SpringParams } from "./spring";
 import type { LyricLine } from "@shared/types/lyrics";
-import { setMin } from "../utils/math";
 import { DEFAULTS } from "./constants";
+import {
+  LyricDisplayScheduler,
+  isAdvanceHandoffSnapshot,
+  resolveEffectiveAlignPosition,
+  type LyricDisplaySnapshot,
+} from "../display-timing";
 import {
   measureAndApplyWordMasks,
   type WordMeasurement,
@@ -49,6 +54,18 @@ export class LyricRenderer {
   private activeLineIndex = -1;
   /** 所有激活行索引集合 */
   private activeLineSet = new Set<number>();
+  /** 统一管理真实演唱、高亮保留、强制结束与滚动锚点 */
+  private displayScheduler = new LyricDisplayScheduler([]);
+  /** 同时保持高亮的最大主歌词行数 */
+  private maxHighlightedLines = DEFAULTS.maxHighlightedLines;
+  /** 允许多行同时高亮的最小重叠时长 */
+  private multiLineOverlapThreshold = DEFAULTS.multiLineOverlapThreshold;
+  /** 提早结束行档位 */
+  private earlyEndMode = DEFAULTS.earlyEndMode;
+  /** 多行重叠时的选择句逻辑 */
+  private lineSelectionPreference = DEFAULTS.lineSelectionPreference;
+  /** 多行同亮时是否临时抬高对齐位置 */
+  private raiseAlignPositionOnOverlap = DEFAULTS.raiseAlignPositionOnOverlap;
   /** 上一次处理的播放时间，用于 seek 检测 */
   private lastProcessedTime = -1;
 
@@ -140,8 +157,6 @@ export class LyricRenderer {
 
   /** 激活行在容器中的对齐位置（0~1） */
   private alignPosition = DEFAULTS.alignPosition;
-  /** 多行同时高亮时是否临时抬高歌词对齐位置 */
-  private raiseAlignPositionOnOverlap = DEFAULTS.raiseAlignPositionOnOverlap;
   /** 是否正在播放 */
   private isPlaying = true;
   /** 逐字掩码渐变宽度比例 */
@@ -308,6 +323,7 @@ export class LyricRenderer {
     for (const element of this.lineElements) element.remove();
     // 重置状态
     this.lines = lines;
+    this.displayScheduler = new LyricDisplayScheduler(lines);
     this.activeLineIndex = -1;
     this.activeLineSet.clear();
     this.lastProcessedTime = -1;
@@ -487,6 +503,22 @@ export class LyricRenderer {
     if (config.enableEmphasizeEffect != null)
       this.enableEmphasizeEffect = config.enableEmphasizeEffect;
     if (config.disableCjkEmphasis != null) this.disableCjkEmphasis = config.disableCjkEmphasis;
+    if (config.maxHighlightedLines != null) {
+      this.maxHighlightedLines = config.maxHighlightedLines;
+      this.syncTimelineConfig();
+    }
+    if (config.multiLineOverlapThreshold != null) {
+      this.multiLineOverlapThreshold = config.multiLineOverlapThreshold;
+      this.syncTimelineConfig();
+    }
+    if (config.earlyEndMode != null) {
+      this.earlyEndMode = config.earlyEndMode;
+      this.syncTimelineConfig();
+    }
+    if (config.lineSelectionPreference != null) {
+      this.lineSelectionPreference = config.lineSelectionPreference;
+      this.syncTimelineConfig();
+    }
     if (
       config.raiseAlignPositionOnOverlap != null &&
       config.raiseAlignPositionOnOverlap !== this.raiseAlignPositionOnOverlap
@@ -533,71 +565,9 @@ export class LyricRenderer {
       this.handleSeek(currentTime, snap);
       return true;
     }
-    // 恢复后的首次推送未发生跳变
     this.snapNextSeek = false;
-
-    const lines = this.lines;
-    const activated: number[] = [];
-    const deactivated = new Set<number>();
-
-    // 检测新激活的行
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.isBG) continue;
-      if (
-        line.startTime <= currentTime &&
-        line.endTime > currentTime &&
-        !this.activeLineSet.has(i)
-      ) {
-        activated.push(i);
-        if (lines[i + 1]?.isBG) activated.push(i + 1);
-      }
-    }
-
-    // 检测需要停用的行
-    for (const lineIdx of this.activeLineSet) {
-      const line = lines[lineIdx];
-      if (!line) {
-        deactivated.add(lineIdx);
-        continue;
-      }
-      if (line.isBG) {
-        if (!this.activeLineSet.has(lineIdx - 1) || deactivated.has(lineIdx - 1))
-          deactivated.add(lineIdx);
-        continue;
-      }
-      const nextLine = lines[lineIdx + 1];
-      if (nextLine?.isBG) {
-        // 对唱行：计算配对的时间范围
-        const nextMainLine = lines[lineIdx + 2];
-        const pairStart = Math.min(line.startTime, nextLine.startTime);
-        const pairEnd = Math.min(
-          Math.max(line.endTime, nextMainLine?.startTime ?? Number.MAX_VALUE),
-          Math.max(line.endTime, nextLine.endTime),
-        );
-        if (pairStart > currentTime || pairEnd <= currentTime) deactivated.add(lineIdx);
-      } else {
-        if (line.startTime > currentTime || line.endTime <= currentTime) deactivated.add(lineIdx);
-      }
-    }
-
-    if (activated.length === 0 && deactivated.size === 0) return false;
-
-    // 执行停用/激活
-    for (const lineIdx of deactivated) {
-      this.activeLineSet.delete(lineIdx);
-      this.lineElements[lineIdx]?.classList.remove("active");
-      this.lineAnimations.deactivate(lineIdx);
-    }
-    for (const lineIdx of activated) {
-      this.activeLineSet.add(lineIdx);
-      this.lineElements[lineIdx]?.classList.add("active");
-      this.activateLineAnimations(lineIdx, currentTime);
-    }
-
-    if (this.activeLineSet.size > 0) this.activeLineIndex = setMin(this.activeLineSet);
-    this.calculateLayout(false);
-    return true;
+    const snapshot = this.displayScheduler.update(currentTime, this.getDisplayOptions());
+    return this.applyDisplaySnapshot(snapshot, currentTime);
   };
 
   /**
@@ -617,32 +587,55 @@ export class LyricRenderer {
     }
     this.activeLineSet.clear();
 
-    // 扫描并激活目标时间对应的行
-    const lines = this.lines;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].isBG) continue;
-      if (lines[i].startTime <= targetTime && lines[i].endTime > targetTime) {
-        this.activeLineSet.add(i);
-        this.lineElements[i]?.classList.add("active");
-        this.activateLineAnimations(i, targetTime);
-        if (lines[i + 1]?.isBG) {
-          this.activeLineSet.add(i + 1);
-          this.lineElements[i + 1]?.classList.add("active");
-          this.activateLineAnimations(i + 1, targetTime);
-        }
-      }
+    const snapshot = this.displayScheduler.seek(targetTime, this.getDisplayOptions());
+    this.activeLineSet = new Set(snapshot.selectedLineIndexes);
+    for (const lineIndex of this.activeLineSet) {
+      this.lineElements[lineIndex]?.classList.add("active");
+      this.activateLineAnimations(lineIndex, targetTime);
     }
-
-    if (this.activeLineSet.size > 0) {
-      this.activeLineIndex = setMin(this.activeLineSet);
-    } else {
-      // 无激活行时，定位到下一个未来行
-      const futureIdx = lines.findIndex((line) => line.startTime >= targetTime);
-      this.activeLineIndex = futureIdx === -1 ? lines.length : futureIdx;
-    }
+    this.activeLineIndex = snapshot.scrollTargetLineIndex;
 
     this.calculateLayout(snap, true);
     if (snap) this.snapVisualState();
+  };
+
+  /** 返回当前显示调度配置。 */
+  private getDisplayOptions = () => ({
+    maxHighlightedLines: this.maxHighlightedLines,
+    multiLineOverlapThresholdMs: this.multiLineOverlapThreshold,
+    earlyEndMode: this.earlyEndMode,
+    lineSelectionPreference: this.lineSelectionPreference,
+  });
+
+  /** 将调度快照同步到 DOM 和行动画。 */
+  private applyDisplaySnapshot = (snapshot: LyricDisplaySnapshot, currentTime: number): boolean => {
+    const nextActive = new Set(snapshot.selectedLineIndexes);
+    let changed = this.activeLineIndex !== snapshot.scrollTargetLineIndex;
+
+    for (const lineIndex of this.activeLineSet) {
+      if (nextActive.has(lineIndex)) continue;
+      changed = true;
+      this.lineElements[lineIndex]?.classList.remove("active");
+      this.lineAnimations.deactivate(lineIndex);
+    }
+    for (const lineIndex of nextActive) {
+      if (this.activeLineSet.has(lineIndex)) continue;
+      changed = true;
+      this.lineElements[lineIndex]?.classList.add("active");
+      this.activateLineAnimations(lineIndex, currentTime);
+    }
+
+    this.activeLineSet = nextActive;
+    this.activeLineIndex = snapshot.scrollTargetLineIndex;
+    if (changed) this.calculateLayout(false, isAdvanceHandoffSnapshot(snapshot));
+    return changed;
+  };
+
+  /** 配置运行时变化后立即重新计算当前显示状态。 */
+  private syncTimelineConfig = (): void => {
+    if (this.lastProcessedTime < 0 || this.lines.length === 0) return;
+    const snapshot = this.displayScheduler.update(this.lastProcessedTime, this.getDisplayOptions());
+    if (this.applyDisplaySnapshot(snapshot, this.lastProcessedTime)) this.needsFullSync = true;
   };
 
   /**
@@ -715,13 +708,14 @@ export class LyricRenderer {
       heightAccum += this.lineHeights[i] || 40;
     }
     position -= heightAccum;
-    const activeMainLineCount = [...this.activeLineSet].filter(
-      (index) => !lines[index]?.isBG,
+    const highlightedGroupCount = this.displayScheduler.groups.filter((group) =>
+      this.activeLineSet.has(group.mainIndex),
     ).length;
-    const effectiveAlignPosition =
-      this.raiseAlignPositionOnOverlap && this.alignPosition > 0.15 && activeMainLineCount > 1
-        ? 0.15
-        : this.alignPosition;
+    const effectiveAlignPosition = resolveEffectiveAlignPosition(
+      highlightedGroupCount,
+      this.alignPosition,
+      this.raiseAlignPositionOnOverlap,
+    );
     position += viewHeight * effectiveAlignPosition - (this.lineHeights[targetIdx] || 40) / 2;
     // 激活主行带置顶背景行时，主行会被背景行下推，整体上移以保持主行居中
     if (this.isBgAbove[targetIdx + 1] && this.activeLineSet.has(targetIdx + 1)) {

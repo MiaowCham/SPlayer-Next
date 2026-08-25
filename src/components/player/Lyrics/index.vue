@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
-import type { LargerLyricText, LyricFloatAnimationIntensity } from "@/types/settings";
+import type {
+  LargerLyricText,
+  LyricEarlyEndMode,
+  LyricFloatAnimationIntensity,
+  LyricLineSelectionPreference,
+  MaxHighlightedLines,
+} from "@/types/settings";
 import { LyricRenderer } from "./engine";
 import type { SpringParams } from "./engine/spring";
 import { DEFAULTS } from "./engine/constants";
@@ -88,7 +94,15 @@ const props = withDefaults(
     enableEmphasizeEffect?: boolean;
     /** 是否禁用 CJK 歌词的强调效果 @default false */
     disableCjkEmphasis?: boolean;
-    /** 多行同时高亮时是否临时抬高歌词对齐位置 @default false */
+    /** 同时保持高亮的最大主歌词行数 */
+    maxHighlightedLines?: MaxHighlightedLines;
+    /** 允许多行同时高亮的最小重叠时长 */
+    multiLineOverlapThreshold?: number;
+    /** 提早结束行档位 */
+    earlyEndMode?: LyricEarlyEndMode;
+    /** 多行重叠时的选择句逻辑 */
+    lineSelectionPreference?: LyricLineSelectionPreference;
+    /** 多行同亮时是否临时抬高对齐位置 */
     raiseAlignPositionOnOverlap?: boolean;
     /** 是否显示翻译歌词 @default true */
     showTranslation?: boolean;
@@ -119,6 +133,10 @@ const props = withDefaults(
     floatAnimationIntensity: DEFAULTS.floatAnimationIntensity,
     enableEmphasizeEffect: DEFAULTS.enableEmphasizeEffect,
     disableCjkEmphasis: DEFAULTS.disableCjkEmphasis,
+    maxHighlightedLines: DEFAULTS.maxHighlightedLines,
+    multiLineOverlapThreshold: DEFAULTS.multiLineOverlapThreshold,
+    earlyEndMode: DEFAULTS.earlyEndMode,
+    lineSelectionPreference: DEFAULTS.lineSelectionPreference,
     raiseAlignPositionOnOverlap: DEFAULTS.raiseAlignPositionOnOverlap,
     showTranslation: true,
     showRomanization: true,
@@ -317,6 +335,26 @@ watch(
     renderer?.setConfig({ disableCjkEmphasis: v });
     rebuildLyrics();
   },
+);
+
+watch(
+  () => props.maxHighlightedLines,
+  (v) => renderer?.setConfig({ maxHighlightedLines: v }),
+);
+
+watch(
+  () => props.multiLineOverlapThreshold,
+  (v) => renderer?.setConfig({ multiLineOverlapThreshold: v }),
+);
+
+watch(
+  () => props.earlyEndMode,
+  (v) => renderer?.setConfig({ earlyEndMode: v }),
+);
+
+watch(
+  () => props.lineSelectionPreference,
+  (v) => renderer?.setConfig({ lineSelectionPreference: v }),
 );
 
 watch(
