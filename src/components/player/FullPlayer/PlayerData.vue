@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { Artist } from "@shared/types/player";
+import type { SSelectOption } from "@/components/ui/SSelect.vue";
+import type { QualityLevel } from "@/utils/quality";
 import { useLyricTrackManagerDialog } from "@/composables/useLyricTrackManagerDialog";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
@@ -11,6 +13,7 @@ import {
   type ResourceNavigationTarget,
 } from "@/utils/navigate";
 import { getValidArtists } from "@shared/utils/track";
+import * as player from "@/core/player";
 
 const { t } = useI18n();
 
@@ -82,6 +85,31 @@ const sourceLabel = computed(() => {
 /** 音质等级标签 */
 const quality = computed(() => media.detail?.quality ?? displayTrack.value?.quality);
 const qualityLabel = computed(() => getQualityLabel(quality.value));
+
+/** 是否支持切换在线音质。 */
+const canSwitchQuality = computed(
+  () => displayTrack.value?.source === "netease" && !displayTrack.value.cloud,
+);
+
+/** 是否在播放页显示快捷音质切换。 */
+const showQualitySwitch = computed(
+  () => settings.appearance.showQualitySwitch && canSwitchQuality.value,
+);
+
+/** 音质偏好下拉选项。 */
+const qualityOptions = computed<SSelectOption[]>(() => [
+  { value: "lq", label: t("settings.songLevel.lq") },
+  { value: "sq", label: t("settings.songLevel.sq") },
+  { value: "hq", label: t("settings.songLevel.hq") },
+  { value: "lossless", label: t("settings.songLevel.lossless") },
+  { value: "hi-res", label: t("settings.songLevel.hi-res") },
+]);
+
+/** 切换当前歌曲的在线音质。 */
+const onQualityChange = (value: string | number | boolean): void => {
+  settings.player.songLevel = value as QualityLevel;
+  void player.reloadCurrentTrack();
+};
 
 /** 是否为无损级别（显示图标） */
 const showLosslessIcon = computed(() => {
@@ -173,7 +201,59 @@ const alignItems = computed(() => {
       >
         {{ sourceLabel }}
       </span>
-      <SPopover side="top" :side-offset="8" cover trigger="hover">
+      <SPopselect
+        v-if="showQualitySwitch"
+        :model-value="settings.player.songLevel"
+        :options="qualityOptions"
+        side="top"
+        :side-offset="8"
+        cover
+        @update:model-value="onQualityChange"
+      >
+        <template #header>
+          <div class="w-0 min-w-full px-2.5 pt-2 pb-1.5 border-b border-b-solid border-b-white/10">
+            <div class="mb-0.5 text-sm font-medium text-cover">
+              {{ t("settings.songLevel.switchTitle") }}
+            </div>
+            <div class="text-xs leading-snug text-cover/55">
+              {{ t("settings.songLevel.switchHint") }}
+            </div>
+            <div v-if="quality" class="mt-2 pt-2 border-t border-t-solid border-t-white/10 text-xs">
+              <div class="flex flex-col gap-1.5 text-cover/70">
+                <div class="flex justify-between gap-4">
+                  <span class="text-cover/40">{{ t("quality.codec") }}</span>
+                  <span>{{ quality.codec.toUpperCase() }}</span>
+                </div>
+                <div class="flex justify-between gap-4">
+                  <span class="text-cover/40">{{ t("quality.sampleRate") }}</span>
+                  <span>{{ (quality.sampleRate / 1000).toFixed(1) }} kHz</span>
+                </div>
+                <div v-if="quality.bitsPerSample > 0" class="flex justify-between gap-4">
+                  <span class="text-cover/40">{{ t("quality.bitDepth") }}</span>
+                  <span>{{ quality.bitsPerSample }} bit</span>
+                </div>
+                <div class="flex justify-between gap-4">
+                  <span class="text-cover/40">{{ t("quality.bitRate") }}</span>
+                  <span>{{ Math.round(quality.bitRate / 1000) }} kbps</span>
+                </div>
+                <div class="flex justify-between gap-4">
+                  <span class="text-cover/40">{{ t("quality.channels") }}</span>
+                  <span>{{ channelText }} · {{ quality.channels }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+        <template #trigger>
+          <span
+            class="inline-flex items-center gap-1 leading-none px-1.5 py-1.2 rounded-md border border-solid border-cover/30 cursor-pointer transition-colors hover:border-cover/60"
+          >
+            <IconSpLossless v-if="showLosslessIcon" class="text-[1.4em] -my-[0.4em]" />
+            {{ qualityLabel }}
+          </span>
+        </template>
+      </SPopselect>
+      <SPopover v-else side="top" :side-offset="8" cover trigger="hover">
         <template #trigger>
           <span
             class="inline-flex items-center gap-1 leading-none px-1.5 py-1.2 rounded-md border border-solid border-cover/30 cursor-pointer transition-colors hover:border-cover/60"
