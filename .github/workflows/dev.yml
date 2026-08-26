@@ -1,5 +1,5 @@
-# 歌词功能分支推送构建
-name: Build Lyrics Branches
+# 歌词功能分支推送构建；按分支显示稳定/实验名称，避免 Actions 列表混淆。
+name: Lyrics Build · ${{ github.ref_name == 'feat/lyrics-manager-dev' && 'Stable' || 'Experimental' }}
 
 on:
   push:
