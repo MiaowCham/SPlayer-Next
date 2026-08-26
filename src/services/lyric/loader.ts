@@ -206,11 +206,11 @@ const shouldReplaceWithAppleMusic = (current: LyricData): boolean => {
 };
 
 /** 异步搜索 Apple Music；先显示已命中的歌词，再按优先级热替换。 */
-const scheduleAppleMusicUpgrade = (token: number, track: Track): void => {
+const scheduleAppleMusicUpgrade = (token: number, track: Track, force = false): void => {
   void resolveAppleMusicTTML(track).then((resolved) => {
     if (token !== currentToken || !resolved) return;
     const media = useMediaStore();
-    if (shouldReplaceWithAppleMusic(media.activeLyric)) {
+    if (force || shouldReplaceWithAppleMusic(media.activeLyric)) {
       commitResolvedAndHasParsed(token, resolved);
     }
   });
@@ -347,7 +347,7 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     if (choice.source === "appleMusic") {
       if (await tryCachedAppleMusic(token, searchTrack)) return;
       // 手动锁定来源时，不得按照自动排序回退到其他来源。
-      scheduleAppleMusicUpgrade(token, searchTrack);
+      scheduleAppleMusicUpgrade(token, searchTrack, true);
       return;
     }
     if (choice.source === "auto") {
@@ -428,7 +428,7 @@ const refreshPreference = async (): Promise<void> => {
   if (choice.source === "appleMusic") {
     if (await tryCachedAppleMusic(token, searchTrack)) return;
     // 刷新时也保持显式来源锁定，等待 Apple Music 检索结果。
-    scheduleAppleMusicUpgrade(token, searchTrack);
+    scheduleAppleMusicUpgrade(token, searchTrack, true);
     return;
   }
   if (choice.source === "auto") {

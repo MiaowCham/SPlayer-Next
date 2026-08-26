@@ -101,6 +101,14 @@ const isCandidateExplicitlySelected = (candidate: LyricMatchCandidate): boolean 
 };
 
 const smartSelection = computed(() => preference.value.source === "auto");
+/** Apple Music 只展示已取得并含正文的 TTML，避免失败状态成为可选来源。 */
+const visibleCandidates = computed(() =>
+  candidates.value.filter(
+    (candidate) =>
+      candidate.origin !== "appleMusic" ||
+      (candidate.status === "available" && !!candidate.content.trim()),
+  ),
+);
 const isCurrentTrack = computed(() => {
   const track = lyricManager.track.value;
   return !!track && media.track?.source === track.source && media.track.id === track.id;
@@ -121,7 +129,7 @@ const usedCandidate = computed((): LyricMatchCandidate | null => {
   const content = media.lyricContent?.content;
   if (isCurrentTrack.value) {
     if (active && content) {
-      const exact = candidates.value.find((candidate) => {
+      const exact = visibleCandidates.value.find((candidate) => {
         if (candidate.content !== content || candidate.format !== active.format) return false;
         if (active.source === "managed") {
           return candidate.local && candidate.id === managed.value?.versionId;
@@ -138,9 +146,9 @@ const usedCandidate = computed((): LyricMatchCandidate | null => {
     return null;
   }
   if (smartSelection.value) {
-    return candidates.value.find((candidate) => candidate.local && candidate.active) ?? null;
+    return visibleCandidates.value.find((candidate) => candidate.local && candidate.active) ?? null;
   }
-  return candidates.value.find(isCandidateExplicitlySelected) ?? null;
+  return visibleCandidates.value.find(isCandidateExplicitlySelected) ?? null;
 });
 
 const isCandidateSmartSelected = (candidate: LyricMatchCandidate): boolean =>
@@ -515,9 +523,9 @@ watch(
             {{ t(smartSelection ? "lyricManager.selected" : "lyricManager.select") }}
           </SButton>
         </div>
-        <div v-if="candidates.length" class="max-h-72 overflow-y-auto flex flex-col gap-2.5">
+        <div v-if="visibleCandidates.length" class="max-h-72 overflow-y-auto flex flex-col gap-2.5">
           <div
-            v-for="candidate in candidates"
+            v-for="candidate in visibleCandidates"
             :key="candidate.id"
             class="flex items-center gap-3 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5"
             :class="
