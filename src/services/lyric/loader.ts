@@ -33,7 +33,18 @@ let currentToken = 0;
 const basePreference = (choice: TrackLyricPreference): LyricSourcePreference => {
   if (choice.source === "platform" || choice.source === "amll") return choice.platform;
   if (choice.source === "localTtml") return "local";
+  if (choice.source === "appleMusic") return "auto";
   return choice.source;
+};
+
+/** 判断 Apple Music 是否被逐曲锁定，或在智能来源排序中排在平台歌词之前。 */
+const shouldTryAppleMusicBeforeOnline = (choice: TrackLyricPreference): boolean => {
+  if (choice.source === "appleMusic") return true;
+  if (choice.source !== "auto") return false;
+  const order = useSettingsStore().lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
+  const appleIndex = order.indexOf("appleMusic");
+  const platformIndex = order.findIndex(isPlatform);
+  return appleIndex !== -1 && (platformIndex === -1 || appleIndex < platformIndex);
 };
 
 /**
@@ -198,6 +209,7 @@ const loadStreamingLyric = async (
   detail: TrackDetail | null,
   choice: TrackLyricPreference,
 ): Promise<void> => {
+  if (shouldTryAppleMusicBeforeOnline(choice) && (await tryAppleMusicFallback(token, track))) return;
   const resolved = await resolveStreamingByPreference(
     track,
     () => token === currentToken,
@@ -226,6 +238,7 @@ const loadPlatformLyric = async (
   track: Track,
   choice: TrackLyricPreference,
 ): Promise<void> => {
+  if (shouldTryAppleMusicBeforeOnline(choice) && (await tryAppleMusicFallback(token, track))) return;
   const online = await resolveOnlineByPreference(track, {
     hasLocal: false,
     localFormat: null,
@@ -310,6 +323,9 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     const hasUsableLocal = !!local && media.parsedLyric.length > 0;
     const localFormat = local?.source.format ?? null;
     // 按偏好获取歌词
+    if (shouldTryAppleMusicBeforeOnline(choice) && (await tryAppleMusicFallback(token, track))) {
+      return;
+    }
     const online = await resolveOnlineByPreference(track, {
       hasLocal: hasUsableLocal,
       localFormat,
@@ -375,6 +391,7 @@ const refreshPreference = async (): Promise<void> => {
   if (token !== currentToken) return;
   const localFormat = local?.source.format ?? null;
   const showingOnline = media.activeLyric?.source === "online";
+  if (shouldTryAppleMusicBeforeOnline(choice) && (await tryAppleMusicFallback(token, track))) return;
   /** 按偏好获取歌词 */
   const online = await resolveOnlineByPreference(track, {
     hasLocal: !!local,

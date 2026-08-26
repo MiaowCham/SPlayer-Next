@@ -370,6 +370,8 @@ export const resolveLyricForPreload = async (
       ? storedPreference.platform
       : storedPreference.source === "localTtml"
         ? "local"
+        : storedPreference.source === "appleMusic"
+          ? "auto"
         : storedPreference.source
     : globalPreference;
   const wantsManaged = storedPreference

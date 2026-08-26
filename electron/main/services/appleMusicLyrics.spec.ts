@@ -48,6 +48,14 @@ describe("Apple Music TTML 歌词来源", () => {
     ).toBeNull();
   });
 
+  it("按匹配容错档位调整候选接受阈值", () => {
+    const candidate = song({ title: "Song", artist: "Another Artist", duration: 240_000 });
+
+    expect(pickAppleMusicSong(track, [candidate], "strict")).toBeNull();
+    expect(pickAppleMusicSong(track, [candidate], "standard")).toBeNull();
+    expect(pickAppleMusicSong(track, [candidate], "loose")?.id).toBe(candidate.id);
+  });
+
   it("生成包含本地化语言与自动脚本的歌词参数", () => {
     expect(buildAppleMusicLyricQuery("zh-Hans-CN", "")).toBe(
       "extend=ttmlLocalizations&l%5Blyrics%5D=zh-Hans-CN&l%5Bscript%5D=zh-Hans",

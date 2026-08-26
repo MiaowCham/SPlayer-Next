@@ -106,7 +106,7 @@ export interface ManagedLyric extends LyricInput {
 }
 
 /** 手动歌词版本的来源。 */
-export type ManagedLyricOrigin = "manual" | "localTtml" | "amll" | Platform;
+export type ManagedLyricOrigin = "manual" | "localTtml" | "amll" | "appleMusic" | Platform;
 
 /** 单曲歌词来源首选项；仅保存轻量标识，不持久化歌词正文。 */
 export type TrackLyricPreference =
@@ -115,7 +115,8 @@ export type TrackLyricPreference =
   | { source: "local"; versionId?: string }
   | { source: "localTtml" }
   | { source: "platform"; platform: Platform }
-  | { source: "amll"; platform: "netease" | "qqmusic" };
+  | { source: "amll"; platform: "netease" | "qqmusic" }
+  | { source: "appleMusic" };
 
 /** 单曲管理面板展示的歌词候选。 */
 export interface LyricMatchCandidate extends LyricInput {
@@ -127,6 +128,10 @@ export interface LyricMatchCandidate extends LyricInput {
   active: boolean;
   local: boolean;
   importedAt?: number;
+  /** 内置来源查询结果；没有正文时仍用于向用户说明检索状态。 */
+  status?: "available" | "disabled" | "tokenMissing" | "noMatch" | "error";
+  /** 查询状态的人类可读说明，不包含任何敏感令牌。 */
+  statusMessage?: string;
 }
 
 /** 单曲导入的歌词载荷 */
@@ -187,6 +192,15 @@ export type LyricTTMLResponse = { ok: true; data: string | null } | { ok: false;
 /** Apple Music TTML 凭据状态，不暴露令牌明文。 */
 export interface AppleMusicTTMLStatus {
   hasMediaUserToken: boolean;
+  /** 当前令牌持久化方式。 */
+  storage: "secure" | "compatibility";
+}
+
+/** Apple Music TTML 检索结果，供单曲管理页展示搜索状态。 */
+export interface AppleMusicTTMLFetchResult {
+  lyric: string | null;
+  status: "available" | "disabled" | "tokenMissing" | "noMatch" | "error";
+  message?: string;
 }
 
 /** 渲染端歌词匹配入口 */
@@ -250,7 +264,16 @@ export interface LyricsApi {
   /** 获取 Apple Music TTML 凭据状态，不返回令牌明文 */
   getAppleMusicTTMLStatus: () => Promise<AppleMusicTTMLStatus>;
   /** 安全保存或清除 Apple Music Media-User-Token */
-  setAppleMusicMediaUserToken: (token: string) => Promise<AppleMusicTTMLStatus>;
+  setAppleMusicMediaUserToken: (
+    token: string,
+    storage?: "secure" | "compatibility",
+  ) => Promise<AppleMusicTTMLStatus>;
+  /** 迁移已保存令牌至指定存储方式，不向渲染进程暴露令牌。 */
+  migrateAppleMusicMediaUserToken: (
+    storage: "secure" | "compatibility",
+  ) => Promise<AppleMusicTTMLStatus>;
+  /** 验证已保存令牌，并实际发起一次 Apple Music 搜索 */
+  verifyAppleMusicTTMLToken: () => Promise<AppleMusicTTMLFetchResult>;
   /** 在本地 TTML 歌词库中按元信息匹配，命中返回 TTML 原文 */
   matchLocalTTML: (track: Track) => Promise<LyricTTMLResponse>;
   /** 弹出目录选择器，返回所选本地 TTML 歌词库目录 */

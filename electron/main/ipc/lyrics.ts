@@ -17,9 +17,15 @@ import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
 import { callNetease } from "@main/apis/netease";
 import { fetchTTML } from "@main/apis/common/lyric/ttml";
-import { fetchAppleMusicTTML } from "@main/services/appleMusicLyrics";
 import {
+  fetchAppleMusicTTML,
+  fetchAppleMusicTTMLResult,
+  verifyAppleMusicTTMLToken,
+} from "@main/services/appleMusicLyrics";
+import {
+  getAppleMusicMediaUserTokenStorage,
   hasAppleMusicMediaUserToken,
+  migrateAppleMusicMediaUserTokenStorage,
   saveAppleMusicMediaUserToken,
 } from "@main/services/appleMusicLyricsToken";
 import { matchLocalTTML } from "@main/services/localLyricRepo";
@@ -238,6 +244,19 @@ const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> 
     });
   }
 
+  const appleMusic = await fetchAppleMusicTTMLResult(track);
+  remote.push({
+    id: "appleMusic",
+    origin: "appleMusic",
+    format: "ttml",
+    filename: "apple-music.ttml",
+    content: appleMusic.lyric ?? "",
+    active: false,
+    local: false,
+    status: appleMusic.status,
+    statusMessage: appleMusic.message,
+  });
+
   const overlays = await Promise.all(
     (["netease", "qqmusic"] as const).map(async (platform) => {
       try {
@@ -264,9 +283,12 @@ const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> 
 
   const uniqueRemote = remote.filter(
     (candidate, index, candidates) =>
-      !local.some(
-        (version) => version.origin === candidate.origin && version.content === candidate.content,
-      ) && candidates.findIndex((item) => item.content === candidate.content) === index,
+      (candidate.origin === "appleMusic" ||
+        !local.some(
+          (version) => version.origin === candidate.origin && version.content === candidate.content,
+        )) &&
+      (candidate.origin === "appleMusic" ||
+        candidates.findIndex((item) => item.content === candidate.content) === index),
   );
   return [...local, ...uniqueRemote];
 };
@@ -570,10 +592,17 @@ export const registerLyricsIpc = (): void => {
   );
   ipcMain.handle("lyrics:getAppleMusicTTMLStatus", () => ({
     hasMediaUserToken: hasAppleMusicMediaUserToken(),
+    storage: getAppleMusicMediaUserTokenStorage(),
   }));
-  ipcMain.handle("lyrics:setAppleMusicMediaUserToken", (_evt, token: string) => ({
-    hasMediaUserToken: saveAppleMusicMediaUserToken(token),
+  ipcMain.handle("lyrics:setAppleMusicMediaUserToken", (_evt, token: string, storage) => ({
+    hasMediaUserToken: saveAppleMusicMediaUserToken(token, storage),
+    storage: getAppleMusicMediaUserTokenStorage(),
   }));
+  ipcMain.handle("lyrics:migrateAppleMusicMediaUserToken", (_evt, storage) => ({
+    hasMediaUserToken: migrateAppleMusicMediaUserTokenStorage(storage),
+    storage: getAppleMusicMediaUserTokenStorage(),
+  }));
+  ipcMain.handle("lyrics:verifyAppleMusicTTMLToken", () => verifyAppleMusicTTMLToken());
   ipcMain.handle(
     "lyrics:matchLocalTTML",
     async (_evt, track: Track): Promise<LyricTTMLResponse> => {

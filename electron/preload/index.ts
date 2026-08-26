@@ -471,8 +471,12 @@ const api = {
     // 仅读取令牌是否已安全保存
     getAppleMusicTTMLStatus: () => ipcRenderer.invoke("lyrics:getAppleMusicTTMLStatus"),
     // 令牌仅透传到主进程安全存储，不会回读到渲染进程
-    setAppleMusicMediaUserToken: (token: string) =>
-      ipcRenderer.invoke("lyrics:setAppleMusicMediaUserToken", token),
+    setAppleMusicMediaUserToken: (token: string, storage?: "secure" | "compatibility") =>
+      ipcRenderer.invoke("lyrics:setAppleMusicMediaUserToken", token, storage),
+    migrateAppleMusicMediaUserToken: (storage: "secure" | "compatibility") =>
+      ipcRenderer.invoke("lyrics:migrateAppleMusicMediaUserToken", storage),
+    // 验证已保存令牌并发起实际搜索，返回时不包含令牌明文
+    verifyAppleMusicTTMLToken: () => ipcRenderer.invoke("lyrics:verifyAppleMusicTTMLToken"),
     // 在本地 TTML 歌词库目录中按元信息匹配
     matchLocalTTML: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalTTML", track),
     // 选择本地 TTML 歌词库目录

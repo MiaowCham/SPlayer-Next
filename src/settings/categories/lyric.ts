@@ -84,11 +84,25 @@ const lyricCategory: SettingCategory = {
           binding: { store: "settings", path: "system.lyric.enableAppleMusicTTMLLyric" },
           defaultValue: false,
           tag: { text: "Beta" },
+          confirm: {
+            when: (next) =>
+              next === true && !useSettingsStore().system.lyric.appleMusicTTMLNoticeAcknowledged,
+            titleKey: "settings.appleMusicTTMLNotice.title",
+            contentKey: "settings.appleMusicTTMLNotice.content",
+            type: "warning",
+            confirmTextKey: "settings.appleMusicTTMLNotice.confirm",
+          },
+          action: async (value) => {
+            if (value === true) {
+              await useSettingsStore().setSystem("lyric.appleMusicTTMLNoticeAcknowledged", true);
+            }
+          },
           children: [
             {
               key: "appleMusicTTMLConfig",
               type: "custom",
               component: AppleMusicTTMLConfig,
+              visible: () => useSettingsStore().system.lyric.enableAppleMusicTTMLLyric,
             },
           ],
         },

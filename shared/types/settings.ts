@@ -314,8 +314,14 @@ export interface OnlineLyricSettings {
   amllDbServer: string;
   /** 启用 Apple Music TTML 歌词兜底来源 */
   enableAppleMusicTTMLLyric: boolean;
+  /** 是否已阅读 Apple Music TTML Beta 首次启用说明 */
+  appleMusicTTMLNoticeAcknowledged: boolean;
+  /** Apple Music 登录令牌存储方式；兼容模式为明文持久化。 */
+  appleMusicTokenStorage: "secure" | "compatibility";
   /** Apple Music 账号曲库地区；为空时自动读取 */
   appleMusicStorefront: string;
+  /** Apple Music 候选匹配容错档位 */
+  appleMusicMatchLevel: "strict" | "standard" | "loose";
   /** 辅助搜索的 Apple Music 曲库地区 */
   appleMusicSearchRegions: string;
   /** Apple Music 歌词请求的本地化语言 */

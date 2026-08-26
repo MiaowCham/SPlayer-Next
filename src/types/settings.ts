@@ -61,7 +61,7 @@ export const SPRING_PRESETS: Record<
 };
 
 /** 可排序的歌词来源（本地文件始终固定在首位） */
-export type LyricSourceOrderItem = Platform | "amll" | "localTtml";
+export type LyricSourceOrderItem = Platform | "amll" | "localTtml" | "appleMusic";
 
 /** 歌词来源排序：来源偏好为「智能选择」时，按此顺序尝试可用来源 */
 export type LyricSourceOrder = LyricSourceOrderItem[];
@@ -70,7 +70,12 @@ export type LyricSourceOrder = LyricSourceOrderItem[];
 export type LyricFormatOrder = LyricFormat[];
 
 /** 默认音源顺序 */
-export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = ["localTtml", "amll", ...ALL_PLATFORMS];
+export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = [
+  "localTtml",
+  "amll",
+  ...ALL_PLATFORMS,
+  "appleMusic",
+];
 
 /** 默认格式优先级 */
 export const DEFAULT_LYRIC_FORMAT_ORDER: LyricFormatOrder = [...DEFAULT_LYRIC_FORMAT_ORDER_SHARED];

@@ -10,6 +10,9 @@ export interface AppleMusicSong {
   storefront: string;
 }
 
+/** Apple Music 候选匹配容错档位。 */
+export type AppleMusicMatchLevel = "strict" | "standard" | "loose";
+
 /** 标准化曲名与歌手，供跨平台候选匹配使用。 */
 export const normalizeAppleMusicText = (value: string): string =>
   value
@@ -40,6 +43,7 @@ export const scoreAppleMusicSong = (track: Track, song: AppleMusicSong): number 
 export const pickAppleMusicSong = (
   track: Track,
   songs: AppleMusicSong[],
+  level: AppleMusicMatchLevel = "standard",
 ): AppleMusicSong | null => {
   let best: AppleMusicSong | null = null;
   let bestScore = 0;
@@ -50,7 +54,14 @@ export const pickAppleMusicSong = (
       bestScore = score;
     }
   }
-  return bestScore >= 8 ? best : null;
+  const minimumScore: Record<AppleMusicMatchLevel, number> = {
+    // 严格档要求曲名外再有歌手或时长佐证，避免同名歌曲误命中。
+    strict: 13,
+    standard: 8,
+    // 宽松档用于 Apple 曲名含现场版等后缀、歌手译名不同的情况。
+    loose: 5,
+  };
+  return bestScore >= minimumScore[level] ? best : null;
 };
 
 /** 生成 Apple Music 歌词请求的本地化参数。 */

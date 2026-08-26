@@ -4,12 +4,14 @@
  * 实现参考 am-ttml-fetch（1412，AGPL-3.0-or-later），并改为主进程内置服务。
  */
 import type { Track } from "@shared/types/player";
+import type { AppleMusicTTMLFetchResult } from "@shared/types/lyrics";
 import { store } from "@main/store";
 import { coreLog } from "@main/utils/logger";
 import { getAppleMusicMediaUserToken } from "./appleMusicLyricsToken";
 import {
   buildAppleMusicLyricQuery,
   pickAppleMusicSong,
+  type AppleMusicMatchLevel,
   type AppleMusicSong,
 } from "./appleMusicLyricsUtils";
 
@@ -28,6 +30,16 @@ interface TokenCacheEntry {
 let developerToken: TokenCacheEntry | null = null;
 let developerTokenTask: Promise<string> | null = null;
 const lyricCache = new Map<string, string>();
+
+/** 仅用于诊断令牌是否真正参与了请求，绝不记录令牌全文。 */
+const describeMediaUserToken = (token: string): string =>
+  token.length <= 10 ? `${token.slice(0, 2)}…(${token.length})` : `${token.slice(0, 6)}…${token.slice(-4)}(${token.length})`;
+
+const fetchResult = (
+  status: AppleMusicTTMLFetchResult["status"],
+  lyric: string | null = null,
+  message?: string,
+): AppleMusicTTMLFetchResult => ({ status, lyric, message });
 
 /** 解析 JWT 的过期时间。 */
 const readJwtExpiry = (token: string): number | null => {
@@ -137,8 +149,34 @@ const searchStorefront = async (
     `/catalog/${storefront}/search?${params}`,
     mediaUserToken,
   );
-  if (!response.ok) return [];
+  if (!response.ok) {
+    coreLog.warn(`[appleMusicLyrics] 曲库 ${storefront} 搜索失败: HTTP ${response.status}`);
+    return [];
+  }
   return toAppleSongs(await response.json(), storefront);
+};
+
+/** 验证已保存令牌并实际发起一次 Apple Music 搜索。 */
+export const verifyAppleMusicTTMLToken = async (): Promise<AppleMusicTTMLFetchResult> => {
+  const mediaUserToken = getAppleMusicMediaUserToken();
+  if (!mediaUserToken) return fetchResult("tokenMissing");
+  const config = store.get("lyric");
+  try {
+    coreLog.info(
+      `[appleMusicLyrics] 开始验证已保存 Media-User-Token: ${describeMediaUserToken(mediaUserToken)}`,
+    );
+    const storefront = await resolveStorefront(
+      mediaUserToken,
+      String(config.appleMusicStorefront ?? ""),
+    );
+    if (!storefront) return fetchResult("error", null, "storefront");
+    const songs = await searchStorefront(storefront, "music", mediaUserToken);
+    coreLog.info(`[appleMusicLyrics] 令牌验证完成: storefront=${storefront}, candidates=${songs.length}`);
+    return fetchResult("available", null, storefront);
+  } catch (err) {
+    coreLog.warn("[appleMusicLyrics] 令牌验证失败:", err);
+    return fetchResult("error");
+  }
 };
 
 /** 将外区候选桥接为账户曲库可请求歌词的歌曲 ID。 */
@@ -172,17 +210,25 @@ const cacheLyric = (key: string, lyric: string): void => {
 };
 
 /** 从 Apple Music 获取当前歌曲的 TTML 歌词；失败时返回 null。 */
-export const fetchAppleMusicTTML = async (track: Track): Promise<string | null> => {
+export const fetchAppleMusicTTMLResult = async (
+  track: Track,
+): Promise<AppleMusicTTMLFetchResult> => {
   const config = store.get("lyric");
-  if (!config.enableAppleMusicTTMLLyric) return null;
+  if (!config.enableAppleMusicTTMLLyric) return fetchResult("disabled");
   const mediaUserToken = getAppleMusicMediaUserToken();
-  if (!mediaUserToken) return null;
+  if (!mediaUserToken) return fetchResult("tokenMissing");
   try {
+    coreLog.info(
+      `[appleMusicLyrics] 开始搜索: ${track.title} - ${track.artists.map((item) => item.name).join(" / ")}, token=${describeMediaUserToken(mediaUserToken)}`,
+    );
     const accountStorefront = await resolveStorefront(
       mediaUserToken,
       String(config.appleMusicStorefront ?? ""),
     );
-    if (!accountStorefront) return null;
+    if (!accountStorefront) {
+      coreLog.warn("[appleMusicLyrics] 未能读取账号曲库地区");
+      return fetchResult("error", null, "storefront");
+    }
     const configuredRegions = String(config.appleMusicSearchRegions ?? "cn,jp,tw,kr")
       .split(",")
       .map((region) => region.trim().toLowerCase())
@@ -195,15 +241,28 @@ export const fetchAppleMusicTTML = async (track: Track): Promise<string | null> 
         keywords.map((keyword) => searchStorefront(storefront, keyword, mediaUserToken)),
       ),
     );
-    const candidate = pickAppleMusicSong(track, groups.flat());
-    if (!candidate) return null;
+    const candidates = groups.flat();
+    const rawLevel = String(config.appleMusicMatchLevel ?? "standard");
+    const level: AppleMusicMatchLevel =
+      rawLevel === "strict" || rawLevel === "loose" ? rawLevel : "standard";
+    const candidate = pickAppleMusicSong(track, candidates, level);
+    coreLog.info(
+      `[appleMusicLyrics] 搜索完成: storefront=${accountStorefront}, candidates=${candidates.length}, matchLevel=${level}, matched=${candidate?.id ?? "none"}`,
+    );
+    if (!candidate) return fetchResult("noMatch");
     const songId = await resolveAccountSongId(candidate, accountStorefront, mediaUserToken);
-    if (!songId) return null;
+    if (!songId) {
+      coreLog.info(`[appleMusicLyrics] 未能将候选桥接到账号曲库: ${candidate.id}`);
+      return fetchResult("noMatch", null, "bridge");
+    }
     const language = String(config.appleMusicTranslationLanguage ?? "zh-Hans-CN").trim();
     const script = String(config.appleMusicTranslationScript ?? "").trim();
     const cacheKey = `${accountStorefront}:${songId}:${language}:${script}`;
     const cached = lyricCache.get(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      coreLog.info(`[appleMusicLyrics] 命中内存歌词缓存: ${accountStorefront}:${songId}`);
+      return fetchResult("available", cached);
+    }
     const query = buildAppleMusicLyricQuery(language, script);
     let response = await requestAppleMusic(
       `/catalog/${accountStorefront}/songs/${songId}/syllable-lyrics?${query}`,
@@ -215,18 +274,29 @@ export const fetchAppleMusicTTML = async (track: Track): Promise<string | null> 
         mediaUserToken,
       );
     }
-    if (!response.ok) return null;
+    if (!response.ok) {
+      coreLog.warn(`[appleMusicLyrics] 歌词请求失败: song=${songId}, HTTP ${response.status}`);
+      return fetchResult("noMatch", null, `lyrics:${response.status}`);
+    }
     const attributes = (await response.json())?.data?.[0]?.attributes;
     const lyric = String(
       (typeof attributes?.ttmlLocalizations === "string" && attributes.ttmlLocalizations) ||
         attributes?.ttml ||
         "",
     );
-    if (!lyric.trim()) return null;
+    if (!lyric.trim()) {
+      coreLog.info(`[appleMusicLyrics] 候选无可用 TTML: song=${songId}`);
+      return fetchResult("noMatch", null, "empty");
+    }
     cacheLyric(cacheKey, lyric);
-    return lyric;
+    coreLog.info(`[appleMusicLyrics] 获取 TTML 成功: song=${songId}, chars=${lyric.length}`);
+    return fetchResult("available", lyric);
   } catch (err) {
     coreLog.warn(`[appleMusicLyrics] ${track.title} fetch failed:`, err);
-    return null;
+    return fetchResult("error");
   }
 };
+
+/** 从 Apple Music 获取当前歌曲的 TTML 歌词；失败时返回 null。 */
+export const fetchAppleMusicTTML = async (track: Track): Promise<string | null> =>
+  (await fetchAppleMusicTTMLResult(track)).lyric;

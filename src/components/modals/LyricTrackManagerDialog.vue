@@ -72,6 +72,7 @@ const candidatePreference = (candidate: LyricMatchCandidate): TrackLyricPreferen
       ? { source: "amll", platform: candidate.platform }
       : null;
   }
+  if (candidate.origin === "appleMusic") return { source: "appleMusic" };
   return isPlatform(candidate.origin) ? { source: "platform", platform: candidate.origin } : null;
 };
 
@@ -89,6 +90,7 @@ const isCandidateExplicitlySelected = (candidate: LyricMatchCandidate): boolean 
   if (candidate.origin === "amll") {
     return selected.source === "amll" && selected.platform === candidate.platform;
   }
+  if (candidate.origin === "appleMusic") return selected.source === "appleMusic";
   return selected.source === "platform" && selected.platform === candidate.origin;
 };
 
@@ -118,7 +120,11 @@ const usedCandidate = computed((): LyricMatchCandidate | null => {
         if (active.source === "managed") {
           return candidate.local && candidate.id === managed.value?.versionId;
         }
-        if (active.source === "online") return candidate.platform === active.platform;
+        if (active.source === "online") {
+          return active.provider === "appleMusic"
+            ? candidate.origin === "appleMusic"
+            : candidate.platform === active.platform;
+        }
         return candidate.origin === "localTtml";
       });
       if (exact) return exact;
@@ -493,14 +499,18 @@ watch(
                 </STag>
               </div>
               <div class="mt-0.5 text-xs text-on-surface-variant/60 truncate">
-                {{ candidate.format.toUpperCase() }} · {{ candidate.filename }}
+                {{
+                  candidate.status && candidate.status !== 'available'
+                    ? t(`lyricManager.appleMusicStatus.${candidate.status}`)
+                    : `${candidate.format.toUpperCase()} · ${candidate.filename}`
+                }}
               </div>
             </div>
             <SButton
               type="primary"
               variant="secondary"
               size="small"
-              :disabled="isCandidateExplicitlySelected(candidate)"
+              :disabled="isCandidateExplicitlySelected(candidate) || !!(candidate.status && candidate.status !== 'available')"
               :loading="candidateActionId === candidate.id"
               @click="selectCandidate(candidate)"
             >
