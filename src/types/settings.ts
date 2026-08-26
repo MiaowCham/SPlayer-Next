@@ -240,6 +240,8 @@ export interface AppearanceSettings {
   routeTransition: RouteTransition;
   /** 侧边栏折叠 */
   sidebarCollapsed: boolean;
+  /** 侧边栏 Logo 快捷切换折叠状态 */
+  sidebarShortcutToggle: boolean;
   /** 侧边栏歌单项显示封面 */
   sidebarPlaylistCover: boolean;
   /** 侧边栏显示播放统计入口 */

@@ -40,6 +40,7 @@ export const useSettingsStore = defineStore(
       layoutMode: "default",
       routeTransition: "fade",
       sidebarCollapsed: false,
+      sidebarShortcutToggle: false,
       sidebarPlaylistCover: false,
       showStatsInSidebar: true,
       showQualitySwitch: false,
@@ -328,6 +329,9 @@ export const useSettingsStore = defineStore(
         }
         if (typeof lyric.raiseAlignPositionOnOverlap !== "boolean") {
           lyric.raiseAlignPositionOnOverlap = false;
+        }
+        if (typeof store.appearance.sidebarShortcutToggle !== "boolean") {
+          store.appearance.sidebarShortcutToggle = false;
         }
         if (
           !(["low", "medium", "high", "very-high", "extreme"] as const).includes(

@@ -155,6 +155,12 @@ const appearanceCategory: SettingCategory = {
           defaultValue: false,
         },
         {
+          key: "sidebarShortcutToggle",
+          type: "switch",
+          binding: { store: "settings", path: "appearance.sidebarShortcutToggle" },
+          defaultValue: false,
+        },
+        {
           key: "sidebarPlaylistCover",
           type: "switch",
           binding: { store: "settings", path: "appearance.sidebarPlaylistCover" },
