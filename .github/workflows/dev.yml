@@ -1,11 +1,10 @@
-# 歌词功能分支推送构建；按分支显示稳定/实验名称，避免 Actions 列表混淆。
-name: Lyrics Build · ${{ github.ref_name == 'feat/lyrics-manager-dev' && 'Stable' || 'Experimental' }}
+# 稳定歌词分支构建，同时供实验分支的独立工作流复用。
+name: Lyrics Stable Build
 
 on:
   push:
     branches:
       - feat/lyrics-manager-dev
-      - feat/lyrics-manager-experiments
     paths:
       - "src/**"
       - "electron/**"
@@ -20,6 +19,7 @@ on:
       - "electron.vite.config.ts"
       - "tsconfig*.json"
       - ".github/workflows/dev.yml"
+  workflow_call:
   workflow_dispatch:
 
 env:
