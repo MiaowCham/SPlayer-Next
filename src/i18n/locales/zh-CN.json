@@ -82,6 +82,7 @@
     "reject": "不同意并退出"
   },
   "common": {
+    "back": "返回",
     "confirm": "确认",
     "cancel": "取消",
     "close": "关闭",
@@ -112,6 +113,42 @@
     "totalAlbums": "共 {count} 张专辑",
     "totalArtists": "共 {count} 位歌手",
     "totalPlaylists": "共 {count} 个歌单"
+  },
+  "recognition": {
+    "title": "听歌识曲",
+    "entry": "听歌识曲",
+    "description": "识别正在播放的音乐",
+    "start": "开始识别",
+    "sourceLabel": "音频来源",
+    "hint": {
+      "system": "我们会采集系统中的一小段声音进行识别",
+      "microphone": "靠近声源并保持环境安静，识别效果会更好"
+    },
+    "source": {
+      "system": "系统声音",
+      "microphone": "麦克风"
+    },
+    "phase": {
+      "capturing": "正在收听…",
+      "fingerprinting": "正在生成指纹…",
+      "matching": "正在匹配曲库…"
+    },
+    "empty": "没有识别到歌曲，请靠近声源重试",
+    "retry": "再试一次",
+    "cancel": "取消",
+    "play": "播放",
+    "unavailable": "当前设备不支持听歌识曲",
+    "searching": "搜索此歌曲",
+    "error": {
+      "unsupported": "当前平台不支持本机采集",
+      "no-device": "未找到可用的音频设备",
+      "permission-denied": "缺少麦克风权限，请在系统设置中授权",
+      "capture-failed": "音频采集失败",
+      "silent-input": "没有采集到声音，请检查音频输出",
+      "network": "匹配服务不可用，请稍后重试",
+      "afp-unavailable": "音频指纹库不可用",
+      "unknown": "识别失败，请重试"
+    }
   },
   "comments": {
     "name": "歌曲评论",
@@ -423,7 +460,10 @@
       "loading": "正在开启私人 FM…",
       "entered": "已开启私人 FM",
       "already": "已处于私人 FM",
-      "failed": "私人 FM 开启失败，请稍后重试"
+      "failed": "私人 FM 开启失败，请稍后重试",
+      "modeSettings": "私人 FM 模式选择",
+      "modeTooltip": "FM 模式与场景",
+      "modeSettingsTip": "选择喜好的推荐模式与场景"
     },
     "lyricOffset": {
       "title": "歌词偏移",
@@ -514,6 +554,11 @@
     "deleteVersionTitle": "删除本地歌词版本？",
     "deleteVersionDescription": "将删除“{filename}”，此操作不可恢复。",
     "deleteVersionFailed": "删除本地歌词失败",
+    "deleteUnmatchedTitle": "删除未匹配歌词？",
+    "deleteUnmatchedDescription": "将永久删除“{filename}”。此操作不可恢复。",
+    "deleteLyricFailed": "删除歌词失败",
+    "unmatchedTrack": "未匹配到曲目信息",
+    "deleteLyric": "删除歌词",
     "selectFailed": "选择歌词失败",
     "importFailed": "导入歌词失败；LNT 需要带类型声明并附加到包含行 ID 的 LRCN",
     "refreshFailed": "刷新歌词匹配结果失败",
@@ -521,9 +566,16 @@
       "manual": "手动导入",
       "localTtml": "本地 TTML 歌词库",
       "amll": "AMLL 在线歌词库",
+      "appleMusic": "Apple Music TTML",
       "netease": "网易云音乐",
       "qqmusic": "QQ 音乐",
       "kugou": "酷狗音乐"
+    },
+    "appleMusicStatus": {
+      "disabled": "未启用 Apple Music TTML 歌词源",
+      "tokenMissing": "未保存 Apple Music 登录令牌",
+      "noMatch": "已搜索，但未找到可用 TTML 歌词",
+      "error": "搜索失败，详情请查看应用日志"
     },
     "activeSource": {
       "external": "外部歌词",
@@ -545,6 +597,9 @@
       "qqmusic": "来自 QQ",
       "kugou": "来自酷狗"
     }
+  },
+  "song": {
+    "unknownArtist": "未知艺术家"
   },
   "songList": {
     "title": "标题",
@@ -965,7 +1020,8 @@
       "description": "手动导入歌词固定优先，其余来源可拖动排序",
       "hint": "「智能选择」时优先使用手动导入歌词，未命中再按此顺序尝试其他来源",
       "amll": "AMLL 在线歌词库",
-      "localTtml": "本地 TTML 歌词库"
+      "localTtml": "本地 TTML 歌词库",
+      "appleMusic": "Apple Music TTML"
     },
     "lyricFormatOrder": {
       "label": "歌词格式优先级",
@@ -1026,17 +1082,61 @@
     },
     "appleMusicTTMLConfig": {
       "label": "Apple Music TTML 配置",
-      "warning": "Beta 功能：依赖 Apple Music 网页接口与有效订阅，服务变更时可能暂不可用。请自行遵守 Apple 服务条款和歌词版权规则。",
+      "description": "设置登录令牌、搜索地区与歌词翻译参数",
       "tokenHint": "在 music.apple.com 登录后，从浏览器 Cookie 中复制 media-user-token。令牌仅由主进程使用并通过系统安全存储加密保存。",
       "tokenPlaceholder": "粘贴 media-user-token（留空则保留已保存的令牌）",
-      "tokenSaved": "已安全保存 Media-User-Token",
+      "tokenSaved": {
+        "secure": "已安全保存 Media-User-Token",
+        "compatibility": "已以兼容（明文）模式保存 Media-User-Token"
+      },
       "tokenMissing": "尚未保存 Media-User-Token",
       "storefrontPlaceholder": "账号曲库地区，例如 cn；留空自动读取",
       "regionsPlaceholder": "辅助搜索地区，逗号分隔，例如 cn,jp,tw,kr",
       "languagePlaceholder": "歌词语言，例如 zh-Hans-CN；留空只请求原文",
       "scriptPlaceholder": "歌词脚本，例如 zh-Hans；留空自动推导",
       "saved": "Apple Music TTML 配置已保存",
-      "saveFailed": "保存 Apple Music TTML 配置失败"
+      "saveFailed": "保存 Apple Music TTML 配置失败",
+      "testing": "正在验证令牌并尝试搜索…",
+      "test": "重新测试",
+      "tokenCard": {
+        "title": "安全令牌状态",
+        "inputTitle": "替换登录令牌",
+        "inputDescription": "留空并保存不会清除已保存令牌。"
+      },
+      "storage": {
+        "title": "令牌存储方式",
+        "secure": {
+          "label": "安全（推荐）",
+          "description": "使用系统安全存储加密令牌。"
+        },
+        "compatibility": {
+          "label": "兼容（明文）",
+          "description": "使用原插件的明文持久化方式；不加密，安全性较低。"
+        }
+      },
+      "storefront": { "title": "账号曲库地区", "description": "留空时会通过令牌自动读取。" },
+      "regions": { "title": "辅助搜索地区", "description": "保留原文名称的地区列表，逗号分隔。" },
+      "language": { "title": "翻译语言", "description": "请求 TTML 翻译的语言标签。" },
+      "script": { "title": "发音脚本", "description": "请求发音或字形的脚本标签；留空自动推导。" },
+      "matchLevel": {
+        "title": "匹配容错档位",
+        "description": "控制同名、歌手译名差异时的候选接受程度。",
+        "strict": "严格：需要曲名外的佐证",
+        "standard": "标准：推荐",
+        "loose": "宽松：允许标题近似"
+      },
+      "testStatus": {
+        "available": "令牌可用，已在 {storefront} 曲库完成一次搜索。",
+        "tokenMissing": "未找到可验证的令牌。",
+        "error": "验证失败，请检查令牌、订阅或网络。",
+        "disabled": "Apple Music 歌词源未启用。",
+        "noMatch": "请求成功但没有可用结果。"
+      }
+    },
+    "appleMusicTTMLNotice": {
+      "title": "启用 Apple Music TTML 歌词？",
+      "content": "此 Beta 功能依赖 Apple Music 网页接口与有效订阅，服务变更时可能暂不可用。请自行遵守 Apple 服务条款和歌词版权规则。",
+      "confirm": "我已了解并启用"
     },
     "enableExcludeLyrics": {
       "label": "启用歌词排除",
@@ -1598,6 +1698,10 @@
     "sidebarCollapsed": {
       "label": "折叠侧边栏",
       "description": "将侧边栏折叠为图标模式"
+    },
+    "sidebarShortcutToggle": {
+      "label": "折叠侧边栏快捷切换",
+      "description": "点击侧边栏顶部 Logo 时切换侧边栏的展开与折叠状态"
     },
     "sidebarPlaylistCover": {
       "label": "歌单显示封面",

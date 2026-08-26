@@ -94,6 +94,7 @@
     "reject": "Decline & Exit"
   },
   "common": {
+    "back": "Back",
     "confirm": "Confirm",
     "cancel": "Cancel",
     "close": "Close",
@@ -124,6 +125,42 @@
     "totalAlbums": "{count} albums",
     "totalArtists": "{count} artists",
     "totalPlaylists": "{count} playlists"
+  },
+  "recognition": {
+    "title": "Music Recognition",
+    "entry": "Recognize",
+    "description": "Identify the music currently playing",
+    "start": "Start Recognition",
+    "sourceLabel": "Audio source",
+    "hint": {
+      "system": "We will capture a short audio sample from your system to identify the music",
+      "microphone": "Move closer to the source and keep the room quiet for better results"
+    },
+    "source": {
+      "system": "System Audio",
+      "microphone": "Microphone"
+    },
+    "phase": {
+      "capturing": "Listening…",
+      "fingerprinting": "Generating fingerprint…",
+      "matching": "Matching library…"
+    },
+    "empty": "No song identified, move closer to the sound source and retry",
+    "retry": "Try Again",
+    "cancel": "Cancel",
+    "play": "Play",
+    "unavailable": "Music recognition is not supported on this device",
+    "searching": "Search this song",
+    "error": {
+      "unsupported": "System audio capture is not supported on this platform",
+      "no-device": "No audio input device found",
+      "permission-denied": "Microphone permission denied, please grant access in system settings",
+      "capture-failed": "Audio capture failed",
+      "silent-input": "No sound detected, please check audio output",
+      "network": "Matching service unavailable, please try again later",
+      "afp-unavailable": "Audio fingerprint library unavailable",
+      "unknown": "Recognition failed, please try again"
+    }
   },
   "comments": {
     "name": "Song Comments",
@@ -435,7 +472,10 @@
       "loading": "Starting Personal FM…",
       "entered": "Personal FM started",
       "already": "Already in Personal FM",
-      "failed": "Failed to start Personal FM, please try again later"
+      "failed": "Failed to start Personal FM, please try again later",
+      "modeSettings": "Personal FM Mode",
+      "modeTooltip": "FM Mode & Scene",
+      "modeSettingsTip": "Select preferred recommendation mode and scene"
     },
     "lyricOffset": {
       "title": "Lyric Offset",
@@ -526,6 +566,11 @@
     "deleteVersionTitle": "Delete local lyric version?",
     "deleteVersionDescription": "This permanently deletes “{filename}”.",
     "deleteVersionFailed": "Failed to delete the local lyric",
+    "deleteUnmatchedTitle": "Delete unmatched lyrics?",
+    "deleteUnmatchedDescription": "This permanently deletes “{filename}”.",
+    "deleteLyricFailed": "Failed to delete lyrics",
+    "unmatchedTrack": "No matching track information",
+    "deleteLyric": "Delete Lyrics",
     "selectFailed": "Failed to select lyrics",
     "importFailed": "Failed to import lyrics. LNT requires a type declaration and an active LRCN with line IDs",
     "refreshFailed": "Failed to refresh lyric matches",
@@ -533,9 +578,16 @@
       "manual": "Manual Import",
       "localTtml": "Local TTML Repository",
       "amll": "AMLL Online Lyric DB",
+      "appleMusic": "Apple Music TTML",
       "netease": "Netease Music",
       "qqmusic": "QQ Music",
       "kugou": "Kugou Music"
+    },
+    "appleMusicStatus": {
+      "disabled": "Apple Music TTML lyrics are disabled",
+      "tokenMissing": "No Apple Music sign-in token is stored",
+      "noMatch": "Searched, but no usable TTML lyrics were found",
+      "error": "Search failed; see the application log for details"
     },
     "activeSource": {
       "external": "External Lyrics",
@@ -557,6 +609,9 @@
       "qqmusic": "From QQ",
       "kugou": "From Kugou"
     }
+  },
+  "song": {
+    "unknownArtist": "Unknown Artist"
   },
   "songList": {
     "title": "Title",
@@ -977,7 +1032,8 @@
       "description": "Manually imported lyrics always come first; reorder the remaining sources below",
       "hint": "Auto mode checks manually imported lyrics first, then tries the remaining sources in this order",
       "amll": "AMLL Online Lyric DB",
-      "localTtml": "Local TTML Lyric Repository"
+      "localTtml": "Local TTML Lyric Repository",
+      "appleMusic": "Apple Music TTML"
     },
     "lyricFormatOrder": {
       "label": "Lyric Format Priority",
@@ -1038,17 +1094,73 @@
     },
     "appleMusicTTMLConfig": {
       "label": "Apple Music TTML Configuration",
-      "warning": "Beta feature. It depends on Apple Music web endpoints and an active subscription, and may be unavailable when the service changes. Follow Apple's terms and lyric copyright rules.",
+      "description": "Configure the sign-in token, search storefronts, and lyric translation parameters",
       "tokenHint": "After signing in at music.apple.com, copy media-user-token from browser cookies. The token is only used by the main process and is encrypted with system secure storage.",
       "tokenPlaceholder": "Paste media-user-token; leave empty to keep the saved token",
-      "tokenSaved": "Media-User-Token is stored securely",
+      "tokenSaved": {
+        "secure": "Media-User-Token is stored securely",
+        "compatibility": "Media-User-Token is stored in compatibility plain text mode"
+      },
       "tokenMissing": "No Media-User-Token is stored",
       "storefrontPlaceholder": "Account storefront, e.g. cn; leave empty to detect automatically",
       "regionsPlaceholder": "Extra storefronts, comma-separated, e.g. cn,jp,tw,kr",
       "languagePlaceholder": "Lyric language, e.g. zh-Hans-CN; leave empty for original text",
       "scriptPlaceholder": "Lyric script, e.g. zh-Hans; leave empty to derive automatically",
       "saved": "Apple Music TTML configuration saved",
-      "saveFailed": "Failed to save Apple Music TTML configuration"
+      "saveFailed": "Failed to save Apple Music TTML configuration",
+      "testing": "Verifying the token and running a search…",
+      "test": "Test again",
+      "tokenCard": {
+        "title": "Secure token status",
+        "inputTitle": "Replace sign-in token",
+        "inputDescription": "Leaving this blank when saving keeps the stored token."
+      },
+      "storage": {
+        "title": "Token storage",
+        "secure": {
+          "label": "Secure (recommended)",
+          "description": "Encrypt the token using system secure storage."
+        },
+        "compatibility": {
+          "label": "Compatibility (plain text)",
+          "description": "Uses the original plugin's plain-text persistence; it is not encrypted and less secure."
+        }
+      },
+      "storefront": {
+        "title": "Account storefront",
+        "description": "Leave blank to resolve it from the token."
+      },
+      "regions": {
+        "title": "Extra search storefronts",
+        "description": "Comma-separated storefronts that preserve original titles."
+      },
+      "language": {
+        "title": "Translation language",
+        "description": "Language tag requested for TTML translations."
+      },
+      "script": {
+        "title": "Pronunciation script",
+        "description": "Script tag for pronunciation or glyphs; blank derives it automatically."
+      },
+      "matchLevel": {
+        "title": "Match tolerance",
+        "description": "Controls candidate acceptance for same titles and translated artist names.",
+        "strict": "Strict: requires evidence beyond the title",
+        "standard": "Standard: recommended",
+        "loose": "Loose: allows similar titles"
+      },
+      "testStatus": {
+        "available": "The token works; a search completed in storefront {storefront}.",
+        "tokenMissing": "No token is available to test.",
+        "error": "Verification failed. Check the token, subscription, or network.",
+        "disabled": "Apple Music lyrics are disabled.",
+        "noMatch": "The request succeeded but had no usable results."
+      }
+    },
+    "appleMusicTTMLNotice": {
+      "title": "Enable Apple Music TTML Lyrics?",
+      "content": "This beta feature relies on Apple Music web endpoints and an active subscription, and may be unavailable when the service changes. Follow Apple's terms and lyric copyright rules.",
+      "confirm": "I understand and enable it"
     },
     "enableExcludeLyrics": {
       "label": "Enable Lyric Exclusion",
@@ -1610,6 +1722,10 @@
     "sidebarCollapsed": {
       "label": "Collapse Sidebar",
       "description": "Collapse the sidebar to icon-only mode"
+    },
+    "sidebarShortcutToggle": {
+      "label": "Quick Sidebar Toggle",
+      "description": "Click the sidebar logo to toggle between expanded and collapsed states"
     },
     "sidebarPlaylistCover": {
       "label": "Show Playlist Covers",
