@@ -2,13 +2,6 @@
 name: Deploy VitePress site to Pages
 
 on:
-  push:
-    branches: [dev]
-    paths:
-      - "docs/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 # 允许部署到 GitHub Pages

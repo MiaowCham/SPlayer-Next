@@ -1,10 +1,11 @@
-# Dev 分支推送构建
-name: Build Dev
+# 歌词功能分支推送构建
+name: Build Lyrics Branches
 
 on:
   push:
     branches:
-      - dev
+      - feat/lyrics-manager-dev
+      - feat/lyrics-manager-experiments
     paths:
       - "src/**"
       - "electron/**"
