@@ -1,0 +1,15 @@
+# 实验歌词分支测试使用独立 workflow 身份，测试步骤复用稳定分支定义。
+name: Lyrics Experimental Tests
+
+on:
+  push:
+    branches:
+      - feat/lyrics-manager-experiments
+  pull_request:
+    branches:
+      - feat/lyrics-manager-experiments
+  workflow_dispatch:
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
