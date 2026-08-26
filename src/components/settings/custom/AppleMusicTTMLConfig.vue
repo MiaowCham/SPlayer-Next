@@ -109,7 +109,7 @@ const save = async (): Promise<void> => {
   <SButton type="primary" variant="secondary" size="small" @click="show">
     {{ t("common.configure") }}
   </SButton>
-  <SDialog v-model:open="open" :title="t('settings.appleMusicTTMLConfig.label')" width="560px">
+  <SDialog v-model:open="open" :title="t('settings.appleMusicTTMLConfig.label')" width="720px">
     <div class="flex flex-col gap-3 text-sm">
       <SCard
         class="flex items-start gap-3 border border-solid border-primary/30 bg-primary/5 p-3"

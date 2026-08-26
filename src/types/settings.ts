@@ -1,7 +1,6 @@
 import type { LyricFormat } from "@shared/types/lyrics";
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
-import { ALL_PLATFORMS } from "@shared/types/platform";
 import type { QualityLevel } from "@/utils/quality";
 
 /** 播放器背景类型 */
@@ -71,10 +70,12 @@ export type LyricFormatOrder = LyricFormat[];
 
 /** 默认音源顺序 */
 export const DEFAULT_LYRIC_SOURCE_ORDER: LyricSourceOrder = [
+  "appleMusic",
   "localTtml",
   "amll",
-  ...ALL_PLATFORMS,
-  "appleMusic",
+  "qqmusic",
+  "netease",
+  "kugou",
 ];
 
 /** 默认格式优先级 */

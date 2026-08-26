@@ -3,17 +3,28 @@ import type { Track } from "./player";
 
 /** 歌词格式 */
 export type LyricFormat =
-  "ttml" | "lqe" | "lys" | "yrc" | "qrc" | "krc" | "lrcn" | "lnt" | "lrc" | "srt" | "ass";
+  | "ttml"
+  | "ttmlLine"
+  | "lqe"
+  | "lys"
+  | "yrc"
+  | "qrc"
+  | "krc"
+  | "lrcn"
+  | "lnt"
+  | "lrc"
+  | "srt"
+  | "ass";
 
 /** 默认格式优先级（高到低）；本地外挂选择、TTML 升级判定共用 */
 export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
   "ttml",
-  "lqe",
+  "lrcn",
   "lys",
   "qrc",
   "krc",
   "yrc",
-  "lrcn",
+  "ttmlLine",
   "lrc",
   "ass",
   "srt",

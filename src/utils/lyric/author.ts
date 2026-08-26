@@ -7,7 +7,7 @@ import type { LyricFormat } from "@shared/types/lyrics";
  * @returns 作者账号/名称的数组
  */
 export const extractLyricAuthors = (content: string, format: LyricFormat): string[] => {
-  if (format === "ttml") {
+  if (format === "ttml" || format === "ttmlLine") {
     // 优先提取 ttmlAuthorGithubLogin，作为可以直接用于跳转 GitHub 的账号
     const logins = [...content.matchAll(/key="ttmlAuthorGithubLogin"\s+value="([^"]*)"/g)]
       .map((m) => m[1].trim())

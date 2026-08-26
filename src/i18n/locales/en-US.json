@@ -1038,7 +1038,8 @@
     "lyricFormatOrder": {
       "label": "Lyric Format Priority",
       "description": "Customize lyric format priority",
-      "hint": "Picks the highest-ranked when multiple formats are available — e.g. multiple external lyric files, or TTML upgrade"
+      "hint": "Picks the highest-ranked when multiple formats are available — e.g. multiple external lyric files, or TTML upgrade",
+      "ttmlLine": "TTML (line-level)"
     },
     "smartPreferOnline": {
       "label": "Auto-Upgrade Lyric Format",

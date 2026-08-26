@@ -1026,7 +1026,8 @@
     "lyricFormatOrder": {
       "label": "歌词格式优先级",
       "description": "自定义歌词格式优先级",
-      "hint": "存在多个可用格式时按此顺序选择，例如本地多个外挂歌词、在线 TTML 升级等场景"
+      "hint": "存在多个可用格式时按此顺序选择，例如本地多个外挂歌词、在线 TTML 升级等场景",
+      "ttmlLine": "TTML（逐行）"
     },
     "smartPreferOnline": {
       "label": "自动升级歌词格式",

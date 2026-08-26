@@ -7,6 +7,7 @@ import type { Track } from "@shared/types/player";
 import type { AppleMusicTTMLFetchResult } from "@shared/types/lyrics";
 import { store } from "@main/store";
 import { coreLog } from "@main/utils/logger";
+import { getCachedTTML, setCachedTTML } from "@main/database/lyricTtmlCache";
 import { getAppleMusicMediaUserToken } from "./appleMusicLyricsToken";
 import {
   buildAppleMusicLyricQuery,
@@ -30,16 +31,32 @@ interface TokenCacheEntry {
 let developerToken: TokenCacheEntry | null = null;
 let developerTokenTask: Promise<string> | null = null;
 const lyricCache = new Map<string, string>();
+const inflight = new Map<string, Promise<AppleMusicTTMLFetchResult>>();
 
 /** 仅用于诊断令牌是否真正参与了请求，绝不记录令牌全文。 */
 const describeMediaUserToken = (token: string): string =>
-  token.length <= 10 ? `${token.slice(0, 2)}…(${token.length})` : `${token.slice(0, 6)}…${token.slice(-4)}(${token.length})`;
+  token.length <= 10
+    ? `${token.slice(0, 2)}…(${token.length})`
+    : `${token.slice(0, 6)}…${token.slice(-4)}(${token.length})`;
 
 const fetchResult = (
   status: AppleMusicTTMLFetchResult["status"],
   lyric: string | null = null,
   message?: string,
 ): AppleMusicTTMLFetchResult => ({ status, lyric, message });
+
+/** 使用歌曲与请求参数生成持久化缓存键，避免 Apple 搜索每次重新发起。 */
+const buildCacheKey = (track: Track, language: string, script: string): string =>
+  JSON.stringify([
+    track.source,
+    track.serverId ?? "",
+    track.originalId ?? "",
+    track.id,
+    track.title,
+    track.artists.map((artist) => artist.name),
+    language,
+    script,
+  ]);
 
 /** 解析 JWT 的过期时间。 */
 const readJwtExpiry = (token: string): number | null => {
@@ -171,7 +188,9 @@ export const verifyAppleMusicTTMLToken = async (): Promise<AppleMusicTTMLFetchRe
     );
     if (!storefront) return fetchResult("error", null, "storefront");
     const songs = await searchStorefront(storefront, "music", mediaUserToken);
-    coreLog.info(`[appleMusicLyrics] 令牌验证完成: storefront=${storefront}, candidates=${songs.length}`);
+    coreLog.info(
+      `[appleMusicLyrics] 令牌验证完成: storefront=${storefront}, candidates=${songs.length}`,
+    );
     return fetchResult("available", null, storefront);
   } catch (err) {
     coreLog.warn("[appleMusicLyrics] 令牌验证失败:", err);
@@ -210,11 +229,24 @@ const cacheLyric = (key: string, lyric: string): void => {
 };
 
 /** 从 Apple Music 获取当前歌曲的 TTML 歌词；失败时返回 null。 */
-export const fetchAppleMusicTTMLResult = async (
+const fetchAppleMusicTTMLResultUncached = async (
   track: Track,
 ): Promise<AppleMusicTTMLFetchResult> => {
   const config = store.get("lyric");
   if (!config.enableAppleMusicTTMLLyric) return fetchResult("disabled");
+  const language = String(config.appleMusicTranslationLanguage ?? "zh-Hans-CN").trim();
+  const script = String(config.appleMusicTranslationScript ?? "").trim();
+  const cacheKey = buildCacheKey(track, language, script);
+  const cached = getCachedTTML("appleMusic", cacheKey);
+  if (cached !== "miss") {
+    return cached
+      ? fetchResult("available", cached, "cache")
+      : fetchResult("noMatch", null, "cache");
+  }
+  const noMatch = (message?: string): AppleMusicTTMLFetchResult => {
+    setCachedTTML("appleMusic", cacheKey, null);
+    return fetchResult("noMatch", null, message);
+  };
   const mediaUserToken = getAppleMusicMediaUserToken();
   if (!mediaUserToken) return fetchResult("tokenMissing");
   try {
@@ -249,19 +281,17 @@ export const fetchAppleMusicTTMLResult = async (
     coreLog.info(
       `[appleMusicLyrics] 搜索完成: storefront=${accountStorefront}, candidates=${candidates.length}, matchLevel=${level}, matched=${candidate?.id ?? "none"}`,
     );
-    if (!candidate) return fetchResult("noMatch");
+    if (!candidate) return noMatch();
     const songId = await resolveAccountSongId(candidate, accountStorefront, mediaUserToken);
     if (!songId) {
       coreLog.info(`[appleMusicLyrics] 未能将候选桥接到账号曲库: ${candidate.id}`);
-      return fetchResult("noMatch", null, "bridge");
+      return noMatch("bridge");
     }
-    const language = String(config.appleMusicTranslationLanguage ?? "zh-Hans-CN").trim();
-    const script = String(config.appleMusicTranslationScript ?? "").trim();
-    const cacheKey = `${accountStorefront}:${songId}:${language}:${script}`;
-    const cached = lyricCache.get(cacheKey);
+    const memoryCacheKey = `${accountStorefront}:${songId}:${language}:${script}`;
+    const cached = lyricCache.get(memoryCacheKey);
     if (cached) {
       coreLog.info(`[appleMusicLyrics] 命中内存歌词缓存: ${accountStorefront}:${songId}`);
-      return fetchResult("available", cached);
+      return fetchResult("available", cached, "cache");
     }
     const query = buildAppleMusicLyricQuery(language, script);
     let response = await requestAppleMusic(
@@ -276,7 +306,7 @@ export const fetchAppleMusicTTMLResult = async (
     }
     if (!response.ok) {
       coreLog.warn(`[appleMusicLyrics] 歌词请求失败: song=${songId}, HTTP ${response.status}`);
-      return fetchResult("noMatch", null, `lyrics:${response.status}`);
+      return noMatch(`lyrics:${response.status}`);
     }
     const attributes = (await response.json())?.data?.[0]?.attributes;
     const lyric = String(
@@ -286,15 +316,26 @@ export const fetchAppleMusicTTMLResult = async (
     );
     if (!lyric.trim()) {
       coreLog.info(`[appleMusicLyrics] 候选无可用 TTML: song=${songId}`);
-      return fetchResult("noMatch", null, "empty");
+      return noMatch("empty");
     }
-    cacheLyric(cacheKey, lyric);
+    cacheLyric(memoryCacheKey, lyric);
+    setCachedTTML("appleMusic", cacheKey, lyric);
     coreLog.info(`[appleMusicLyrics] 获取 TTML 成功: song=${songId}, chars=${lyric.length}`);
     return fetchResult("available", lyric);
   } catch (err) {
     coreLog.warn(`[appleMusicLyrics] ${track.title} fetch failed:`, err);
     return fetchResult("error");
   }
+};
+
+/** Apple Music 搜索请求去重；缓存命中时不会访问网络。 */
+export const fetchAppleMusicTTMLResult = (track: Track): Promise<AppleMusicTTMLFetchResult> => {
+  const key = JSON.stringify([track.source, track.id, track.title, track.artists]);
+  const existing = inflight.get(key);
+  if (existing) return existing;
+  const request = fetchAppleMusicTTMLResultUncached(track).finally(() => inflight.delete(key));
+  inflight.set(key, request);
+  return request;
 };
 
 /** 从 Apple Music 获取当前歌曲的 TTML 歌词；失败时返回 null。 */

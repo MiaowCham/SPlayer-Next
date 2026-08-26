@@ -372,7 +372,7 @@ export const resolveLyricForPreload = async (
         ? "local"
         : storedPreference.source === "appleMusic"
           ? "auto"
-        : storedPreference.source
+          : storedPreference.source
     : globalPreference;
   const wantsManaged = storedPreference
     ? storedPreference.source === "auto" || storedPreference.source === "local"
@@ -399,9 +399,7 @@ export const resolveLyricForPreload = async (
     const streaming = await resolveStreamingByPreference(track, shouldContinue, preference);
     if (!shouldContinue()) return null;
     if (streaming) return streaming;
-    const appleMusic = await resolveAppleMusicTTML(track);
-    if (!shouldContinue()) return null;
-    if (appleMusic) return appleMusic;
+    // Apple Music 搜索可能较慢，不阻塞下一首预载；当前歌曲加载时会异步升级。
     const plugin = await resolvePluginLyric(track);
     return shouldContinue() ? plugin : null;
   }
@@ -426,9 +424,7 @@ export const resolveLyricForPreload = async (
     return ttml ?? { source: online.source, input: online.input };
   }
 
-  const appleMusic = await resolveAppleMusicTTML(track);
-  if (!shouldContinue()) return null;
-  if (appleMusic) return appleMusic;
+  // Apple Music 搜索由当前歌曲加载器异步执行，避免预载阶段阻塞首屏歌词。
   const plugin = await resolvePluginLyric(track);
   return shouldContinue() ? plugin : null;
 };

@@ -67,7 +67,10 @@ export const detectFormat = (text: string): LyricFormat => {
   // TTML / QRC XML
   if (trimmed.startsWith("<?xml") || trimmed.startsWith("<")) {
     if (/LyricContent="|<QrcInfos|<Lyric_/.test(text)) return "qrc";
-    if (trimmed.startsWith("<tt") || /<tt\s/i.test(text)) return "ttml";
+    if (trimmed.startsWith("<tt") || /<tt\s/i.test(text)) {
+      // 没有带时间的 span 时是逐行 TTML，仍复用 TTML 解析器但独立参与格式排序。
+      return /<span\b[^>]*(?:begin|end)\s*=/i.test(text) ? "ttml" : "ttmlLine";
+    }
   }
   // YRC：[起始,时长](起始,时长,0)
   if (/\[\d+,\d+\]\(\d+,\d+,\d+\)/.test(text)) return "yrc";
@@ -95,6 +98,7 @@ const parseContent = (
   const detectBackground = options.detectBackground !== false;
   switch (format) {
     case "ttml":
+    case "ttmlLine":
       return parseTTML(text, preferredLang, options.fallbackTranslation);
     case "qrc":
       return parseQRC(text, detectBackground);

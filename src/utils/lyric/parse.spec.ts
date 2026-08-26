@@ -5,7 +5,14 @@ describe("lyric parse", () => {
   it("根据内容识别常见歌词格式", () => {
     expect(detectFormat("[00:01.00]歌词")).toBe("lrc");
     expect(detectFormat("1\n00:00:01,000 --> 00:00:02,000\n歌词")).toBe("srt");
-    expect(detectFormat('<tt xmlns="http://www.w3.org/ns/ttml"></tt>')).toBe("ttml");
+    expect(detectFormat('<tt xmlns="http://www.w3.org/ns/ttml"><p begin="1s">歌词</p></tt>')).toBe(
+      "ttmlLine",
+    );
+    expect(
+      detectFormat(
+        '<tt xmlns="http://www.w3.org/ns/ttml"><p begin="1s"><span begin="1s">歌词</span></p></tt>',
+      ),
+    ).toBe("ttml");
     expect(detectFormat("[1000,500](1000,500,0)歌词")).toBe("yrc");
     expect(detectFormat("[1000,500]歌词(1000,500)")).toBe("qrc");
     expect(detectFormat("[Lyrics Next]\n[version:2.3]\n[00:01.000]歌词")).toBe("lrcn");

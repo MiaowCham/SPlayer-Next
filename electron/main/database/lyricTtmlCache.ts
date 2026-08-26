@@ -13,7 +13,7 @@ import { getDb } from "./index";
 /** 负缓存 72h TTL */
 const NEGATIVE_TTL_MS = 72 * 60 * 60 * 1000;
 
-export type Platform = "netease" | "qqmusic";
+export type Platform = "netease" | "qqmusic" | "appleMusic";
 
 /**
  * 命中时返回 string（正缓存）或 null（负缓存）

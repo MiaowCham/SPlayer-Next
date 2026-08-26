@@ -229,6 +229,7 @@ export const installNextTrackPreloadWatchers = (): void => {
       settings.system.lyric.enableOnlineTTMLLyric,
       settings.system.lyric.enableAppleMusicTTMLLyric,
       settings.system.lyric.appleMusicStorefront,
+      settings.system.lyric.appleMusicMatchLevel,
       settings.system.lyric.appleMusicSearchRegions,
       settings.system.lyric.appleMusicTranslationLanguage,
       settings.system.lyric.appleMusicTranslationScript,

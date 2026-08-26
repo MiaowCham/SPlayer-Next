@@ -33,6 +33,9 @@ const handleConfirm = () => {
 const handleReset = () => {
   list.value = [...DEFAULT_LYRIC_FORMAT_ORDER];
 };
+
+const formatLabel = (format: LyricFormat): string =>
+  format === "ttmlLine" ? t("settings.lyricFormatOrder.ttmlLine") : format.toUpperCase();
 </script>
 
 <template>
@@ -55,7 +58,7 @@ const handleReset = () => {
         <span class="w-5 text-center text-xs text-on-surface-variant/60 font-medium">
           {{ idx + 1 }}
         </span>
-        <span class="text-sm flex-1 uppercase">{{ item }}</span>
+        <span class="text-sm flex-1">{{ formatLabel(item) }}</span>
         <IconLucideGripVertical class="text-on-surface-variant/40" />
       </SCard>
     </div>
