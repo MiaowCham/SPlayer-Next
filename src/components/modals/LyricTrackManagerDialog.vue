@@ -28,6 +28,9 @@ const syncQuery = ref("");
 const syncLoading = ref(false);
 const syncResults = ref<Track[]>([]);
 const syncSelected = ref<Track[]>([]);
+const customSearchOpen = ref(false);
+const customSearchTitle = ref("");
+const customSearchArtist = ref("");
 
 const artistNames = computed(() =>
   lyricManager.track.value?.artists.map((artist) => artist.name).join(" / "),
@@ -65,15 +68,18 @@ const refresh = async (scanDirectory = true): Promise<void> => {
 
 /** 将候选来源转换为两个选择界面共享的逐曲首选项。 */
 const candidatePreference = (candidate: LyricMatchCandidate): TrackLyricPreference | null => {
-  if (candidate.local) return { source: "local", versionId: candidate.id };
-  if (candidate.origin === "localTtml") return { source: "localTtml" };
+  const search = preference.value.search;
+  if (candidate.local) return { source: "local", versionId: candidate.id, search };
+  if (candidate.origin === "localTtml") return { source: "localTtml", search };
   if (candidate.origin === "amll") {
     return candidate.platform === "netease" || candidate.platform === "qqmusic"
-      ? { source: "amll", platform: candidate.platform }
+      ? { source: "amll", platform: candidate.platform, search }
       : null;
   }
-  if (candidate.origin === "appleMusic") return { source: "appleMusic" };
-  return isPlatform(candidate.origin) ? { source: "platform", platform: candidate.origin } : null;
+  if (candidate.origin === "appleMusic") return { source: "appleMusic", search };
+  return isPlatform(candidate.origin)
+    ? { source: "platform", platform: candidate.origin, search }
+    : null;
 };
 
 /** 判断候选是否为用户显式锁定的来源。 */
@@ -199,13 +205,41 @@ const selectSmart = async (): Promise<void> => {
   if (!track || smartSelection.value) return;
   candidateActionId.value = "smart";
   try {
-    await setEffectiveTrackLyricPreference(track, { source: "auto" });
+    await setEffectiveTrackLyricPreference(track, {
+      source: "auto",
+      search: preference.value.search,
+    });
     await refreshCurrentLyric();
   } catch {
     toast.error(t("lyricManager.selectFailed"));
   } finally {
     candidateActionId.value = null;
   }
+};
+
+/** 保存自定义标题/歌手；两个字段均清空即恢复歌曲原始元数据。 */
+const applyCustomSearch = async (): Promise<void> => {
+  const track = currentTrack();
+  if (!track) return;
+  const title = customSearchTitle.value.trim();
+  const artist = customSearchArtist.value.trim();
+  const search = title || artist ? { title, artist } : undefined;
+  try {
+    await setEffectiveTrackLyricPreference(track, { ...preference.value, search });
+    preference.value = { ...preference.value, search };
+    customSearchOpen.value = false;
+    await refresh(false);
+    if (isCurrentTrack.value) await refreshCurrentLyric();
+  } catch {
+    toast.error(t("lyricManager.refreshFailed"));
+  }
+};
+
+/** 打开自定义搜索时预填已保存内容，便于修改或清空重置。 */
+const openCustomSearch = (): void => {
+  customSearchTitle.value = preference.value.search?.title ?? "";
+  customSearchArtist.value = preference.value.search?.artist ?? "";
+  customSearchOpen.value = true;
 };
 
 /** 右键删除未被播放器实际使用的本地歌词版本。 */
@@ -346,6 +380,9 @@ watch(
       syncQuery.value = "";
       syncResults.value = [];
       syncSelected.value = [];
+      customSearchOpen.value = false;
+      customSearchTitle.value = "";
+      customSearchArtist.value = "";
       void refresh();
       return;
     }
@@ -360,6 +397,7 @@ watch(
     syncLoading.value = false;
     syncResults.value = [];
     syncSelected.value = [];
+    customSearchOpen.value = false;
   },
 );
 </script>
@@ -443,6 +481,14 @@ watch(
           <div class="min-w-0 flex-1">
             <div class="text-base font-medium">{{ t("lyricManager.matchResults") }}</div>
           </div>
+          <SButton
+            variant="ghost"
+            circle
+            :title="t('lyricManager.customSearch')"
+            @click="openCustomSearch"
+          >
+            <template #icon><IconLucideSearch /></template>
+          </SButton>
           <SButton variant="ghost" circle :loading="matchLoading" @click="refresh">
             <template #icon><IconLucideRefreshCw /></template>
           </SButton>
@@ -500,7 +546,7 @@ watch(
               </div>
               <div class="mt-0.5 text-xs text-on-surface-variant/60 truncate">
                 {{
-                  candidate.status && candidate.status !== 'available'
+                  candidate.status && candidate.status !== "available"
                     ? t(`lyricManager.appleMusicStatus.${candidate.status}`)
                     : `${candidate.format.toUpperCase()} · ${candidate.filename}`
                 }}
@@ -510,7 +556,10 @@ watch(
               type="primary"
               variant="secondary"
               size="small"
-              :disabled="isCandidateExplicitlySelected(candidate) || !!(candidate.status && candidate.status !== 'available')"
+              :disabled="
+                isCandidateExplicitlySelected(candidate) ||
+                !!(candidate.status && candidate.status !== 'available')
+              "
               :loading="candidateActionId === candidate.id"
               @click="selectCandidate(candidate)"
             >
@@ -529,6 +578,26 @@ watch(
         </div>
       </div>
     </div>
+  </SDialog>
+
+  <SDialog
+    v-model:open="customSearchOpen"
+    :title="t('lyricManager.customSearch')"
+    variant="settings"
+    width="460px"
+    layer="topmost"
+  >
+    <div class="flex flex-col gap-4">
+      <p class="text-sm text-on-surface-variant/70">
+        {{ t("lyricManager.customSearchDescription") }}
+      </p>
+      <SInput v-model="customSearchTitle" :placeholder="t('lyricManager.customSearchTitle')" />
+      <SInput v-model="customSearchArtist" :placeholder="t('lyricManager.customSearchArtist')" />
+    </div>
+    <template #footer="{ close }">
+      <SButton variant="secondary" @click="close">{{ t("common.cancel") }}</SButton>
+      <SButton type="primary" @click="applyCustomSearch">{{ t("common.confirm") }}</SButton>
+    </template>
   </SDialog>
 
   <SDialog

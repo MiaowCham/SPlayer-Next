@@ -543,6 +543,10 @@
     "syncFailed": "同步歌词失败，请先导入当前歌曲的手动歌词",
     "migrateDirectoryFailed": "迁移歌词目录失败，原目录未变更",
     "matchResults": "歌词匹配结果",
+    "customSearch": "自定义搜索",
+    "customSearchDescription": "填写后所有歌词来源都将按此标题和歌手搜索；清空两个字段即可恢复使用当前歌曲信息。",
+    "customSearchTitle": "曲目标题（留空使用当前标题）",
+    "customSearchArtist": "歌手（留空使用当前歌手）",
     "matchResultsHint": "选择可锁定歌词来源；智能模式会标记当前自动采用的候选。右键未在使用的本地歌词可删除。",
     "matching": "正在匹配不同歌词来源…",
     "noMatchResults": "没有找到可用歌词",
@@ -1280,6 +1284,10 @@
       "normal": "Normal",
       "screen": "Screen",
       "plusLighter": "Plus Lighter"
+    },
+    "swapTranslationPronunciation": {
+      "label": "调换翻译与发音位置",
+      "description": "开启后发音显示在翻译上方"
     },
     "largerLyricText": {
       "label": "更大字体",

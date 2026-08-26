@@ -42,4 +42,15 @@ describe("单曲歌词来源首选项", () => {
     setTrackLyricPreference(track, { source: "auto" });
     expect(getTrackLyricPreference(track)).toEqual({ source: "auto" });
   });
+
+  it("持久化单曲自定义搜索条件", () => {
+    setTrackLyricPreference(track, {
+      source: "appleMusic",
+      search: { title: "Custom title", artist: "Custom artist" },
+    });
+    expect(getTrackLyricPreference(track)).toEqual({
+      source: "appleMusic",
+      search: { title: "Custom title", artist: "Custom artist" },
+    });
+  });
 });

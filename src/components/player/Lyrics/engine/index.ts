@@ -178,6 +178,8 @@ export class LyricRenderer {
   private showTranslation = DEFAULTS.showTranslation;
   /** 是否显示音译歌词 */
   private showRomanization = DEFAULTS.showRomanization;
+  /** 是否将发音显示在翻译上方 */
+  private swapTranslationPronunciation = DEFAULTS.swapTranslationPronunciation;
 
   /** 容器尺寸变化观察器 */
   private containerResizeObserver: ResizeObserver;
@@ -363,6 +365,7 @@ export class LyricRenderer {
       disableCjkEmphasis: this.disableCjkEmphasis,
       showTranslation: this.showTranslation,
       showRomanization: this.showRomanization,
+      swapTranslationPronunciation: this.swapTranslationPronunciation,
     });
     this.lineElements = built.lineElements;
     this.wordMeasurements = built.wordMeasurements;
@@ -493,6 +496,9 @@ export class LyricRenderer {
     }
     if (config.showTranslation != null) this.showTranslation = config.showTranslation;
     if (config.showRomanization != null) this.showRomanization = config.showRomanization;
+    if (config.swapTranslationPronunciation != null) {
+      this.swapTranslationPronunciation = config.swapTranslationPronunciation;
+    }
 
     if (layoutDirty && this.lineElements.length > 0) {
       this.measureLineHeights();
@@ -709,7 +715,9 @@ export class LyricRenderer {
       heightAccum += this.lineHeights[i] || 40;
     }
     position -= heightAccum;
-    const activeMainLineCount = [...this.activeLineSet].filter((index) => !lines[index]?.isBG).length;
+    const activeMainLineCount = [...this.activeLineSet].filter(
+      (index) => !lines[index]?.isBG,
+    ).length;
     const effectiveAlignPosition =
       this.raiseAlignPositionOnOverlap && this.alignPosition > 0.15 && activeMainLineCount > 1
         ? 0.15

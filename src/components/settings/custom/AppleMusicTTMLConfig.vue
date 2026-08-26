@@ -175,7 +175,9 @@ const save = async (): Promise<void> => {
             {{ t(`settings.appleMusicTTMLConfig.storage.${tokenStorage}.description`) }}
           </div>
         </div>
-        <SSelect v-model="tokenStorage" class="w-52 shrink-0" :options="tokenStorageOptions" />
+        <div class="w-52 shrink-0">
+          <SSelect v-model="tokenStorage" :options="tokenStorageOptions" />
+        </div>
       </SCard>
 
       <SCard variant="settings" class="flex items-center gap-4 p-3">
@@ -185,11 +187,12 @@ const save = async (): Promise<void> => {
             {{ t("settings.appleMusicTTMLConfig.storefront.description") }}
           </div>
         </div>
-        <SInput
-          v-model="storefront"
-          class="w-52 shrink-0"
-          :placeholder="t('settings.appleMusicTTMLConfig.storefrontPlaceholder')"
-        />
+        <div class="w-52 shrink-0">
+          <SInput
+            v-model="storefront"
+            :placeholder="t('settings.appleMusicTTMLConfig.storefrontPlaceholder')"
+          />
+        </div>
       </SCard>
       <SCard variant="settings" class="flex items-center gap-4 p-3">
         <div class="min-w-0 flex-1">
@@ -198,7 +201,9 @@ const save = async (): Promise<void> => {
             {{ t("settings.appleMusicTTMLConfig.matchLevel.description") }}
           </div>
         </div>
-        <SSelect v-model="matchLevel" class="w-52 shrink-0" :options="matchLevelOptions" />
+        <div class="w-52 shrink-0">
+          <SSelect v-model="matchLevel" :options="matchLevelOptions" />
+        </div>
       </SCard>
       <SCard variant="settings" class="flex items-center gap-4 p-3">
         <div class="min-w-0 flex-1">
@@ -207,11 +212,12 @@ const save = async (): Promise<void> => {
             {{ t("settings.appleMusicTTMLConfig.regions.description") }}
           </div>
         </div>
-        <SInput
-          v-model="searchRegions"
-          class="w-52 shrink-0"
-          :placeholder="t('settings.appleMusicTTMLConfig.regionsPlaceholder')"
-        />
+        <div class="w-52 shrink-0">
+          <SInput
+            v-model="searchRegions"
+            :placeholder="t('settings.appleMusicTTMLConfig.regionsPlaceholder')"
+          />
+        </div>
       </SCard>
       <SCard variant="settings" class="flex items-center gap-4 p-3">
         <div class="min-w-0 flex-1">
@@ -220,11 +226,12 @@ const save = async (): Promise<void> => {
             {{ t("settings.appleMusicTTMLConfig.language.description") }}
           </div>
         </div>
-        <SInput
-          v-model="translationLanguage"
-          class="w-52 shrink-0"
-          :placeholder="t('settings.appleMusicTTMLConfig.languagePlaceholder')"
-        />
+        <div class="w-52 shrink-0">
+          <SInput
+            v-model="translationLanguage"
+            :placeholder="t('settings.appleMusicTTMLConfig.languagePlaceholder')"
+          />
+        </div>
       </SCard>
       <SCard variant="settings" class="flex items-center gap-4 p-3">
         <div class="min-w-0 flex-1">
@@ -233,11 +240,12 @@ const save = async (): Promise<void> => {
             {{ t("settings.appleMusicTTMLConfig.script.description") }}
           </div>
         </div>
-        <SInput
-          v-model="translationScript"
-          class="w-52 shrink-0"
-          :placeholder="t('settings.appleMusicTTMLConfig.scriptPlaceholder')"
-        />
+        <div class="w-52 shrink-0">
+          <SInput
+            v-model="translationScript"
+            :placeholder="t('settings.appleMusicTTMLConfig.scriptPlaceholder')"
+          />
+        </div>
       </SCard>
     </div>
     <template #footer="{ close }">

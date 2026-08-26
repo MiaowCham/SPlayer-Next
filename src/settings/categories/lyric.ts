@@ -203,6 +203,15 @@ const lyricCategory: SettingCategory = {
       id: "lyricTranslationPronunciation",
       items: [
         {
+          key: "swapTranslationPronunciation",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.swapTranslationPronunciation" },
+          defaultValue: false,
+          disabled: () =>
+            !useSettingsStore().lyric.showTranslation || !useSettingsStore().lyric.showRomanization,
+          tag: { text: "Beta" },
+        },
+        {
           key: "largerLyricText",
           type: "select",
           binding: { store: "settings", path: "lyric.largerLyricText" },
@@ -310,6 +319,7 @@ const lyricCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "lyric.raiseAlignPositionOnOverlap" },
           defaultValue: false,
+          tag: { text: "Beta" },
         },
         {
           key: "followLyricOnProgressDrag",

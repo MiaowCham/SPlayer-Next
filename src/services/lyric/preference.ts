@@ -28,6 +28,24 @@ export const getEffectiveTrackLyricPreference = async (
 ): Promise<TrackLyricPreference> =>
   (await window.api.lyrics.getTrackPreference(toRaw(track) as Track)) ?? globalPreference();
 
+/** 将用户在歌词管理中填写的搜索词应用到检索曲目。 */
+export const applyLyricSearchOverride = (
+  track: Track,
+  preference: TrackLyricPreference,
+): { track: Track; forceQuery: boolean } => {
+  const title = preference.search?.title.trim();
+  const artist = preference.search?.artist.trim();
+  if (!title && !artist) return { track, forceQuery: false };
+  return {
+    track: {
+      ...track,
+      title: title || track.title,
+      artists: artist ? [{ ...track.artists[0], name: artist }] : track.artists,
+    },
+    forceQuery: true,
+  };
+};
+
 /**
  * 写入单曲来源首选项并通知当前渲染进程内的两个选择界面。
  * @param track - 目标歌曲

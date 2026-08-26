@@ -41,6 +41,8 @@ export const DEFAULTS = {
   showTranslation: true,
   /** 是否显示音译歌词 */
   showRomanization: true,
+  /** 是否将发音显示在翻译上方 */
+  swapTranslationPronunciation: false,
 };
 
 /** 渲染器配置 */
@@ -83,6 +85,8 @@ export interface RendererConfig {
   showTranslation: boolean;
   /** 是否显示音译歌词（默认 true） */
   showRomanization: boolean;
+  /** 是否将发音显示在翻译上方（默认 false） */
+  swapTranslationPronunciation: boolean;
   /** 歌词行点击回调（传入该行起始时间，用于跳转播放进度） */
   onLineClick?: (timeMs: number) => void;
 }

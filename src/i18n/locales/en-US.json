@@ -555,6 +555,10 @@
     "syncFailed": "Failed to sync lyrics. Import a manually managed lyric for the current track first.",
     "migrateDirectoryFailed": "Failed to migrate the lyric folder. The original folder was left unchanged.",
     "matchResults": "Lyric Match Results",
+    "customSearch": "Custom search",
+    "customSearchDescription": "All lyric sources will use this title and artist. Clear both fields to restore the current track metadata.",
+    "customSearchTitle": "Track title (empty uses current title)",
+    "customSearchArtist": "Artist (empty uses current artist)",
     "matchResultsHint": "Select to lock a lyric source. Smart mode marks the candidate it currently uses. Right-click an unused local lyric to delete it.",
     "matching": "Matching available lyric sources…",
     "noMatchResults": "No available lyrics found",
@@ -1304,6 +1308,10 @@
       "normal": "Normal",
       "screen": "Screen",
       "plusLighter": "Plus Lighter"
+    },
+    "swapTranslationPronunciation": {
+      "label": "Swap Translation and Pronunciation",
+      "description": "Show pronunciation above translation"
     },
     "largerLyricText": {
       "label": "Larger Text",

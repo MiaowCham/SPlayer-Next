@@ -94,6 +94,8 @@ const props = withDefaults(
     showTranslation?: boolean;
     /** 是否显示音译歌词 @default true */
     showRomanization?: boolean;
+    /** 是否将发音显示在翻译上方 @default false */
+    swapTranslationPronunciation?: boolean;
     /** 歌词与发音同时显示时的大字体内容 */
     largerLyricText?: LargerLyricText;
     /** 是否强制将逐字歌词的逐行发音提升为逐句主歌词 */
@@ -120,6 +122,7 @@ const props = withDefaults(
     raiseAlignPositionOnOverlap: DEFAULTS.raiseAlignPositionOnOverlap,
     showTranslation: true,
     showRomanization: true,
+    swapTranslationPronunciation: false,
     largerLyricText: "lyrics",
     forceLinePronunciationAsMain: false,
     initialTime: 0,
@@ -334,6 +337,14 @@ watch(
   () => props.showRomanization,
   (v) => {
     renderer?.setConfig({ showRomanization: v });
+    rebuildLyrics();
+  },
+);
+
+watch(
+  () => props.swapTranslationPronunciation,
+  (v) => {
+    renderer?.setConfig({ swapTranslationPronunciation: v });
     rebuildLyrics();
   },
 );

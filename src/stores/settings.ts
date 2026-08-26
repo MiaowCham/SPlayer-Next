@@ -100,6 +100,7 @@ export const useSettingsStore = defineStore(
       fontSize: 48,
       fontWeight: 700,
       lyricBlendMode: "normal",
+      swapTranslationPronunciation: false,
       largerLyricText: "lyrics",
       forceLinePronunciationAsMain: false,
       fontFamily: "",
@@ -314,6 +315,9 @@ export const useSettingsStore = defineStore(
         }
         if (typeof lyric.fallbackTranslation !== "boolean") {
           lyric.fallbackTranslation = true;
+        }
+        if (typeof lyric.swapTranslationPronunciation !== "boolean") {
+          lyric.swapTranslationPronunciation = false;
         }
         if (!(["lyrics", "pronunciation"] as const).includes(lyric.largerLyricText)) {
           lyric.largerLyricText = "lyrics";

@@ -47,6 +47,8 @@ const props = withDefaults(
     enableEmphasizeEffect?: boolean;
     /** 是否禁用 CJK 歌词的强调效果 */
     disableCjkEmphasis?: boolean;
+    /** 多行同亮时是否临时抬高歌词对齐位置 */
+    raiseAlignPositionOnOverlap?: boolean;
     /** 是否临时将弹簧参数降至设置范围下限 */
     minimizeSpringParams?: boolean;
     /** 是否显示翻译歌词 */
@@ -55,6 +57,8 @@ const props = withDefaults(
     showLineRomanization?: boolean;
     /** 是否显示逐词音译 */
     showWordRomanization?: boolean;
+    /** 是否将发音显示在翻译上方 */
+    swapTranslationPronunciation?: boolean;
     /** 歌词与发音同时显示时的大字体内容 */
     largerLyricText?: LargerLyricText;
     /** 是否强制将逐字歌词的逐行发音提升为逐句主歌词 */
@@ -74,10 +78,12 @@ const props = withDefaults(
     floatAnimationIntensity: "medium",
     enableEmphasizeEffect: true,
     disableCjkEmphasis: false,
+    raiseAlignPositionOnOverlap: false,
     minimizeSpringParams: false,
     showTranslation: true,
     showLineRomanization: true,
     showWordRomanization: true,
+    swapTranslationPronunciation: false,
     largerLyricText: "lyrics",
     forceLinePronunciationAsMain: false,
     independentWordRomanizationProgress: false,
@@ -102,10 +108,33 @@ const clockInitialized = ref(false);
 const isFrozen = ref(false);
 // 冻结期间缓存的待应用歌词
 let pendingLyrics: LyricLine[] | null = null;
+let lastCurrentTime = props.initialTime;
 // 页面隐藏状态的响应式跟踪
 const isPageHidden = ref(false);
 // 之前隐藏的标记，用于检测从隐藏恢复的时刻
 const isPreviousHidden = ref(false);
+
+/** 同时激活多个主歌词行时，使用较高的滚动对齐点。 */
+const syncAlignPosition = (time: number): void => {
+  const player = playerRef.value;
+  if (!player) return;
+  const activeMainLineCount = processedLyrics.value.filter(
+    (line) => !line.isBG && line.startTime <= time && line.endTime > time,
+  ).length;
+  const alignPosition =
+    props.raiseAlignPositionOnOverlap && props.alignPosition > 0.15 && activeMainLineCount > 1
+      ? 0.15
+      : props.alignPosition;
+  player.setAlignPosition(alignPosition);
+  player.setAlignAnchor(alignPosition > 0.4 ? "center" : "top");
+};
+
+/** 同步时间前先更新当前重叠段的对齐位置。 */
+const syncCurrentTime = (time: number, isSeek?: boolean): void => {
+  lastCurrentTime = time;
+  syncAlignPosition(time);
+  playerRef.value?.setCurrentTime(time, isSeek);
+};
 
 // 处理多语言显隐及音译偏好的本地高效清洗
 const processedLyrics = computed(() => {
@@ -134,8 +163,8 @@ const processedLyrics = computed(() => {
     const pronunciation = resolveAmlLineRomanization(displayLine, props.showLineRomanization);
     const newLine: AmlLyricLine = {
       ...displayLine,
-      translatedLyric: translation,
-      romanLyric: pronunciation,
+      translatedLyric: props.swapTranslationPronunciation ? pronunciation : translation,
+      romanLyric: props.swapTranslationPronunciation ? translation : pronunciation,
     };
     if (!props.enableWordHighlight) {
       newLine.__amllDisableWordHighlight = true;
@@ -173,7 +202,7 @@ const handleLineClick = (e: Event) => {
   const lineData = amllEvent.line?.getLine();
   if (lineData && typeof lineData.startTime === "number") {
     emit("seek", lineData.startTime);
-    playerRef.value?.setCurrentTime(lineData.startTime, true);
+    syncCurrentTime(lineData.startTime, true);
   }
 };
 
@@ -218,7 +247,7 @@ const handleVisibility = () => {
   } else if (isPreviousHidden.value && !isFrozen.value && playerRef.value) {
     // 从隐藏恢复：校准 Core 内部时钟到当前播放位置，避免逐词效果从头开始
     const currentTime = getCurrentTime() + status.lyricOffsetMs;
-    playerRef.value.setCurrentTime(currentTime, true);
+    syncCurrentTime(currentTime, true);
     isPreviousHidden.value = false;
     // 恢复后根据当前状态决定 resume/pause（由 watchEffect 处理，这里只需确保 state sync）
   }
@@ -247,9 +276,10 @@ onMounted(() => {
 
   if (processedLyrics.value.length > 0) {
     playerRef.value.setLyricLines(processedLyrics.value, props.initialTime);
+    syncCurrentTime(props.initialTime, true);
     processLyricLanguage();
   } else if (Number.isFinite(props.initialTime) && props.initialTime >= 0) {
-    playerRef.value.setCurrentTime(props.initialTime, true);
+    syncCurrentTime(props.initialTime, true);
   }
 
   document.addEventListener("visibilitychange", handleVisibility);
@@ -298,8 +328,7 @@ watchEffect(() => {
 // 监听其他配置项变动并同步到底层 Core 实例
 watchEffect(() => {
   if (playerRef.value) {
-    playerRef.value.setAlignPosition(props.alignPosition);
-    playerRef.value.setAlignAnchor(props.alignPosition > 0.4 ? "center" : "top");
+    syncAlignPosition(lastCurrentTime);
     playerRef.value.setWordFadeWidth(props.wordFadeWidth);
     playerRef.value.setHidePassedLines(props.hidePassedLines);
     playerRef.value.setEnableBlur(props.enableBlur);
@@ -344,7 +373,7 @@ watch(processedLyrics, (newLyrics) => {
 
 // 主播放器事件驱动的时间同步接口
 const setCurrentTime = (time: number, isSeek?: boolean) => {
-  playerRef.value?.setCurrentTime(time, isSeek);
+  syncCurrentTime(time, isSeek);
 };
 
 /**
@@ -352,7 +381,7 @@ const setCurrentTime = (time: number, isSeek?: boolean) => {
  * @param time - 播放时间（毫秒）
  */
 const scrollToTime = (time: number): void => {
-  playerRef.value?.setCurrentTime(time, true);
+  syncCurrentTime(time, true);
 };
 
 // 隐藏界面或休眠时调用

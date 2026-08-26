@@ -16,6 +16,8 @@ export interface LineBuildOptions {
   showTranslation: boolean;
   /** 是否显示音译歌词 */
   showRomanization: boolean;
+  /** 是否将发音显示在翻译上方 */
+  swapTranslationPronunciation: boolean;
 }
 
 /** 行 DOM 构建结果 */
@@ -102,18 +104,27 @@ export const buildLineElements = (
     contentDiv.className = "lp-content";
     contentDiv.appendChild(mainDiv);
 
-    if (options.showTranslation && line.translatedLyric) {
+    const appendTranslation = (): void => {
+      if (!options.showTranslation || !line.translatedLyric) return;
       const subDiv = document.createElement("div");
       subDiv.className = "lp-sub";
       subDiv.textContent = line.translatedLyric;
       contentDiv.appendChild(subDiv);
-    }
+    };
     const romanization = resolveDefaultRomanization(line);
-    if (options.showRomanization && romanization) {
+    const appendPronunciation = (): void => {
+      if (!options.showRomanization || !romanization) return;
       const subDiv = document.createElement("div");
       subDiv.className = "lp-sub";
       subDiv.textContent = romanization;
       contentDiv.appendChild(subDiv);
+    };
+    if (options.swapTranslationPronunciation) {
+      appendPronunciation();
+      appendTranslation();
+    } else {
+      appendTranslation();
+      appendPronunciation();
     }
 
     lineEl.appendChild(contentDiv);

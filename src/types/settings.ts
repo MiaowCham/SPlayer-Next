@@ -103,6 +103,8 @@ export interface LyricSettings {
   fontWeight: number;
   /** 歌词混合模式 */
   lyricBlendMode: LyricBlendMode;
+  /** 是否将发音显示在翻译上方 */
+  swapTranslationPronunciation: boolean;
   /** 歌词与发音同时显示时的大字体内容 */
   largerLyricText: LargerLyricText;
   /** 逐字歌词仅有逐行发音时，是否强制将发音作为逐句主歌词 */

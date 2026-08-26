@@ -63,8 +63,9 @@ const toOnlineResult = (data: LyricMatchResult): OnlineResult => ({
 const resolvePlatformLyric = async (
   platform: Platform,
   track: Track,
+  forceQuery = false,
 ): Promise<OnlineResult | null> => {
-  const result = await requestPlatformLyric(platform, track);
+  const result = await requestPlatformLyric(platform, track, forceQuery);
   return result ? toOnlineResult(result) : null;
 };
 
@@ -130,6 +131,8 @@ interface OnlinePreferenceOptions {
   preference?: import("@/types/settings").LyricSourcePreference;
   onCandidate?: (result: OnlineResult) => void;
   shouldContinue?: () => boolean;
+  /** 用户已指定搜索条件时，不得以当前平台 ID 绕过该条件。 */
+  forceQuery?: boolean;
 }
 
 /**
@@ -150,13 +153,13 @@ export const resolveOnlineByPreference = async (
   }
   if (preference === "self") {
     const result = isPlatform(track.source)
-      ? await resolvePlatformLyric(track.source, track)
+      ? await resolvePlatformLyric(track.source, track, options.forceQuery)
       : null;
     if (result || options.hasLocal) return result;
     preference = "auto";
   }
   if (preference !== "auto") {
-    const preferred = await resolvePlatformLyric(preference, track);
+    const preferred = await resolvePlatformLyric(preference, track, options.forceQuery);
     if (preferred || options.hasLocal) return preferred;
     preference = "auto";
   }
@@ -180,7 +183,7 @@ export const resolveOnlineByPreference = async (
     let bestRank = localIdx === -1 ? Infinity : localIdx;
     await Promise.all(
       candidates.map(async (platform) => {
-        const result = await resolvePlatformLyric(platform, track);
+        const result = await resolvePlatformLyric(platform, track, options.forceQuery);
         if (!isCurrent() || !result) return;
         const idx = formatOrder.indexOf(result.source.format);
         const rank = idx === -1 ? Infinity : idx;
@@ -195,7 +198,7 @@ export const resolveOnlineByPreference = async (
   }
 
   for (const platform of candidates) {
-    const result = await resolvePlatformLyric(platform, track);
+    const result = await resolvePlatformLyric(platform, track, options.forceQuery);
     if (!isCurrent()) return null;
     if (!result) continue;
     if (
@@ -234,13 +237,14 @@ export const resolveTTMLOverlay = async (
   track: Track,
   online: OnlineResult,
   preferredPlatform?: "netease" | "qqmusic",
+  forceQuery = false,
 ): Promise<ResolvedLyric | null> => {
   if (!preferredPlatform && !shouldTryTTMLByFormat(online.source.format)) return null;
   const candidates = await Promise.all(
     TTML_PLATFORMS.filter((platform) => !preferredPlatform || platform === preferredPlatform).map(
       async (platform) => ({
         platform,
-        response: await requestTTMLOverlay(track, platform),
+        response: await requestTTMLOverlay(track, platform, forceQuery),
       }),
     ),
   );
@@ -297,7 +301,10 @@ export const resolveStreamingByPreference = async (
  * @param track - 歌曲信息
  * @returns 本地仓库歌词，不存在则返回 null
  */
-export const resolveLocalRepoLyric = async (track: Track): Promise<ResolvedLyric | null> => {
+export const resolveLocalRepoLyric = async (
+  track: Track,
+  forceQuery = false,
+): Promise<ResolvedLyric | null> => {
   const settings = useSettingsStore();
   if (
     !settings.system.localLyric?.enableLocalTTMLOverride ||
@@ -305,7 +312,7 @@ export const resolveLocalRepoLyric = async (track: Track): Promise<ResolvedLyric
   ) {
     return null;
   }
-  const resp = await window.api.lyrics.matchLocalTTML(track);
+  const resp = await window.api.lyrics.matchLocalTTML(track, forceQuery);
   if (!resp.ok || !resp.data) return null;
   return {
     source: { source: "external", format: "ttml", provider: "localTtml" },

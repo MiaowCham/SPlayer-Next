@@ -119,15 +119,22 @@ export interface ManagedLyric extends LyricInput {
 /** 手动歌词版本的来源。 */
 export type ManagedLyricOrigin = "manual" | "localTtml" | "amll" | "appleMusic" | Platform;
 
+/** 单曲自定义搜索条件；为空时沿用歌曲元数据。 */
+export interface LyricSearchOverride {
+  title: string;
+  artist: string;
+}
+
 /** 单曲歌词来源首选项；仅保存轻量标识，不持久化歌词正文。 */
-export type TrackLyricPreference =
+export type TrackLyricPreference = (
   | { source: "auto" }
   | { source: "self" }
   | { source: "local"; versionId?: string }
   | { source: "localTtml" }
   | { source: "platform"; platform: Platform }
   | { source: "amll"; platform: "netease" | "qqmusic" }
-  | { source: "appleMusic" };
+  | { source: "appleMusic" }
+) & { search?: LyricSearchOverride };
 
 /** 单曲管理面板展示的歌词候选。 */
 export interface LyricMatchCandidate extends LyricInput {
@@ -269,9 +276,15 @@ export interface LyricsApi {
   /** 按 Track 元数据在某平台模糊搜索歌词 */
   matchByQuery: (platform: Platform, track: Track) => Promise<LyricMatchResponse>;
   /** 抓取 AMLL TTML DB 的 TTML 歌词，仅 NCM/QM 适用 */
-  fetchTTMLOverlay: (track: Track, platform: "netease" | "qqmusic") => Promise<LyricTTMLResponse>;
+  fetchTTMLOverlay: (
+    track: Track,
+    platform: "netease" | "qqmusic",
+    forceQuery?: boolean,
+  ) => Promise<LyricTTMLResponse>;
   /** 搜索并抓取 Apple Music TTML 歌词 */
   fetchAppleMusicTTML: (track: Track) => Promise<LyricTTMLResponse>;
+  /** 仅读取 Apple Music TTML 持久化缓存，不触发网络搜索。 */
+  getCachedAppleMusicTTML: (track: Track) => Promise<LyricTTMLResponse>;
   /** 获取 Apple Music TTML 凭据状态，不返回令牌明文 */
   getAppleMusicTTMLStatus: () => Promise<AppleMusicTTMLStatus>;
   /** 安全保存或清除 Apple Music Media-User-Token */
@@ -286,7 +299,7 @@ export interface LyricsApi {
   /** 验证已保存令牌，并实际发起一次 Apple Music 搜索 */
   verifyAppleMusicTTMLToken: () => Promise<AppleMusicTTMLFetchResult>;
   /** 在本地 TTML 歌词库中按元信息匹配，命中返回 TTML 原文 */
-  matchLocalTTML: (track: Track) => Promise<LyricTTMLResponse>;
+  matchLocalTTML: (track: Track, forceQuery?: boolean) => Promise<LyricTTMLResponse>;
   /** 弹出目录选择器，返回所选本地 TTML 歌词库目录 */
   pickLyricRepoDir: () => Promise<string | null>;
 }

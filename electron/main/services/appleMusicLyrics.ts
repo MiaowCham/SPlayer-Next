@@ -341,3 +341,13 @@ export const fetchAppleMusicTTMLResult = (track: Track): Promise<AppleMusicTTMLF
 /** 从 Apple Music 获取当前歌曲的 TTML 歌词；失败时返回 null。 */
 export const fetchAppleMusicTTML = async (track: Track): Promise<string | null> =>
   (await fetchAppleMusicTTMLResult(track)).lyric;
+
+/** 仅读取持久化缓存，不触发 Apple Music 网络请求。 */
+export const getCachedAppleMusicTTML = (track: Track): string | null => {
+  const config = store.get("lyric");
+  if (!config.enableAppleMusicTTMLLyric) return null;
+  const language = String(config.appleMusicTranslationLanguage ?? "zh-Hans-CN").trim();
+  const script = String(config.appleMusicTranslationScript ?? "").trim();
+  const cached = getCachedTTML("appleMusic", buildCacheKey(track, language, script));
+  return cached === "miss" ? null : cached;
+};

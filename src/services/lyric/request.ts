@@ -11,8 +11,9 @@ import type { Platform } from "@shared/types/platform";
 export const requestPlatformLyric = async (
   platform: Platform,
   track: Track,
+  forceQuery = false,
 ): Promise<LyricMatchResult | null> => {
-  const byId = track.source === platform;
+  const byId = !forceQuery && track.source === platform;
   // QM lyric 接口要数字 songID
   const lookupId = platform === "qqmusic" ? (track.extId ?? track.id) : track.id;
   const resp = byId
@@ -45,8 +46,15 @@ export const requestStreamingLyric = async (track: Track): Promise<string | null
  * @param platform - 目标平台
  * @returns IPC 请求结果
  */
-export const requestTTMLOverlay = (track: Track, platform: "netease" | "qqmusic") =>
-  window.api.lyrics.fetchTTMLOverlay(track, platform);
+export const requestTTMLOverlay = (
+  track: Track,
+  platform: "netease" | "qqmusic",
+  forceQuery = false,
+) => window.api.lyrics.fetchTTMLOverlay(track, platform, forceQuery);
 
 /** 请求 Apple Music TTML 兜底歌词。 */
 export const requestAppleMusicTTML = (track: Track) => window.api.lyrics.fetchAppleMusicTTML(track);
+
+/** 仅读取 Apple Music TTML 持久化缓存。 */
+export const requestCachedAppleMusicTTML = (track: Track) =>
+  window.api.lyrics.getCachedAppleMusicTTML(track);

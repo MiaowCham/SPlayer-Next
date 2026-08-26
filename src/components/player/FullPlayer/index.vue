@@ -160,7 +160,11 @@ watch(
   () => {
     const currentTime = getCurrentTime() + status.lyricOffsetMs;
     lyricRef.value?.setCurrentTime(currentTime);
-    nextTick(locatePendingTrack);
+    nextTick(() => {
+      locatePendingTrack();
+      // 同一首歌切换歌词来源时也需立刻定位，避免停留在旧歌词的滚动位置。
+      if (!pendingTrackLocate.value) lyricRef.value?.scrollToTime(currentTime);
+    });
   },
 );
 
@@ -438,6 +442,7 @@ const showComments = (): void => {
                 :float-animation-intensity="settings.lyric.floatAnimationIntensity"
                 :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
                 :disable-cjk-emphasis="settings.lyric.disableCjkEmphasis"
+                :raise-align-position-on-overlap="settings.lyric.raiseAlignPositionOnOverlap"
                 :minimize-spring-params="minimizeLyricSpring"
                 :show-translation="settings.lyric.showTranslation"
                 :show-line-romanization="
@@ -446,6 +451,7 @@ const showComments = (): void => {
                 :show-word-romanization="
                   settings.lyric.showRomanization && settings.lyric.amllShowWordRomanization
                 "
+                :swap-translation-pronunciation="settings.lyric.swapTranslationPronunciation"
                 :larger-lyric-text="settings.lyric.largerLyricText"
                 :force-line-pronunciation-as-main="settings.lyric.forceLinePronunciationAsMain"
                 :independent-word-romanization-progress="
@@ -487,6 +493,7 @@ const showComments = (): void => {
                 :raise-align-position-on-overlap="settings.lyric.raiseAlignPositionOnOverlap"
                 :show-translation="settings.lyric.showTranslation"
                 :show-romanization="settings.lyric.showRomanization"
+                :swap-translation-pronunciation="settings.lyric.swapTranslationPronunciation"
                 :larger-lyric-text="settings.lyric.largerLyricText"
                 :force-line-pronunciation-as-main="settings.lyric.forceLinePronunciationAsMain"
                 @seek="handleLyricSeek"

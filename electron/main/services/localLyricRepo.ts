@@ -192,16 +192,16 @@ const matchByCachedId = async (track: Track, index: RepoIndex): Promise<string |
  * @param track - 歌曲信息
  * @returns 命中的 TTML 原文，未命中返回 null
  */
-export const matchLocalTTML = async (track: Track): Promise<string | null> => {
+export const matchLocalTTML = async (track: Track, forceQuery = false): Promise<string | null> => {
   if (!store.get("localLyric.enableLocalTTMLOverride")) return null;
   const index = await getIndex();
   if (!index) return null;
   // track 自带平台 id 精确命中（在线歌曲）
-  if (track.source === "netease") {
+  if (!forceQuery && track.source === "netease") {
     const hit = await tryRead(index.byNcm.get(track.id));
     if (hit) return hit;
   }
-  if (track.source === "qqmusic") {
+  if (!forceQuery && track.source === "qqmusic") {
     for (const idCandidate of [track.extId, track.id]) {
       if (!idCandidate) continue;
       const hit = await tryRead(index.byQq.get(idCandidate));
@@ -214,5 +214,5 @@ export const matchLocalTTML = async (track: Track): Promise<string | null> => {
     return tryRead(pickByArtist(candidates, normalize(track.artists[0]?.name ?? "")));
   }
   // 兜底：平台 id 回查
-  return matchByCachedId(track, index);
+  return forceQuery ? null : matchByCachedId(track, index);
 };

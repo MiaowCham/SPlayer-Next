@@ -20,6 +20,7 @@ import { fetchTTML } from "@main/apis/common/lyric/ttml";
 import {
   fetchAppleMusicTTML,
   fetchAppleMusicTTMLResult,
+  getCachedAppleMusicTTML,
   verifyAppleMusicTTMLToken,
 } from "@main/services/appleMusicLyrics";
 import {
@@ -151,19 +152,22 @@ const resolveByQuery = async (platform: Platform, track: Track): Promise<LyricMa
 const resolveTTMLOverlay = async (
   track: Track,
   platform: "netease" | "qqmusic",
+  forceQuery = false,
 ): Promise<LyricTTMLResponse> => {
   try {
     const ids: string[] = [];
     const push = (v?: string) => {
       if (v && !ids.includes(v)) ids.push(v);
     };
+    // 自定义搜索必须先走标题/歌手匹配，避免当前歌曲 ID 绕过用户输入。
+    if (forceQuery) await resolveByQuery(platform, track);
     const fingerprint = buildFingerprint(track);
     const cached = getMatchedId(fingerprint, platform);
     // QM mid 放前面（AMLL DB 早期 QM 条目以 mid 为文件名的居多）
     if (platform === "qqmusic") push(cached?.extra?.mid);
-    if (track.source === platform) push(track.id);
+    if (!forceQuery && track.source === platform) push(track.id);
     // QM 在线 Track 默认走 byId
-    if (track.source === platform) push(track.extId);
+    if (!forceQuery && track.source === platform) push(track.extId);
     push(cached?.platformId);
     if (ids.length === 0) return { ok: true, data: null };
     return { ok: true, data: await fetchTTML(platform, ids) };
@@ -193,6 +197,22 @@ const platformCandidate = (result: LyricMatchResult): LyricMatchCandidate => ({
   local: false,
 });
 
+/** 应用单曲自定义搜索条件，并标记后续请求不得回退到原曲目 ID。 */
+const getSearchTrack = (track: Track): { track: Track; forceQuery: boolean } => {
+  const search = getTrackLyricPreference(track)?.search;
+  const title = search?.title.trim();
+  const artist = search?.artist.trim();
+  if (!title && !artist) return { track, forceQuery: false };
+  return {
+    track: {
+      ...track,
+      title: title || track.title,
+      artists: artist ? [{ ...track.artists[0], name: artist }] : track.artists,
+    },
+    forceQuery: true,
+  };
+};
+
 /** 汇总本地版本、平台、本地 TTML 与 AMLL 候选。 */
 const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> => {
   refreshManagedLyricVersions(track);
@@ -212,22 +232,24 @@ const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> 
     importedAt: version.importedAt,
   }));
 
+  const search = getSearchTrack(track);
+  const searchTrack = search.track;
   const platforms: Platform[] = ["netease", "qqmusic", "kugou"];
   const [platformResponses, localTtml] = await Promise.all([
     Promise.all(
       platforms.map(async (platform) => {
         const lookupId = platform === "qqmusic" ? (track.extId ?? track.id) : track.id;
         try {
-          return track.source === platform
+          return !search.forceQuery && track.source === platform
             ? await resolveById(platform, lookupId)
-            : await resolveByQuery(platform, track);
+            : await resolveByQuery(platform, searchTrack);
         } catch (err) {
           coreLog.warn(`[lyrics] candidate lookup(${platform}) failed:`, err);
           return null;
         }
       }),
     ),
-    matchLocalTTML(track).catch(() => null),
+    matchLocalTTML(searchTrack, search.forceQuery).catch(() => null),
   ]);
   const remote = platformResponses.flatMap((response) =>
     response?.ok && response.data ? [platformCandidate(response.data)] : [],
@@ -244,23 +266,28 @@ const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> 
     });
   }
 
-  const appleMusic = await fetchAppleMusicTTMLResult(track);
-  remote.push({
-    id: "appleMusic",
-    origin: "appleMusic",
-    format: "ttml",
-    filename: "apple-music.ttml",
-    content: appleMusic.lyric ?? "",
-    active: false,
-    local: false,
-    status: appleMusic.status,
-    statusMessage: appleMusic.message,
-  });
+  const appleMusic = await fetchAppleMusicTTMLResult(searchTrack);
+  if (appleMusic.lyric) {
+    remote.push({
+      id: "appleMusic",
+      origin: "appleMusic",
+      format: "ttml",
+      filename: "apple-music.ttml",
+      content: appleMusic.lyric,
+      active: false,
+      local: false,
+      status: appleMusic.status,
+      statusMessage: appleMusic.message,
+    });
+  }
 
   const overlays = await Promise.all(
     (["netease", "qqmusic"] as const).map(async (platform) => {
       try {
-        return { platform, result: await resolveTTMLOverlay(track, platform) };
+        return {
+          platform,
+          result: await resolveTTMLOverlay(searchTrack, platform, search.forceQuery),
+        };
       } catch (err) {
         coreLog.warn(`[lyrics] AMLL candidate lookup(${platform}) failed:`, err);
         return { platform, result: null };
@@ -569,10 +596,17 @@ export const registerLyricsIpc = (): void => {
     dedup(`byId:${platform}:${id}`, () => resolveById(platform, id)),
   );
   ipcMain.handle("lyrics:matchByQuery", (_evt, platform: Platform, track: Track) =>
-    dedup(`byQuery:${platform}:${track.id}`, () => resolveByQuery(platform, track)),
+    dedup(
+      `byQuery:${platform}:${track.id}:${track.title}:${track.artists.map((artist) => artist.name).join("/")}`,
+      () => resolveByQuery(platform, track),
+    ),
   );
-  ipcMain.handle("lyrics:fetchTTMLOverlay", (_evt, track: Track, platform: "netease" | "qqmusic") =>
-    dedup(`ttml:${platform}:${track.id}`, () => resolveTTMLOverlay(track, platform)),
+  ipcMain.handle(
+    "lyrics:fetchTTMLOverlay",
+    (_evt, track: Track, platform: "netease" | "qqmusic", forceQuery = false) =>
+      dedup(`ttml:${platform}:${track.id}:${forceQuery ? track.title : ""}`, () =>
+        resolveTTMLOverlay(track, platform, forceQuery),
+      ),
   );
   ipcMain.handle(
     "lyrics:fetchAppleMusicTTML",
@@ -590,6 +624,10 @@ export const registerLyricsIpc = (): void => {
       }
     },
   );
+  ipcMain.handle("lyrics:getCachedAppleMusicTTML", (_evt, track: Track): LyricTTMLResponse => ({
+    ok: true,
+    data: getCachedAppleMusicTTML(track),
+  }));
   ipcMain.handle("lyrics:getAppleMusicTTMLStatus", () => ({
     hasMediaUserToken: hasAppleMusicMediaUserToken(),
     storage: getAppleMusicMediaUserTokenStorage(),
@@ -605,9 +643,9 @@ export const registerLyricsIpc = (): void => {
   ipcMain.handle("lyrics:verifyAppleMusicTTMLToken", () => verifyAppleMusicTTMLToken());
   ipcMain.handle(
     "lyrics:matchLocalTTML",
-    async (_evt, track: Track): Promise<LyricTTMLResponse> => {
+    async (_evt, track: Track, forceQuery = false): Promise<LyricTTMLResponse> => {
       try {
-        return { ok: true, data: await matchLocalTTML(track) };
+        return { ok: true, data: await matchLocalTTML(track, forceQuery) };
       } catch (err) {
         coreLog.warn(`[lyrics] matchLocalTTML(${track.title}) failed:`, err);
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
