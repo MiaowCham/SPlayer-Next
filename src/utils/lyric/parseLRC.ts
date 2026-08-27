@@ -1,25 +1,12 @@
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
 import { BRACKET_TIME_RE, ANGLE_TIME_RE, parseTime, MAX_TIME } from "./timestamp";
-import { detectBackgroundLine } from "./bg";
+import { detectBackgroundLine, splitTrailingBackground } from "./bg";
 
 /** 匹配元数据标签（如 [ti:xxx]、[ar:xxx]） */
-const META_TAG_RE = /^\[[a-zA-Z]+:/;
+const META_TAG_RE = /^\[([a-zA-Z]+):(.*?)]$/;
 
 /** 检测尖括号逐字标签 */
 const HAS_ANGLE_TAGS = /<\d+:\d+/;
-
-/**
- * 判断一行原始文本是否应跳过（非歌词内容）
- * @param line trim 后的行文本
- */
-const shouldSkipLine = (line: string): boolean => {
-  if (!line) return true;
-  // 元数据标签：[ti:xxx]、[ar:xxx] 等
-  if (META_TAG_RE.test(line)) return true;
-  // JSON 行（平台的扩展元数据）
-  if (line.startsWith("{")) return true;
-  return false;
-};
 
 /**
  * 提取行首连续的方括号时间戳
@@ -114,6 +101,115 @@ const parseLrcWords = (line: string): LyricWord[] | null => {
   return words;
 };
 
+const parseLrcPayload = (line: string, detectBackground: boolean = true): LyricLine[] => {
+  // 提取行首连续时间戳
+  const { times, textStart } = extractHeaderTimes(line);
+  if (times.length === 0) return [];
+  // 提取行内容
+  const content = line.slice(textStart);
+  if (!content.trim()) {
+    const lines: LyricLine[] = [];
+    for (const t of times) {
+      lines.push({
+        words: [],
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: t,
+        endTime: 0,
+        isBG: false,
+        isDuet: false,
+      });
+    }
+    return lines;
+  }
+  // 尝试 ESLRC 逐字
+  const eslrcWords = parseEslrcWords(content);
+  if (eslrcWords) {
+    const lines: LyricLine[] = [];
+    for (const _ of times) {
+      // 多时间戳时克隆单词数组
+      const words = times.length > 1 ? eslrcWords.map((w) => ({ ...w })) : eslrcWords;
+      lines.push({
+        words,
+        translatedLyric: "",
+        romanLyric: "",
+        startTime: words[0].startTime,
+        endTime: words[words.length - 1].endTime,
+        isBG: detectBackgroundLine(words, detectBackground),
+        isDuet: false,
+      });
+    }
+    return lines;
+  }
+  // 尝试 LRC 逐字
+  const lrcWords = parseLrcWords(line);
+  if (lrcWords) {
+    const lines: LyricLine[] = [];
+    lines.push({
+      words: lrcWords,
+      translatedLyric: "",
+      romanLyric: "",
+      startTime: lrcWords[0].startTime,
+      endTime: lrcWords[lrcWords.length - 1].endTime,
+      isBG: detectBackgroundLine(lrcWords, detectBackground),
+      isDuet: false,
+    });
+    return lines;
+  }
+  // 回退标准整行模式
+  const lineWords = [{ startTime: 0, endTime: 0, word: content.trim() }];
+  const isBG = detectBackgroundLine(lineWords, detectBackground);
+  const lines: LyricLine[] = [];
+  for (const t of times) {
+    lines.push({
+      words: [{ startTime: t, endTime: 0, word: lineWords[0].word }],
+      translatedLyric: "",
+      romanLyric: "",
+      startTime: t,
+      endTime: 0,
+      isBG,
+      isDuet: false,
+    });
+  }
+  return lines;
+};
+
+const parseLrcLine = (line: string, detectBackground: boolean = true): LyricLine[] => {
+  const trimmed = line.trim();
+  if (!trimmed) return [];
+
+  const match = META_TAG_RE.exec(trimmed);
+  if (match) {
+    const key = match[1];
+    const value = match[2];
+
+    if (key === "bg") {
+      const lines = parseLrcPayload(value, detectBackground);
+      if (lines.length === 1) {
+        lines[0].isBG = true;
+        return lines;
+      }
+    }
+
+    return [];
+  }
+
+  // JSON 行（平台的扩展元数据）
+  if (line.startsWith("{")) return [];
+
+  const lines = parseLrcPayload(trimmed, detectBackground);
+  const result: LyricLine[] = [];
+  for (const line of lines) {
+    result.push(line);
+    // 行内尾随和声「主歌词（和声）」拆成紧随的背景行
+    if (!line.isBG) {
+      const bg = splitTrailingBackground(line, detectBackground);
+      if (bg) result.push(bg);
+    }
+  }
+  return result;
+};
+
 /**
  * 解析 LRC 歌词文本
  * @param text LRC 文本内容
@@ -122,73 +218,23 @@ const parseLrcWords = (line: string): LyricWord[] | null => {
 export const parseLRC = (text: string, detectBackground = true): LyricLine[] => {
   const lines: LyricLine[] = [];
   let previousContentLine: LyricLine | undefined;
-  for (const raw of text.split("\n")) {
-    const trimmed = raw.trim();
-    if (shouldSkipLine(trimmed)) continue;
-    // 提取行首连续时间戳
-    const { times, textStart } = extractHeaderTimes(trimmed);
-    if (times.length === 0) continue;
-    // 提取行内容
-    const content = trimmed.slice(textStart);
-    if (!content.trim()) {
-      const endTime = times.find((time) => time > (previousContentLine?.startTime ?? MAX_TIME));
-      if (previousContentLine && endTime !== undefined) {
-        previousContentLine.endTime = endTime;
+  for (const rawLine of text.split("\n")) {
+    const parsed = parseLrcLine(rawLine, detectBackground);
+    // 空时间标签：作为上一行的结束时间标记，不生成空行
+    if (parsed.length === 1 && parsed[0].words.length === 0) {
+      const empty = parsed[0];
+      if (previousContentLine && empty.startTime > previousContentLine.startTime) {
+        previousContentLine.endTime = empty.startTime;
         const lastWord = previousContentLine.words[previousContentLine.words.length - 1];
         if (lastWord && lastWord.endTime <= lastWord.startTime) {
-          lastWord.endTime = endTime;
+          lastWord.endTime = empty.startTime;
         }
       }
       continue;
     }
-    // 尝试 ESLRC 逐字
-    const eslrcWords = parseEslrcWords(content);
-    if (eslrcWords) {
-      for (const _ of times) {
-        // 多时间戳时克隆单词数组
-        const words = times.length > 1 ? eslrcWords.map((w) => ({ ...w })) : eslrcWords;
-        lines.push({
-          words,
-          translatedLyric: "",
-          romanLyric: "",
-          startTime: words[0].startTime,
-          endTime: words[words.length - 1].endTime,
-          isBG: detectBackgroundLine(words, detectBackground),
-          isDuet: false,
-        });
-        previousContentLine = lines[lines.length - 1];
-      }
-      continue;
-    }
-    // 尝试 LRC 逐字
-    const lrcWords = parseLrcWords(trimmed);
-    if (lrcWords) {
-      lines.push({
-        words: lrcWords,
-        translatedLyric: "",
-        romanLyric: "",
-        startTime: lrcWords[0].startTime,
-        endTime: lrcWords[lrcWords.length - 1].endTime,
-        isBG: detectBackgroundLine(lrcWords, detectBackground),
-        isDuet: false,
-      });
-      previousContentLine = lines[lines.length - 1];
-      continue;
-    }
-    // 回退标准整行模式
-    const lineWords = [{ startTime: 0, endTime: 0, word: content.trim() }];
-    const isBG = detectBackgroundLine(lineWords, detectBackground);
-    for (const t of times) {
-      lines.push({
-        words: [{ startTime: t, endTime: 0, word: lineWords[0].word }],
-        translatedLyric: "",
-        romanLyric: "",
-        startTime: t,
-        endTime: 0,
-        isBG,
-        isDuet: false,
-      });
-      previousContentLine = lines[lines.length - 1];
+    for (const line of parsed) {
+      lines.push(line);
+      if (!line.isBG) previousContentLine = line;
     }
   }
   // 按起始时间排序
@@ -236,5 +282,11 @@ export const parseLRC = (text: string, detectBackground = true): LyricLine[] => 
     }
     lastStartTime = line.startTime;
   }
-  return merged;
+  return merged.filter(
+    (line) =>
+      line.words
+        .map((w) => w.word)
+        .join("")
+        .trim() !== "",
+  );
 };
