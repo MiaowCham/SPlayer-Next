@@ -22,6 +22,7 @@ const song = (overrides: Partial<AppleMusicSong>): AppleMusicSong => ({
   duration: 180_500,
   isrc: "US-XXX-01",
   storefront: "us",
+  hasTimeSyncedLyrics: false,
   ...overrides,
 });
 

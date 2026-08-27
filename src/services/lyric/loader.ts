@@ -211,7 +211,14 @@ const scheduleAppleMusicUpgrade = (token: number, track: Track, force = false): 
     if (token !== currentToken || !resolved) return;
     const media = useMediaStore();
     if (force || shouldReplaceWithAppleMusic(media.activeLyric)) {
-      commitResolvedAndHasParsed(token, resolved);
+      // 先记录当前有效歌词，避免无效 AM 结果把已有歌词清成 NO-LRC
+      const previous =
+        media.activeLyric && media.lyricContent
+          ? { source: media.activeLyric, input: media.lyricContent }
+          : null;
+      if (!commitResolvedAndHasParsed(token, resolved) && previous && token === currentToken) {
+        commit(token, previous.source, previous.input);
+      }
     }
   });
 };

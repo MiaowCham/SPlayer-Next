@@ -8,6 +8,8 @@ export interface AppleMusicSong {
   duration: number;
   isrc: string;
   storefront: string;
+  /** 是否具备逐字/逐音节歌词（优先于仅逐行歌词）。 */
+  hasTimeSyncedLyrics: boolean;
 }
 
 /** Apple Music 候选匹配容错档位。 */
@@ -36,6 +38,8 @@ export const scoreAppleMusicSong = (track: Track, song: AppleMusicSong): number 
     score += 3;
   }
   if (track.duration > 0 && Math.abs(track.duration - song.duration) <= 2_000) score += 3;
+  // 具备逐字歌词的候选优先，避免 Live 现场版等仅逐行歌词的版本抢占
+  if (song.hasTimeSyncedLyrics) score += 1;
   return score;
 };
 
