@@ -1,5 +1,5 @@
 diff --git a/dist/amll-core.cjs b/dist/amll-core.cjs
-index 749c61bc12b2e1fe08c3e7c5027f3966300a41e4..1b1a3250b52ef3e9a5a70be5192cb2f07148dbe8 100644
+index 749c61bc12b2e1fe08c3e7c5027f3966300a41e4..379c1da3a4ca6cc64df65850db03c7742a2ff6eb 100644
 --- a/dist/amll-core.cjs
 +++ b/dist/amll-core.cjs
 @@ -3789,7 +3789,7 @@ const WHITESPACE_RE = /\s/g;
@@ -137,7 +137,7 @@ index 749c61bc12b2e1fe08c3e7c5027f3966300a41e4..1b1a3250b52ef3e9a5a70be5192cb2f0
  			} else {
  				word.width = 0;
  				word.height = 0;
-@@ -4364,56 +4406,139 @@ var LyricLineEl = class extends LyricLineBase {
+@@ -4364,56 +4406,141 @@ var LyricLineEl = class extends LyricLineBase {
  			this.enable(this.lyricPlayer.getCurrentTime(), isPlayerRunning);
  		}
  	}
@@ -253,6 +253,8 @@ index 749c61bc12b2e1fe08c3e7c5027f3966300a41e4..1b1a3250b52ef3e9a5a70be5192cb2f0
 +		return animation;
  	}
  	generateWebAnimationBasedMaskImage() {
++		const perfStart = performance.now();
++		const perfWordCount = this.splittedWords.length;
  		const totalFadeDuration = Math.max(0, ...this.splittedWords.map((w) => w.endTime), this.lyricLine.endTime) - this.lyricLine.startTime;
  		this.splittedWords.forEach((word, i) => {
 -			const wordEl = word.mainElement;
@@ -315,7 +317,7 @@ index 749c61bc12b2e1fe08c3e7c5027f3966300a41e4..1b1a3250b52ef3e9a5a70be5192cb2f0
  				let timeOffset = 0;
  				const frames = [];
  				let lastPos = curPos;
-@@ -4464,7 +4589,7 @@ var LyricLineEl = class extends LyricLineBase {
+@@ -4464,7 +4591,7 @@ var LyricLineEl = class extends LyricLineBase {
  						const rubySegments = this.getRubySegments(otherWord);
  						const rubyCharCount = rubySegments.reduce((total, ruby) => total + ruby.word.length, 0);
  						if (rubyCharCount > 0) {
@@ -324,7 +326,7 @@ index 749c61bc12b2e1fe08c3e7c5027f3966300a41e4..1b1a3250b52ef3e9a5a70be5192cb2f0
  							let charIndex = 0;
  							for (const ruby of rubySegments) {
  								const rubyStartTime = Number.isFinite(ruby.startTime) ? ruby.startTime : otherWord.startTime;
-@@ -4494,7 +4619,7 @@ var LyricLineEl = class extends LyricLineBase {
+@@ -4494,7 +4621,7 @@ var LyricLineEl = class extends LyricLineBase {
  							lastTimeStamp = wordEndStamp;
  						} else {
  							const segmentCount = 1;
@@ -333,7 +335,7 @@ index 749c61bc12b2e1fe08c3e7c5027f3966300a41e4..1b1a3250b52ef3e9a5a70be5192cb2f0
  							const segmentDuration = fadeDuration / segmentCount;
  							for (let segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++) {
  								timeOffset += segmentDuration / totalFadeDuration;
-@@ -4516,6 +4641,12 @@ var LyricLineEl = class extends LyricLineBase {
+@@ -4516,11 +4643,21 @@ var LyricLineEl = class extends LyricLineBase {
  					});
  					ani.pause();
  					word.maskAnimations = [ani];
@@ -346,8 +348,17 @@ index 749c61bc12b2e1fe08c3e7c5027f3966300a41e4..1b1a3250b52ef3e9a5a70be5192cb2f0
  				} catch (err) {
  					console.warn("应用渐变动画发生错误", frames, totalFadeDuration, err);
  				}
+ 			}
+ 		});
++		const perfMs = performance.now() - perfStart;
++		if (perfMs > 3) {
++			console.warn(`[AMLL-perf] generateWebAnimationBasedMaskImage ${perfWordCount} words took ${perfMs.toFixed(2)}ms`);
++		}
+ 	}
+ 	getElement() {
+ 		return this.element;
 diff --git a/dist/amll-core.mjs b/dist/amll-core.mjs
-index 3f918a06ec2a46a215b21191826022f3313fe977..3202854a4a890443d10ccfd891043234bac69dcc 100644
+index 3f918a06ec2a46a215b21191826022f3313fe977..d7fcf348333aad5397a33f6012e3765737a7260e 100644
 --- a/dist/amll-core.mjs
 +++ b/dist/amll-core.mjs
 @@ -3764,7 +3764,7 @@ const WHITESPACE_RE = /\s/g;
@@ -485,7 +496,7 @@ index 3f918a06ec2a46a215b21191826022f3313fe977..3202854a4a890443d10ccfd891043234
  			} else {
  				word.width = 0;
  				word.height = 0;
-@@ -4339,56 +4381,226 @@ var LyricLineEl = class extends LyricLineBase {
+@@ -4339,56 +4381,228 @@ var LyricLineEl = class extends LyricLineBase {
  			this.enable(this.lyricPlayer.getCurrentTime(), isPlayerRunning);
  		}
  	}
@@ -691,6 +702,8 @@ index 3f918a06ec2a46a215b21191826022f3313fe977..3202854a4a890443d10ccfd891043234
 +		return ani;
  	}
  	generateWebAnimationBasedMaskImage() {
++		const perfStart = performance.now();
++		const perfWordCount = this.splittedWords.length;
  		const totalFadeDuration = Math.max(0, ...this.splittedWords.map((w) => w.endTime), this.lyricLine.endTime) - this.lyricLine.startTime;
  		this.splittedWords.forEach((word, i) => {
 -			const wordEl = word.mainElement;
@@ -750,7 +763,7 @@ index 3f918a06ec2a46a215b21191826022f3313fe977..3202854a4a890443d10ccfd891043234
  				let timeOffset = 0;
  				const frames = [];
  				let lastPos = curPos;
-@@ -4439,7 +4651,7 @@ var LyricLineEl = class extends LyricLineBase {
+@@ -4439,7 +4653,7 @@ var LyricLineEl = class extends LyricLineBase {
  						const rubySegments = this.getRubySegments(otherWord);
  						const rubyCharCount = rubySegments.reduce((total, ruby) => total + ruby.word.length, 0);
  						if (rubyCharCount > 0) {
@@ -759,7 +772,7 @@ index 3f918a06ec2a46a215b21191826022f3313fe977..3202854a4a890443d10ccfd891043234
  							let charIndex = 0;
  							for (const ruby of rubySegments) {
  								const rubyStartTime = Number.isFinite(ruby.startTime) ? ruby.startTime : otherWord.startTime;
-@@ -4469,7 +4681,7 @@ var LyricLineEl = class extends LyricLineBase {
+@@ -4469,7 +4683,7 @@ var LyricLineEl = class extends LyricLineBase {
  							lastTimeStamp = wordEndStamp;
  						} else {
  							const segmentCount = 1;
@@ -768,7 +781,7 @@ index 3f918a06ec2a46a215b21191826022f3313fe977..3202854a4a890443d10ccfd891043234
  							const segmentDuration = fadeDuration / segmentCount;
  							for (let segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++) {
  								timeOffset += segmentDuration / totalFadeDuration;
-@@ -4491,6 +4703,10 @@ var LyricLineEl = class extends LyricLineBase {
+@@ -4491,11 +4705,19 @@ var LyricLineEl = class extends LyricLineBase {
  					});
  					ani.pause();
  					word.maskAnimations = [ani];
@@ -779,6 +792,15 @@ index 3f918a06ec2a46a215b21191826022f3313fe977..3202854a4a890443d10ccfd891043234
  				} catch (err) {
  					console.warn("应用渐变动画发生错误", frames, totalFadeDuration, err);
  				}
+ 			}
+ 		});
++		const perfMs = performance.now() - perfStart;
++		if (perfMs > 3) {
++			console.warn(`[AMLL-perf] generateWebAnimationBasedMaskImage ${perfWordCount} words took ${perfMs.toFixed(2)}ms`);
++		}
+ 	}
+ 	getElement() {
+ 		return this.element;
 diff --git a/dist/style.css b/dist/style.css
 index bae32d16a24a188422253b7f16f83662836c44ab..4cb9959ab016fb83d04383b2a8ee1e72a3e0c0dc 100644
 --- a/dist/style.css
