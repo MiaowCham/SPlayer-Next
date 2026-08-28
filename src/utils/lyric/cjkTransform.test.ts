@@ -107,4 +107,26 @@ describe("applyLyricCjkTransform", () => {
     assert.equal(simplified[0].words[0].word, "我爱你");
     assert.strictEqual(unchanged, lines);
   });
+
+  it("启用繁简偏好时，与正文仅繁简之差的翻译被隐藏", async () => {
+    globalWindow.window = {
+      api: {
+        opencc: {
+          convertBatch: async (texts) =>
+            texts.map((text) => text.replaceAll("愛", "爱")),
+        },
+      },
+    };
+    // 正文（简体）+ 翻译（繁体，仅繁简之差）→ 转换后一致 → 隐藏翻译
+    const lines = [
+      createLine("我爱你", { translatedLyric: "我愛你" }),
+      createLine("你好", { translatedLyric: "Hello" }), // 内容不同，保留
+    ];
+
+    const result = await applyLyricCjkTransform(lines, "simplified");
+
+    assert.equal(result[0].translatedLyric, "");
+    assert.equal(result[0].words[0].word, "我爱你");
+    assert.equal(result[1].translatedLyric, "Hello");
+  });
 });

@@ -83,6 +83,16 @@ export const applyLyricCjkTransform = async (
       }
     }
 
+    // 繁简转换后，若翻译内容与正文仅繁简之差（忽略空格后文字一致），则隐藏翻译，只显示被偏好处理后的正文。
+    for (const line of resultLines) {
+      if (!line.translatedLyric) continue;
+      const mainText = line.words.map((word) => word.word).join("").replace(/\s+/g, "");
+      const transText = line.translatedLyric.replace(/\s+/g, "");
+      if (mainText && transText && mainText === transText) {
+        line.translatedLyric = "";
+      }
+    }
+
     return resultLines;
   } catch (error) {
     console.error("[OpenCC] 歌词转换失败:", error);
