@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { dialog } from "@/composables/useDialog";
 import { useLyricTrackManagerDialog } from "@/composables/useLyricTrackManagerDialog";
+import { useLyricOptimizeDialog } from "@/composables/useLyricOptimizeDialog";
 import { toast } from "@/composables/useToast";
 import { loadForTrack } from "@/services/lyric/loader";
 import {
@@ -15,9 +16,12 @@ import type { Track } from "@shared/types/player";
 import type { LyricMatchCandidate, TrackLyricPreference } from "@shared/types/lyrics";
 import { isPlatform } from "@shared/types/platform";
 import IconExternalLink from "~icons/lucide/external-link";
+import IconWrench from "~icons/lucide/wrench";
+import LyricOptimizeDialog from "./LyricOptimizeDialog.vue";
 
 const { t } = useI18n();
 const lyricManager = useLyricTrackManagerDialog();
+const lyricOptimize = useLyricOptimizeDialog();
 const media = useMediaStore();
 const managed = ref<Awaited<ReturnType<typeof window.api.lyrics.getManaged>>>(null);
 const loading = ref(false);
@@ -180,6 +184,13 @@ const candidateSourceUrl = (candidate: LyricMatchCandidate): string | null =>
 const openCandidateSourceUrl = (candidate: LyricMatchCandidate): void => {
   const url = candidateSourceUrl(candidate);
   if (url) void openExternal(url);
+};
+
+/** 打开歌词优化（编辑）弹窗。 */
+const openOptimize = (candidate: LyricMatchCandidate): void => {
+  const track = currentTrack();
+  if (!track) return;
+  lyricOptimize.show(track, candidate);
 };
 
 const currentLyricDescription = computed(() => {
@@ -595,6 +606,17 @@ watch(
               type="primary"
               variant="secondary"
               size="small"
+              :title="t('lyricManager.optimize')"
+              @click="openOptimize(candidate)"
+            >
+              <template #icon>
+                <IconWrench />
+              </template>
+            </SButton>
+            <SButton
+              type="primary"
+              variant="secondary"
+              size="small"
               :disabled="
                 isCandidateExplicitlySelected(candidate) ||
                 !!(candidate.status && candidate.status !== 'available')
@@ -701,4 +723,6 @@ watch(
       </SButton>
     </template>
   </SDialog>
+
+  <LyricOptimizeDialog />
 </template>

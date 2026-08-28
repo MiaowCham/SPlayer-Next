@@ -269,6 +269,12 @@ export interface LyricsApi {
   getTrackCandidates: (track: Track) => Promise<LyricMatchCandidate[]>;
   /** 仅获取单曲的本地/managed 候选（不含在线搜索），供歌词管理面板先显示本地候选 */
   getTrackCandidatesLocal: (track: Track) => Promise<LyricMatchCandidate[]>;
+  /** 保存优化后的歌词（创建/覆盖本地歌词；已是本地歌词则直接写文件），返回是否成功 */
+  saveOptimizedLyric: (
+    track: Track,
+    candidate: LyricMatchCandidate,
+    input: LyricInput,
+  ) => Promise<boolean>;
   /** 选择一个歌词候选并设为当前活跃版本 */
   selectTrackCandidate: (track: Track, candidate: LyricMatchCandidate) => Promise<boolean>;
   /** 删除非活跃的本地歌词版本 */

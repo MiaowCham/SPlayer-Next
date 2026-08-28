@@ -454,6 +454,9 @@ const api = {
     // 仅获取单曲的本地/managed 候选（不含在线搜索，供面板先显示）
     getTrackCandidatesLocal: (track: unknown) =>
       ipcRenderer.invoke("lyrics:getTrackCandidatesLocal", track),
+    // 保存优化后的歌词（创建/覆盖本地歌词）
+    saveOptimizedLyric: (track: unknown, candidate: unknown, input: unknown) =>
+      ipcRenderer.invoke("lyrics:saveOptimizedLyric", track, candidate, input),
     // 选择并激活歌词候选
     selectTrackCandidate: (track: unknown, candidate: unknown) =>
       ipcRenderer.invoke("lyrics:selectTrackCandidate", track, candidate),

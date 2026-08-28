@@ -57,6 +57,7 @@ import { getTrackById, searchTracks } from "@main/database/queries";
 import { getTracks as getStreamingTracks } from "@main/database/streaming/tracks";
 import type {
   LyricFormat,
+  LyricInput,
   LyricMatchCandidate,
   LyricMatchResult,
   LyricMatchResponse,
@@ -230,24 +231,60 @@ const getSearchTrack = (track: Track): { track: Track; forceQuery: boolean } => 
 };
 
 /** 汇总本地版本、平台、本地 TTML 与 AMLL 候选。 */
+/** 读取与本地歌词通过文件名固定关系关联的翻译/发音文件（如 netease.yrc 与 netease_trans.lrc）。 */
+const readLinkedTranslation = async (
+  dir: string,
+  origin: string,
+): Promise<{ translation: string; translationFormat: LyricFormat } | undefined> => {
+  try {
+    const transPath = path.join(dir, `${origin}_trans.lrc`);
+    const content = await fs.readFile(transPath, "utf8");
+    return content.trim() ? { translation: content, translationFormat: "lrc" } : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const readLinkedRomaji = async (
+  dir: string,
+  origin: string,
+): Promise<{ romaji: string; romajiFormat: LyricFormat } | undefined> => {
+  try {
+    const romaPath = path.join(dir, `${origin}_roma.lrc`);
+    const content = await fs.readFile(romaPath, "utf8");
+    return content.trim() ? { romaji: content, romajiFormat: "lrc" } : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 /** 仅返回本地/managed 歌词候选（不含在线搜索），供歌词管理面板先显示本地候选。 */
 const getTrackCandidatesLocal = async (track: Track): Promise<LyricMatchCandidate[]> => {
   refreshManagedLyricVersions(track);
   const active = getManagedLyric(track);
-  return listManagedLyricVersions(track).map((version): LyricMatchCandidate => ({
-    id: version.versionId,
-    origin: version.origin,
-    format: version.format,
-    filename: version.filename ?? `${version.origin}.${version.format}`,
-    content: version.content,
-    translation: version.translation,
-    translationFormat: version.translationFormat,
-    romaji: version.romaji,
-    romajiFormat: version.romajiFormat,
-    active: version.versionId === active?.versionId,
-    local: true,
-    importedAt: version.importedAt,
-  }));
+  const dir = getManagedTrackLyricsDir(track);
+  return Promise.all(
+    listManagedLyricVersions(track).map(async (version): Promise<LyricMatchCandidate> => {
+      const linkedTrans = version.translation
+        ? undefined
+        : await readLinkedTranslation(dir, version.origin);
+      const linkedRoma = version.romaji ? undefined : await readLinkedRomaji(dir, version.origin);
+      return {
+        id: version.versionId,
+        origin: version.origin,
+        format: version.format,
+        filename: version.filename ?? `${version.origin}.${version.format}`,
+        content: version.content,
+        translation: version.translation ?? linkedTrans?.translation,
+        translationFormat: version.translationFormat ?? linkedTrans?.translationFormat,
+        romaji: version.romaji ?? linkedRoma?.romaji,
+        romajiFormat: version.romajiFormat ?? linkedRoma?.romajiFormat,
+        active: version.versionId === active?.versionId,
+        local: true,
+        importedAt: version.importedAt,
+      };
+    }),
+  );
 };
 
 /** 搜索并返回某曲目的所有候选歌词（本地 + 在线）。 */
@@ -357,6 +394,72 @@ const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> 
   return [...local, ...uniqueRemote];
 };
 
+/** 可内嵌翻译/发音的格式（无需关联文件）。 */
+const EMBEDDED_LYRIC_FORMATS = new Set<LyricFormat>(["ttml", "ttmlLine", "lrcn", "lqe"]);
+
+/**
+ * 保存优化后的歌词。
+ * - 在线候选：创建本地歌词（文件名 `{origin}.{format}`），翻译/发音（非内嵌格式）按 `{origin}_trans.lrc` / `{origin}_roma.lrc` 关联保存。
+ * - 已是本地歌词：直接改写原文件；无修改的保存被拒绝；改写前把旧文件备份为 `.bak`（只留一份）。
+ * @returns 是否成功
+ */
+const saveOptimizedLyric = async (
+  track: Track,
+  candidate: LyricMatchCandidate,
+  input: LyricInput,
+): Promise<boolean> => {
+  const format = candidate.format;
+  const dir = getManagedTrackLyricsDir(track);
+  const baseName = `${candidate.origin}.${format}`;
+  const mainPath = path.join(dir, baseName);
+  const isLocal = candidate.local;
+
+  // 无修改的保存（仅本地歌词）被拒绝
+  const unchanged =
+    input.content === candidate.content &&
+    (input.translation ?? "") === (candidate.translation ?? "") &&
+    (input.romaji ?? "") === (candidate.romaji ?? "");
+  if (isLocal && unchanged) return false;
+
+  // 已是本地歌词：改写前备份旧文件为 .bak（只留一份）
+  if (isLocal) {
+    try {
+      await fs.access(mainPath);
+      await fs.copyFile(mainPath, `${mainPath}.bak`);
+    } catch {
+      // 旧文件不存在则跳过备份
+    }
+  }
+
+  // 非内嵌格式：把翻译/发音写成关联文件（文件名固定关系）
+  if (!EMBEDDED_LYRIC_FORMATS.has(format)) {
+    await fs.mkdir(dir, { recursive: true });
+    if (input.translation?.trim()) {
+      await fs.writeFile(path.join(dir, `${candidate.origin}_trans.lrc`), input.translation, "utf8");
+    }
+    if (input.romaji?.trim()) {
+      await fs.writeFile(path.join(dir, `${candidate.origin}_roma.lrc`), input.romaji, "utf8");
+    }
+  }
+
+  // 写主歌词 + DB 记录（setManagedLyric 内部以同步 fs 写主文件并更新 DB；翻译/发音仅存 DB，供读取）
+  setManagedLyric(
+    track,
+    {
+      content: input.content,
+      format,
+      translation: EMBEDDED_LYRIC_FORMATS.has(format) ? input.translation : undefined,
+      translationFormat: EMBEDDED_LYRIC_FORMATS.has(format) ? input.translationFormat : "lrc",
+      romaji: EMBEDDED_LYRIC_FORMATS.has(format) ? input.romaji : undefined,
+      romajiFormat: EMBEDDED_LYRIC_FORMATS.has(format) ? input.romajiFormat : "lrc",
+    },
+    baseName,
+    candidate.origin,
+    true,
+  );
+  return true;
+};
+
 /** 为网易云封面 URL 设置缩略图尺寸。 */
 const neteaseCover = (url: string): string => {
   if (/([?&])param=\d+y\d+/i.test(url)) {
@@ -423,6 +526,11 @@ export const registerLyricsIpc = (): void => {
   ipcMain.handle("lyrics:getTrackCandidates", (_evt, track: Track) => getTrackCandidates(track));
   ipcMain.handle("lyrics:getTrackCandidatesLocal", (_evt, track: Track) =>
     getTrackCandidatesLocal(track),
+  );
+  ipcMain.handle(
+    "lyrics:saveOptimizedLyric",
+    (_evt, track: Track, candidate: LyricMatchCandidate, input: LyricInput) =>
+      saveOptimizedLyric(track, candidate, input),
   );
   ipcMain.handle("lyrics:getTrackPreference", (_evt, track: Track) =>
     getTrackLyricPreference(track),
