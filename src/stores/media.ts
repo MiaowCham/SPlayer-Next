@@ -207,8 +207,6 @@ export const useMediaStore = defineStore("media", () => {
     const settings = useSettingsStore();
     if (source && input) {
       try {
-        // 临时性能日志：歌词解析耗时（定位后可删除）
-        const perfStart = performance.now();
         const lines = parseLyric(input, source.format, settings.locale, {
           detectBackground: settings.lyric.detectBackgroundLyrics,
           fallbackTranslation: settings.lyric.fallbackTranslation,
@@ -216,10 +214,6 @@ export const useMediaStore = defineStore("media", () => {
           platform:
             source.platform ?? (isPlatform(track.value?.source) ? track.value.source : undefined),
         });
-        const parseMs = performance.now() - perfStart;
-        if (parseMs > 3) {
-          console.warn(`[AMLL-perf] parseLyric ${input.content?.length ?? 0} chars (${source.format}) took ${parseMs.toFixed(2)}ms`);
-        }
         nextLines = applyLyricExclude(lines, track.value);
         normalizeLyricLines(nextLines);
         // Fuck Mode
