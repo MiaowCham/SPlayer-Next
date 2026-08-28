@@ -471,6 +471,9 @@ const api = {
     // 搜索 Apple Music 并获取 TTML
     fetchAppleMusicTTML: (track: unknown) =>
       ipcRenderer.invoke("lyrics:fetchAppleMusicTTML", track),
+    // 仅读取 Apple Music TTML 持久化缓存，不触发网络搜索
+    getCachedAppleMusicTTML: (track: unknown) =>
+      ipcRenderer.invoke("lyrics:getCachedAppleMusicTTML", track),
     // 仅读取令牌是否已安全保存
     getAppleMusicTTMLStatus: () => ipcRenderer.invoke("lyrics:getAppleMusicTTMLStatus"),
     // 令牌仅透传到主进程安全存储，不会回读到渲染进程

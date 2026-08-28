@@ -345,6 +345,11 @@ export const resolveLocalRepoLyric = async (
 export const resolveAppleMusicTTML = async (track: Track): Promise<ResolvedLyric | null> => {
   if (!useSettingsStore().system.lyric.enableAppleMusicTTMLLyric) return null;
   const response = await requestAppleMusicTTML(track);
+  // 临时诊断日志：定位 AM 歌词传递链路问题，定位后可删除
+  logLyric(
+    "info",
+    `resolveAppleMusicTTML: ${track.title} ok=${response.ok}, dataLen=${response.ok ? (response.data?.length ?? 0) : "n/a"}`,
+  );
   if (!response.ok || !response.data) return null;
   return {
     source: { source: "online", format: "ttml", provider: "appleMusic" },

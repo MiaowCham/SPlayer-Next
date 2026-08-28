@@ -646,10 +646,17 @@ export const registerLyricsIpc = (): void => {
       }
     },
   );
-  ipcMain.handle("lyrics:getCachedAppleMusicTTML", (_evt, track: Track): LyricTTMLResponse => ({
-    ok: true,
-    data: getCachedAppleMusicTTML(track),
-  }));
+  ipcMain.handle(
+    "lyrics:getCachedAppleMusicTTML",
+    (_evt, track: Track): LyricTTMLResponse => {
+      try {
+        return { ok: true, data: getCachedAppleMusicTTML(track) };
+      } catch (err) {
+        coreLog.warn(`[lyrics] getCachedAppleMusicTTML(${track.title}) failed:`, err);
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+  );
   ipcMain.handle("lyrics:getAppleMusicTTMLStatus", () => ({
     hasMediaUserToken: hasAppleMusicMediaUserToken(),
     storage: getAppleMusicMediaUserTokenStorage(),
