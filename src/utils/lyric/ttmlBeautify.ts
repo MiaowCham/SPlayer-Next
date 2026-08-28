@@ -38,13 +38,14 @@ const prettyNode = (el: Element, depth: number, out: string[]): void => {
     return;
   }
 
-  // 只有文本、无子元素：叶子内容单行（元素与文本同行）；词间空格仍标记 <space/>
+  // 只有文本、无子元素：叶子内容单行（元素与文本同行）；词间空格仍标记 <space/>。
+  // 不 trim，保留 span 文本的首尾空格（如单词分词 ho / ri 的空格），避免被吞。
   if (el.children.length === 0) {
     const parts: string[] = [];
     for (const child of el.childNodes) {
       if (child.nodeType === Node.TEXT_NODE) {
         const text = child.textContent ?? "";
-        if (text.trim()) parts.push(escapeText(text.trim()));
+        if (text.trim()) parts.push(escapeText(text));
         else if (text.includes(" ") || text.includes("\u3000")) parts.push("<space/>");
       }
     }
@@ -64,11 +65,11 @@ const prettyNode = (el: Element, depth: number, out: string[]): void => {
       prettyNode(child as Element, depth + 1, out);
     } else if (child.nodeType === Node.TEXT_NODE) {
       const text = child.textContent ?? "";
-      if (!text.trim()) {
+      if (text.trim()) {
+        out.push(`${indent}  ${escapeText(text)}`);
+      } else if (text.includes(" ") || text.includes("\u3000")) {
         // 词间/标签间的有意义空格，用 <space/> 标记，防止被格式化吞掉
-        if (text.includes(" ") || text.includes("\u3000")) {
-          out.push(`${indent}  <space/>`);
-        }
+        out.push(`${indent}  <space/>`);
       }
     }
   }
@@ -125,8 +126,8 @@ const compactNode = (el: Element, out: string[]): void => {
       }
     } else if (child.nodeType === Node.TEXT_NODE) {
       const text = child.textContent ?? "";
-      // 忽略纯空白（缩进/换行），输出 trim 后的有意义文本
-      if (text.trim()) out.push(escapeText(text.trim()));
+      // 忽略纯空白（缩进/换行），保留有意义文本（含首尾空格）
+      if (text.trim()) out.push(escapeText(text));
     }
   }
   out.push(`</${tagName}>`);

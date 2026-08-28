@@ -554,6 +554,8 @@
     "selected": "已选择",
     "openSource": "前往歌词来源",
     "optimize": "优化歌词",
+    "translation": "翻译",
+    "romaji": "发音",
     "optimizeSaved": "歌词已保存到本地歌词目录",
     "optimizeSaveFailed": "保存歌词失败",
     "optimizeUnchanged": "歌词未修改，无需保存",

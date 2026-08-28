@@ -566,6 +566,8 @@
     "selected": "Selected",
     "openSource": "Open Source",
     "optimize": "Optimize Lyric",
+    "translation": "Translation",
+    "romaji": "Romaji",
     "optimizeSaved": "Lyric saved to local lyric directory",
     "optimizeSaveFailed": "Failed to save lyric",
     "optimizeUnchanged": "Lyric unchanged, nothing to save",

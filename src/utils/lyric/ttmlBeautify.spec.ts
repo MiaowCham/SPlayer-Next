@@ -30,4 +30,22 @@ describe("ttmlBeautify", () => {
     const pretty = compactTtmlToPretty(compact);
     expect(pretty.split("\n")[1]).toMatch(/^\s*<body>/);
   });
+
+  it("保留 span 文本首尾空格（分词空格不吞）", () => {
+    const c = `<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="1" end="3"><span begin="1" end="1.5">ho </span><span begin="1.5" end="2">ri </span><span begin="2" end="3">zon</span> <span begin="3" end="4">(Yes, </span><span begin="4" end="5">sir)</span></p></div></body></tt>`;
+    const back = prettyTtmlToCompact(compactTtmlToPretty(c));
+    expect(back.includes("ho </span>")).toBe(true);
+    expect(back.includes("ri </span>")).toBe(true);
+    expect(back.includes("(Yes, </span>")).toBe(true);
+    expect(back.includes("</span> <span")).toBe(true);
+  });
+
+  it("round-trip：compact→pretty→compact→pretty 稳定", () => {
+    const c = `<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="1" end="3"><span begin="1" end="1.5">ho </span><span begin="1.5" end="2">ri </span><span begin="2" end="3">zon</span> <span begin="3" end="4">(Yes, </span><span begin="4" end="5">sir)</span></p></div></body></tt>`;
+    const p1 = compactTtmlToPretty(c);
+    const c1 = prettyTtmlToCompact(p1);
+    const p2 = compactTtmlToPretty(c1);
+    const c2 = prettyTtmlToCompact(p2);
+    expect(c2).toBe(c1);
+  });
 });
