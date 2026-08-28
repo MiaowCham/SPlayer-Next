@@ -43,7 +43,8 @@ const fetchResult = (
   status: AppleMusicTTMLFetchResult["status"],
   lyric: string | null = null,
   message?: string,
-): AppleMusicTTMLFetchResult => ({ status, lyric, message });
+  songId?: string,
+): AppleMusicTTMLFetchResult => ({ status, lyric, message, songId });
 
 /** 使用歌曲与请求参数生成持久化缓存键，避免 Apple 搜索每次重新发起。 */
 const buildCacheKey = (track: Track, language: string, script: string): string =>
@@ -366,7 +367,7 @@ const fetchAppleMusicTTMLResultUncached = async (
     if (cached) {
       if (isSyllableTTML(cached)) {
         coreLog.info(`[appleMusicLyrics] 命中内存歌词缓存: ${accountStorefront}:${songId}`);
-        return fetchResult("available", cached, "cache");
+        return fetchResult("available", cached, "cache", songId);
       }
       lyricCache.delete(memoryCacheKey);
     }
@@ -409,7 +410,7 @@ const fetchAppleMusicTTMLResultUncached = async (
     cacheLyric(memoryCacheKey, lyric);
     setCachedTTML("appleMusic", cacheKey, lyric);
     coreLog.info(`[appleMusicLyrics] 获取 TTML 成功: song=${songId}, chars=${lyric.length}`);
-    return fetchResult("available", lyric);
+    return fetchResult("available", lyric, undefined, songId);
   } catch (err) {
     coreLog.warn(`[appleMusicLyrics] ${track.title} fetch failed:`, err);
     return fetchResult("error");

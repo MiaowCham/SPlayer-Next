@@ -210,6 +210,7 @@ const platformCandidate = (result: LyricMatchResult): LyricMatchCandidate => ({
   translationFormat: result.translationFormat,
   romaji: result.romaji,
   romajiFormat: result.romajiFormat,
+  extra: result.extra,
   active: false,
   local: false,
 });
@@ -352,6 +353,7 @@ const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> 
       local: false,
       status: appleMusic.status,
       statusMessage: appleMusic.message,
+      extra: appleMusic.songId ? { id: appleMusic.songId } : undefined,
     });
   }
 

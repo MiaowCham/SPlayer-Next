@@ -20,32 +20,42 @@ export const getTrackShareUrl = (track: Track | null | undefined): string | null
 };
 
 /**
- * 取歌词候选来源平台的原链接（跳到该平台搜索到这首歌）。
- * 候选来源可能与当前歌曲平台不同，故按候选的 origin 用关键词搜索。
+ * 取歌词候选来源平台的原链接：优先跳到候选/当前曲目的详情页（按各平台链接格式拼接），
+ * 缺曲目 ID 时回退为该平台按关键词的搜索页。
  * @param origin - 候选来源（平台或内置来源）
- * @param track - 当前歌曲（用于构造搜索关键词）
- * @returns 来源链接；无对应平台或缺少关键词返回 null
+ * @param extra - 候选携带的平台额外字段（曲目 id / mid / hash）
+ * @param track - 当前歌曲（同源时用 track.id；用于构造搜索关键词）
+ * @returns 来源链接；无对应平台返回 null
  */
 export const getLyricSourceUrl = (
   origin: string,
-  track: Pick<Track, "title" | "artists"> | null | undefined,
+  extra: { id?: string; mid?: string; hash?: string } | undefined,
+  track: Pick<Track, "source" | "id" | "title" | "artists"> | null | undefined,
 ): string | null => {
-  if (!track) return null;
-  const keyword = [track.title, track.artists?.map((a) => a.name).join(" ")]
-    .map((part) => part.trim())
+  const keyword = [track?.title, track?.artists?.map((a) => a.name).join(" ")]
+    .map((part) => part?.trim() ?? "")
     .filter(Boolean)
     .join(" ");
-  if (!keyword) return null;
-  const query = encodeURIComponent(keyword);
+  const query = keyword ? encodeURIComponent(keyword) : "";
+
   switch (origin) {
-    case "netease":
-      return `https://music.163.com/#/search/m/?s=${query}`;
-    case "qqmusic":
-      return `https://y.qq.com/n/ryqq/search?w=${query}&t=song&remoteplace=txt.yqq.center`;
-    case "kugou":
-      return `https://www.kugou.com/yy/html/search.html#searchType=song&searchKeyWord=${query}`;
-    case "appleMusic":
-      return `https://music.apple.com/cn/search?term=${query}`;
+    case "netease": {
+      const id = extra?.id ?? (track?.source === origin ? track.id : undefined);
+      return id ? `https://music.163.com/#/song?id=${id}` : query ? `https://music.163.com/#/search/m/?s=${query}` : null;
+    }
+    case "qqmusic": {
+      // QQ 详情页支持数字 id 或 mid
+      const id = extra?.id ?? extra?.mid ?? (track?.source === origin ? track.id : undefined);
+      return id ? `https://y.qq.com/n/ryqq_v2/songDetail/${id}` : query ? `https://y.qq.com/n/ryqq/search?w=${query}&t=song&remoteplace=txt.yqq.center` : null;
+    }
+    case "kugou": {
+      const id = extra?.hash ?? (track?.source === origin ? track.id : undefined);
+      return id ? `https://www.kugou.com/mixsong/${id}.html` : query ? `https://www.kugou.com/yy/html/search.html#searchType=song&searchKeyWord=${query}` : null;
+    }
+    case "appleMusic": {
+      const id = extra?.id;
+      return id ? `https://music.apple.com/song/${id}` : query ? `https://music.apple.com/cn/search?term=${query}` : null;
+    }
     case "amll":
       // AMLL 与平台绑定，退回平台搜索
       return null;

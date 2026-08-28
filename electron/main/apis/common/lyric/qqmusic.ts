@@ -70,7 +70,7 @@ export const getByPlatformId = async (
       translationFormat: trans ? "lrc" : undefined,
       romaji: roma || undefined,
       romajiFormat: roma ? main.format : undefined,
-      extra: mid ? { mid } : undefined,
+      extra: mid ? { mid, id } : id ? { id } : undefined,
     };
     setCachedLyric("qqmusic", id, result);
     coreLog.info(

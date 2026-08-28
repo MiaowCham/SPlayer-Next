@@ -150,6 +150,8 @@ export interface LyricMatchCandidate extends LyricInput {
   status?: "available" | "disabled" | "tokenMissing" | "noMatch" | "error";
   /** 查询状态的人类可读说明，不包含任何敏感令牌。 */
   statusMessage?: string;
+  /** 平台额外字段（来源跳转用的曲目 id / mid / hash） */
+  extra?: LyricMatchExtra;
 }
 
 /** 单曲导入的歌词载荷 */
@@ -189,6 +191,10 @@ export interface TtmlImportResult {
 export interface LyricMatchExtra {
   /** QM 的 mid */
   mid?: string;
+  /** 平台数字 song id（netease/QM） */
+  id?: string;
+  /** kugou 的 hash */
+  hash?: string;
 }
 
 /** 歌词匹配结果 */
@@ -219,6 +225,8 @@ export interface AppleMusicTTMLFetchResult {
   lyric: string | null;
   status: "available" | "disabled" | "tokenMissing" | "noMatch" | "error";
   message?: string;
+  /** 命中歌曲的 Apple Music catalog id（用于来源跳转） */
+  songId?: string;
 }
 
 /** 渲染端歌词匹配入口 */

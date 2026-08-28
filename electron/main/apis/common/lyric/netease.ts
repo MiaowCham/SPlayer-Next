@@ -90,6 +90,7 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
       translationFormat: trans?.format,
       romaji: roma?.content,
       romajiFormat: roma?.format,
+      extra: { id },
     };
     setCachedLyric("netease", id, result);
     coreLog.info(

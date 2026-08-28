@@ -87,6 +87,7 @@ const fetchLyric = async (args: {
       translationFormat: trans ? "lrc" : undefined,
       romaji: roma || undefined,
       romajiFormat: roma ? "lrc" : undefined,
+      extra: { hash: args.hash },
     };
     setCachedLyric("kugou", args.hash, result);
     coreLog.info(
