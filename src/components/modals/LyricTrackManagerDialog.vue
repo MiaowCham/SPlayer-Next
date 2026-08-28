@@ -115,13 +115,21 @@ const isCandidateExplicitlySelected = (candidate: LyricMatchCandidate): boolean 
 
 const smartSelection = computed(() => preference.value.source === "auto");
 /** Apple Music 只展示已取得并含正文的 TTML，避免失败状态成为可选来源。 */
-const visibleCandidates = computed(() =>
-  candidates.value.filter(
+const visibleCandidates = computed(() => {
+  const filtered = candidates.value.filter(
     (candidate) =>
       candidate.origin !== "appleMusic" ||
       (candidate.status === "available" && !!candidate.content.trim()),
-  ),
-);
+  );
+  // 当前实际使用的候选置顶，其余保持来源顺序；避免使用中的歌词沉到列表底部。
+  const usedId = usedCandidate.value?.id;
+  if (usedId) {
+    return [...filtered].sort(
+      (a, b) => Number(b.id === usedId) - Number(a.id === usedId),
+    );
+  }
+  return filtered;
+});
 const isCurrentTrack = computed(() => {
   const track = lyricManager.track.value;
   return !!track && media.track?.source === track.source && media.track.id === track.id;
@@ -178,7 +186,7 @@ const candidateSourceLabel = (candidate: LyricMatchCandidate): string => {
 
 /** 候选来源平台的原链接（用于"来源"按钮跳转）。 */
 const candidateSourceUrl = (candidate: LyricMatchCandidate): string | null =>
-  getLyricSourceUrl(candidate.origin, currentTrack());
+  getLyricSourceUrl(candidate.origin, candidate.extra, currentTrack());
 
 /** 打开候选来源平台的原始页面。 */
 const openCandidateSourceUrl = (candidate: LyricMatchCandidate): void => {
