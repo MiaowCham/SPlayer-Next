@@ -9,6 +9,17 @@ import ExcludeLyricsConfig from "@/components/settings/custom/ExcludeLyricsConfi
 import DbCacheManager from "@/components/settings/custom/DbCacheManager.vue";
 import { desktopLyricSection, dynamicIslandSection, taskbarLyricSection } from "./externalLyric";
 import IconLucideMic2 from "~icons/lucide/mic-2";
+import { ALL_PLATFORMS } from "@shared/types/platform";
+
+/** 来源偏好选项：auto + 全部平台（来自平台总表）+ self */
+const lyricSourcePreferenceOptions = [
+  { value: "auto", labelKey: "settings.lyricSourcePreference.auto" },
+  ...ALL_PLATFORMS.map((platform) => ({
+    value: platform,
+    labelKey: `settings.lyricSourcePreference.${platform}`,
+  })),
+  { value: "self", labelKey: "settings.lyricSourcePreference.self" },
+];
 
 /** 当前歌词引擎 */
 const lyricEngine = () => useSettingsStore().lyric.engine;
