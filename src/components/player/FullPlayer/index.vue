@@ -763,5 +763,6 @@ const showComments = (): void => {
 
 .lyric-credit-content {
   cursor: default;
+  font-weight: 400 !important;
 }
 </style>
