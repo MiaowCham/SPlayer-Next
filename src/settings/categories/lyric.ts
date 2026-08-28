@@ -37,13 +37,6 @@ const lyricCategory: SettingCategory = {
           defaultValue: false,
         },
         {
-          key: "preferTranslatedLyrics",
-          type: "switch",
-          binding: { store: "settings", path: "lyric.preferTranslatedLyrics" },
-          defaultValue: false,
-          tag: { text: "Beta" },
-        },
-        {
           key: "lyricFormatOrder",
           type: "custom",
           component: LyricFormatOrderConfig,

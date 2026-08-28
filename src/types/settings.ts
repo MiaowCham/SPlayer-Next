@@ -91,8 +91,6 @@ export interface LyricSettings {
   lyricFormatOrder: LyricFormatOrder;
   /** 智能选择是否优先在线 */
   smartPreferOnline: boolean;
-  /** 智能选择是否优先有翻译的歌词（即使格式优先级更高也会被该选项控制） */
-  preferTranslatedLyrics: boolean;
   /** 自动识别背景歌词 */
   detectBackgroundLyrics: boolean;
   /** 中文歌词繁简字形偏好 */

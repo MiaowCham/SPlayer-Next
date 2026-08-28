@@ -1056,10 +1056,6 @@
       "label": "Auto-Upgrade Lyric Format",
       "description": "Fetch a higher-ranked format from other platforms when the current one is low"
     },
-    "preferTranslatedLyrics": {
-      "label": "Prefer Translated Lyrics",
-      "description": "Prefer candidates with translation; lyrics without translation are controlled by this option even if their format ranks higher"
-    },
     "detectBackgroundLyrics": {
       "label": "Auto-Detect Background Lyrics",
       "description": "Detect backing vocals from brackets. Disable this if lyrics are misdetected"

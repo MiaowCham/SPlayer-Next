@@ -94,7 +94,6 @@ export const useSettingsStore = defineStore(
       lyricSourceOrder: [...DEFAULT_LYRIC_SOURCE_ORDER],
       lyricFormatOrder: [...DEFAULT_LYRIC_FORMAT_ORDER],
       smartPreferOnline: false,
-      preferTranslatedLyrics: false,
       detectBackgroundLyrics: true,
       chineseScriptPreference: "default",
       adaptiveFontSize: true,
@@ -315,9 +314,6 @@ export const useSettingsStore = defineStore(
         }
         if (typeof lyric.detectBackgroundLyrics !== "boolean") {
           lyric.detectBackgroundLyrics = true;
-        }
-        if (typeof lyric.preferTranslatedLyrics !== "boolean") {
-          lyric.preferTranslatedLyrics = false;
         }
         if (typeof lyric.fallbackTranslation !== "boolean") {
           lyric.fallbackTranslation = true;

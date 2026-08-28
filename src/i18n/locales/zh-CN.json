@@ -1044,10 +1044,6 @@
       "label": "自动升级歌词格式",
       "description": "当前歌词格式较低时，从其他平台获取更高级的格式覆盖"
     },
-    "preferTranslatedLyrics": {
-      "label": "优先选择有翻译的歌词",
-      "description": "在有翻译的候选时优先选择它；即使格式优先级更高但没有翻译的歌词也会被此选项控制"
-    },
     "detectBackgroundLyrics": {
       "label": "自动识别背景歌词",
       "description": "根据括号识别背景人声，误判时可关闭"

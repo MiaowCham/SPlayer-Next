@@ -174,48 +174,28 @@ export const resolveOnlineByPreference = async (
   const formatOrder = settings.lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
   let candidates: Platform[] = [...platformOrder];
   if (options.hasLocal) {
-    // 开通「自动升级歌词格式」或「优先有翻译」时才需要查询在线候选比较；否则直接用本地歌词。
-    if (!settings.lyric.smartPreferOnline && !settings.lyric.preferTranslatedLyrics) return null;
-    if (settings.lyric.smartPreferOnline && options.localFormat) {
-      candidates = platformOrder.filter((platform) =>
-        platformCanUpgrade(platform, options.localFormat!, formatOrder),
-      );
-      if (candidates.length === 0 && !settings.lyric.preferTranslatedLyrics) return null;
-    }
-    // 仅「优先有翻译」开启：保持全部平台候选，用于比较是否有翻译。
-    if (!settings.lyric.smartPreferOnline) candidates = [...platformOrder];
+    if (!settings.lyric.smartPreferOnline || !options.localFormat) return null;
+    candidates = platformOrder.filter((platform) =>
+      platformCanUpgrade(platform, options.localFormat!, formatOrder),
+    );
+    if (candidates.length === 0) return null;
   }
   logLyric(
     "info",
     `resolveOnlineByPreference: preference=${preference}, smartPreferOnline=${settings.lyric.smartPreferOnline}, candidates=${candidates.join(",")}`,
   );
 
-  // 「优先翻译」需要比较全部候选后再选，与 smartPreferOnline 共用「最佳选择」分支；
-  // 否则默认按来源顺序命中即返回，会忽略 preferTranslatedLyrics。
-  if (settings.lyric.smartPreferOnline || settings.lyric.preferTranslatedLyrics) {
+  // 智能选择：比较全部候选后按格式优先级取最优
+  if (settings.lyric.smartPreferOnline) {
     let best: OnlineResult | null = null;
-    const preferTranslated = settings.lyric.preferTranslatedLyrics;
     const rankOf = (result: OnlineResult): number => {
       const idx = formatOrder.indexOf(result.source.format);
       return idx === -1 ? Infinity : idx;
     };
-    // 是否比当前 best 更优：开启「优先有翻译」时先比是否有翻译，再比格式优先级
     const isBetter = (candidate: OnlineResult, current: OnlineResult | null): boolean => {
       if (!current) return true;
-      if (preferTranslated) {
-        const candidateTrans = !!candidate.input.translation?.trim();
-        const currentTrans = !!current.input.translation?.trim();
-        if (candidateTrans !== currentTrans) {
-          // 有翻译的候选获胜（无论格式优先级如何）
-          return candidateTrans;
-        }
-      }
       return rankOf(candidate) < rankOf(current);
     };
-    logLyric(
-      "info",
-      `resolveOnlineByPreference: preferTranslatedLyrics=${preferTranslated} smartPreferOnline=${settings.lyric.smartPreferOnline}, 候选数=${candidates.length}`,
-    );
     await Promise.all(
       candidates.map(async (platform) => {
         const result = await resolvePlatformLyric(platform, track, options.forceQuery);
@@ -224,29 +204,18 @@ export const resolveOnlineByPreference = async (
           logLyric("info", `  ${platform}: miss`);
           return;
         }
-        const hasTrans = !!result.input.translation?.trim();
         logLyric(
           "info",
-          `  ${platform}: hit ${result.source.format}${hasTrans ? " (有翻译)" : " (无翻译)"} rank=${rankOf(result)}`,
+          `  ${platform}: hit ${result.source.format} rank=${rankOf(result)}`,
         );
         if (isBetter(result, best)) {
-          const prevTrans = best?.input.translation?.trim();
-          logLyric(
-            "info",
-            `  ${platform}: 选中（${hasTrans ? "有翻译" : "无翻译"}）, 替换 ${best ? `${best.source.platform}:${best.source.format}(${prevTrans ? "有翻译" : "无翻译"})` : "无"}`,
-          );
           best = result;
           options.onCandidate?.(result);
-        } else if (best) {
-          logLyric(
-            "info",
-            `  ${platform}: 未选中，当前 best=${best.source.platform}:${best.source.format}`,
-          );
         }
       }),
     );
     const chosen = best as OnlineResult | null;
-    logLyric("info", `  best=${chosen ? `${chosen.source.platform}:${chosen.source.format}${chosen.input.translation?.trim() ? "(有翻译)" : "(无翻译)"}` : "null"}`);
+    logLyric("info", `  best=${chosen ? `${chosen.source.platform}:${chosen.source.format}` : "null"}`);
     return isCurrent() ? best : null;
   }
 
@@ -297,11 +266,6 @@ export const resolveTTMLOverlay = async (
   preferredPlatform?: "netease" | "qqmusic",
   forceQuery = false,
 ): Promise<ResolvedLyric | null> => {
-  // 「优先翻译」优先级最高：当前在线歌词已带翻译时，无翻译的 TTML 覆盖一律阻止，
-  // 否则会把用户选中的翻译歌词降级成未翻译的 TTML。
-  if (useSettingsStore().lyric.preferTranslatedLyrics && online.input.translation?.trim()) {
-    return null;
-  }
   if (!preferredPlatform && !shouldTryTTMLByFormat(online.source.format)) return null;
   const candidates = await Promise.all(
     TTML_PLATFORMS.filter((platform) => !preferredPlatform || platform === preferredPlatform).map(
