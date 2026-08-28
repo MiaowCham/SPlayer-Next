@@ -30,6 +30,8 @@ const romajiText = ref("");
 const showPrettyTtml = ref(true);
 /** 美化 TTML（由原始 TTML 生成/编辑） */
 const prettyTtml = ref("");
+/** 非内嵌格式的当前编辑 tab（主歌词 / 翻译 / 发音） */
+const activeTab = ref<"main" | "trans" | "roma">("main");
 
 /** tab 标题：按实际格式显示（如 qrc → QRC） */
 const mainTabLabel = computed(() => {
@@ -86,9 +88,29 @@ const save = async (): Promise<void> => {
   }
 
   try {
+    // IPC 需要可克隆的纯对象；构造最小字段，避免 Vue 只读代理无法被 structuredClone
     const ok = await window.api.lyrics.saveOptimizedLyric(
-      trackData,
-      c,
+      {
+        source: trackData.source,
+        id: trackData.id,
+        title: trackData.title,
+        artists: trackData.artists?.map((artist) => ({ name: artist.name })),
+      },
+      {
+        id: c.id,
+        origin: c.origin,
+        platform: c.platform,
+        format: c.format,
+        filename: c.filename,
+        content: c.content,
+        translation: c.translation,
+        translationFormat: c.translationFormat,
+        romaji: c.romaji,
+        romajiFormat: c.romajiFormat,
+        local: c.local,
+        active: c.active,
+        extra: c.extra ? { id: c.extra.id, mid: c.extra.mid, hash: c.extra.hash } : undefined,
+      },
       { content, translation: trans, romaji },
     );
     if (ok) {
@@ -114,20 +136,14 @@ watch(showPrettyTtml, (pretty) => {
 <template>
   <SDialog :open="open" :title="t('lyricManager.optimize')" width="720px" tall layer="topmost" @update:open="optimize.setOpen($event)">
     <div class="flex flex-col gap-3">
-      <!-- 顶部 tab：主歌词 -->
-      <div class="flex items-center gap-1 border-b border-outline-variant/30 pb-2">
-        <STag size="small">主歌词</STag>
-        <STag v-if="!canEmbed" size="small">翻译</STag>
-        <STag v-if="!canEmbed" size="small">发音</STag>
-      </div>
-
       <!-- TTML：原始 / 美化 两个 tab -->
       <template v-if="format === 'ttml' || format === 'ttmlLine'">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1 border-b border-outline-variant/30 pb-2">
           <SButton
             :type="!showPrettyTtml ? 'primary' : 'default'"
             :variant="!showPrettyTtml ? 'filled' : 'secondary'"
             size="small"
+            class="rounded-md! shadow-none!"
             @click="showPrettyTtml = false"
           >
             原始 TTML
@@ -136,6 +152,7 @@ watch(showPrettyTtml, (pretty) => {
             :type="showPrettyTtml ? 'primary' : 'default'"
             :variant="showPrettyTtml ? 'filled' : 'secondary'"
             size="small"
+            class="rounded-md! shadow-none!"
             @click="showPrettyTtml = true"
           >
             美化 TTML
@@ -144,35 +161,66 @@ watch(showPrettyTtml, (pretty) => {
         <textarea
           v-if="!showPrettyTtml"
           v-model="mainText"
-          class="w-full h-80 bg-surface-panel rounded-lg p-3 text-sm font-mono"
+          class="w-full h-80 bg-surface-panel rounded-lg p-3 text-sm font-mono resize-y"
           spellcheck="false"
         />
         <textarea
           v-else
           v-model="prettyTtml"
-          class="w-full h-80 bg-surface-panel rounded-lg p-3 text-sm font-mono"
+          class="w-full h-80 bg-surface-panel rounded-lg p-3 text-sm font-mono resize-y"
           spellcheck="false"
         />
       </template>
 
-      <!-- 其他格式：主歌词 + 翻译 + 发音 -->
+      <!-- 其他格式：主歌词 / 翻译 / 发音 三个 tab（一次只显示一个内容区） -->
       <template v-else>
-        <div class="flex flex-col gap-2">
-          <span class="text-xs text-on-surface/50">{{ mainTabLabel }}</span>
-          <textarea
-            v-model="mainText"
-            class="w-full h-52 bg-surface-panel rounded-lg p-3 text-sm font-mono"
-            spellcheck="false"
-          />
+        <div class="flex items-center gap-1 border-b border-outline-variant/30 pb-2">
+          <SButton
+            :type="activeTab === 'main' ? 'primary' : 'default'"
+            :variant="activeTab === 'main' ? 'filled' : 'secondary'"
+            size="small"
+            class="rounded-md! shadow-none!"
+            @click="activeTab = 'main'"
+          >
+            {{ mainTabLabel }}
+          </SButton>
+          <SButton
+            :type="activeTab === 'trans' ? 'primary' : 'default'"
+            :variant="activeTab === 'trans' ? 'filled' : 'secondary'"
+            size="small"
+            class="rounded-md! shadow-none!"
+            @click="activeTab = 'trans'"
+          >
+            {{ t("lyricManager.translation") }}
+          </SButton>
+          <SButton
+            :type="activeTab === 'roma' ? 'primary' : 'default'"
+            :variant="activeTab === 'roma' ? 'filled' : 'secondary'"
+            size="small"
+            class="rounded-md! shadow-none!"
+            @click="activeTab = 'roma'"
+          >
+            {{ t("lyricManager.romaji") }}
+          </SButton>
         </div>
-        <div class="flex flex-col gap-2">
-          <span class="text-xs text-on-surface/50">翻译</span>
-          <textarea v-model="transText" class="w-full h-28 bg-surface-panel rounded-lg p-3 text-sm font-mono" spellcheck="false" />
-        </div>
-        <div class="flex flex-col gap-2">
-          <span class="text-xs text-on-surface/50">发音</span>
-          <textarea v-model="romajiText" class="w-full h-28 bg-surface-panel rounded-lg p-3 text-sm font-mono" spellcheck="false" />
-        </div>
+        <textarea
+          v-if="activeTab === 'main'"
+          v-model="mainText"
+          class="w-full h-[28rem] bg-surface-panel rounded-lg p-3 text-sm font-mono resize-y"
+          spellcheck="false"
+        />
+        <textarea
+          v-else-if="activeTab === 'trans'"
+          v-model="transText"
+          class="w-full h-[28rem] bg-surface-panel rounded-lg p-3 text-sm font-mono resize-y"
+          spellcheck="false"
+        />
+        <textarea
+          v-else
+          v-model="romajiText"
+          class="w-full h-[28rem] bg-surface-panel rounded-lg p-3 text-sm font-mono resize-y"
+          spellcheck="false"
+        />
       </template>
     </div>
 

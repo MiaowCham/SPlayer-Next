@@ -406,7 +406,7 @@ const EMBEDDED_LYRIC_FORMATS = new Set<LyricFormat>(["ttml", "ttmlLine", "lrcn",
  * @returns 是否成功
  */
 const saveOptimizedLyric = async (
-  track: Track,
+  track: Pick<Track, "source" | "id"> & Partial<Track>,
   candidate: LyricMatchCandidate,
   input: LyricInput,
 ): Promise<boolean> => {

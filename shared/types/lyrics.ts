@@ -279,7 +279,7 @@ export interface LyricsApi {
   getTrackCandidatesLocal: (track: Track) => Promise<LyricMatchCandidate[]>;
   /** 保存优化后的歌词（创建/覆盖本地歌词；已是本地歌词则直接写文件），返回是否成功 */
   saveOptimizedLyric: (
-    track: Track,
+    track: Pick<Track, "source" | "id"> & Partial<Track>,
     candidate: LyricMatchCandidate,
     input: LyricInput,
   ) => Promise<boolean>;

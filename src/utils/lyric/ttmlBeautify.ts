@@ -19,6 +19,7 @@ const serializeAttrs = (el: Element): string =>
 
 /**
  * 递归美化一个元素（保留结构，词间空格标记为 <space/>）。
+ * 叶子文本元素输出单行 `<tag>text</tag>`；容器元素子元素各自一行。
  * @param el 待美化元素
  * @param depth 当前缩进层级
  * @param out 输出数组
@@ -37,6 +38,26 @@ const prettyNode = (el: Element, depth: number, out: string[]): void => {
     return;
   }
 
+  // 只有文本、无子元素：叶子内容单行（元素与文本同行）；词间空格仍标记 <space/>
+  if (el.children.length === 0) {
+    const parts: string[] = [];
+    for (const child of el.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        const text = child.textContent ?? "";
+        if (text.trim()) parts.push(escapeText(text.trim()));
+        else if (text.includes(" ") || text.includes("\u3000")) parts.push("<space/>");
+      }
+    }
+    const inner = parts.join("");
+    if (!inner) {
+      out.push(`${indent}<${tagName}${attrs}/>`);
+      return;
+    }
+    out.push(`${indent}<${tagName}${attrs}>${inner}</${tagName}>`);
+    return;
+  }
+
+  // 容器元素：子元素各自一行
   out.push(`${indent}<${tagName}${attrs}>`);
   for (const child of Array.from(el.childNodes)) {
     if (child.nodeType === Node.ELEMENT_NODE) {
@@ -48,8 +69,6 @@ const prettyNode = (el: Element, depth: number, out: string[]): void => {
         if (text.includes(" ") || text.includes("\u3000")) {
           out.push(`${indent}  <space/>`);
         }
-      } else if (text.trim()) {
-        out.push(`${indent}  ${escapeText(text)}`);
       }
     }
   }
