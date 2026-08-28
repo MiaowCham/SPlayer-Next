@@ -91,6 +91,8 @@ export interface LyricSettings {
   lyricFormatOrder: LyricFormatOrder;
   /** 智能选择是否优先在线 */
   smartPreferOnline: boolean;
+  /** 优先使用插件歌词（并发请求，更优格式自动热替换） */
+  preferPluginLyric: boolean;
   /** 自动识别背景歌词 */
   detectBackgroundLyrics: boolean;
   /** 中文歌词繁简字形偏好 */
@@ -183,6 +185,13 @@ export interface LyricSettings {
   amllScaleSpringDamping: number;
   amllScaleSpringStiffness: number;
   amllScaleSpringSoft: boolean;
+  /** AMLL 歌词优化 */
+  amllCleanUnintentionalOverlaps: boolean;
+  amllTryAdvanceStartTime: boolean;
+  amllConvertExcessiveBackgroundLines: boolean;
+  amllSyncMainAndBackgroundLines: boolean;
+  amllNormalizeSpaces: boolean;
+  amllResetLineTimestamps: boolean;
 }
 
 /** 播放器设置 */

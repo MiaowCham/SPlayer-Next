@@ -121,14 +121,27 @@ const platformCanUpgrade = (
   return false;
 };
 
-/** 判断在线结果是否优于本地歌词 */
-const isOnlineResultUpgrade = (result: OnlineResult, localFormat: LyricFormat): boolean => {
-  const formatOrder = useSettingsStore().lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
-  const localIdx = formatOrder.indexOf(localFormat);
-  if (localIdx === -1) return true;
-  const mainIdx = formatOrder.indexOf(result.source.format);
-  return mainIdx !== -1 && mainIdx < localIdx;
+/**
+ * 判断 candidateFormat 是否比 currentFormat 更优（优先级更高）
+ * @param candidateFormat - 候选格式
+ * @param currentFormat - 当前格式（为 null 时直接判定为更优）
+ */
+export const isBetterFormat = (
+  candidateFormat: LyricFormat,
+  currentFormat: LyricFormat | null,
+): boolean => {
+  if (!currentFormat) return true;
+  const order = useSettingsStore().lyric.lyricFormatOrder ?? DEFAULT_LYRIC_FORMAT_ORDER;
+  const currIdx = order.indexOf(currentFormat);
+  const candIdx = order.indexOf(candidateFormat);
+  const currRank = currIdx === -1 ? order.length : currIdx;
+  const candRank = candIdx === -1 ? order.length : candIdx;
+  return candRank < currRank;
 };
+
+/** 判断在线结果是否优于本地歌词 */
+const isOnlineResultUpgrade = (result: OnlineResult, localFormat: LyricFormat): boolean =>
+  isBetterFormat(result.source.format, localFormat);
 
 interface OnlinePreferenceOptions {
   hasLocal: boolean;
@@ -386,10 +399,15 @@ export const resolvePluginLyric = async (track: Track): Promise<ResolvedLyric | 
   return null;
 };
 
+/** 插件歌词是否优先于内置来源 */
+export const isPluginLyricPreferred = (): boolean =>
+  useSettingsStore().lyric.preferPluginLyric === true;
+
 /**
  * 为下一首歌曲解析最终歌词结果
  * 本地歌曲依赖实际加载后的 TrackDetail，不在此处提前解析
  * @param track - 候选歌曲
+ * @param shouldContinue - 竞态检查
  * @returns 最终歌词，不存在或不支持预载则返回 null
  */
 export const resolveLyricForPreload = async (
@@ -429,9 +447,20 @@ export const resolveLyricForPreload = async (
     if (localRepo) return localRepo;
   }
 
+  // 插件优选：请求先行发出，与下方正常解析并发
+  const pluginTask = isPluginLyricPreferred() ? resolvePluginLyric(track) : null;
+
   if (track.source === "streaming") {
     const streaming = await resolveStreamingByPreference(track, shouldContinue, preference);
     if (!shouldContinue()) return null;
+    if (pluginTask) {
+      const plugin = await pluginTask;
+      if (!shouldContinue()) return null;
+      if (plugin && isBetterFormat(plugin.source.format, streaming?.source.format ?? null)) {
+        return plugin;
+      }
+      return streaming ?? plugin ?? null;
+    }
     if (streaming) return streaming;
     // Apple Music 搜索可能较慢，不阻塞下一首预载；当前歌曲加载时会异步升级。
     const plugin = await resolvePluginLyric(track);
@@ -445,6 +474,7 @@ export const resolveLyricForPreload = async (
     shouldContinue,
   });
   if (!shouldContinue()) return null;
+  let normal: ResolvedLyric | null = null;
   if (online) {
     const ttml =
       storedPreference?.source === "platform"
@@ -455,8 +485,17 @@ export const resolveLyricForPreload = async (
             storedPreference?.source === "amll" ? storedPreference.platform : undefined,
           );
     if (!shouldContinue()) return null;
-    return ttml ?? { source: online.source, input: online.input };
+    normal = ttml ?? { source: online.source, input: online.input };
   }
+  if (pluginTask) {
+    const plugin = await pluginTask;
+    if (!shouldContinue()) return null;
+    if (plugin && isBetterFormat(plugin.source.format, normal?.source.format ?? null)) {
+      return plugin;
+    }
+    return normal ?? plugin ?? null;
+  }
+  if (normal) return normal;
 
   // Apple Music 搜索由当前歌曲加载器异步执行，避免预载阶段阻塞首屏歌词。
   const plugin = await resolvePluginLyric(track);

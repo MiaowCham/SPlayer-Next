@@ -26,6 +26,28 @@ const lyricCategory: SettingCategory = {
       id: "lyricContent",
       items: [
         {
+          key: "lyricSourcePreference",
+          type: "select",
+          binding: { store: "settings", path: "lyric.lyricSourcePreference" },
+          options: lyricSourcePreferenceOptions,
+          defaultValue: "auto",
+          childrenCondition: () => useSettingsStore().lyric.lyricSourcePreference === "auto",
+          children: [
+            {
+              key: "smartPreferOnline",
+              type: "switch",
+              binding: { store: "settings", path: "lyric.smartPreferOnline" },
+              defaultValue: false,
+            },
+          ],
+        },
+        {
+          key: "preferPluginLyric",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.preferPluginLyric" },
+          defaultValue: false,
+        },
+        {
           key: "lyricSourceOrder",
           type: "custom",
           component: LyricSourceOrderConfig,
@@ -353,6 +375,48 @@ const lyricCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "lyric.hidePassedLines" },
           defaultValue: false,
+        },
+      ],
+    },
+    {
+      id: "lyricAMLLOptimize",
+      visible: () => lyricEngine() === "amll",
+      items: [
+        {
+          key: "amllCleanUnintentionalOverlaps",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.amllCleanUnintentionalOverlaps" },
+          defaultValue: true,
+        },
+        {
+          key: "amllTryAdvanceStartTime",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.amllTryAdvanceStartTime" },
+          defaultValue: true,
+        },
+        {
+          key: "amllConvertExcessiveBackgroundLines",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.amllConvertExcessiveBackgroundLines" },
+          defaultValue: true,
+        },
+        {
+          key: "amllSyncMainAndBackgroundLines",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.amllSyncMainAndBackgroundLines" },
+          defaultValue: true,
+        },
+        {
+          key: "amllNormalizeSpaces",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.amllNormalizeSpaces" },
+          defaultValue: true,
+        },
+        {
+          key: "amllResetLineTimestamps",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.amllResetLineTimestamps" },
+          defaultValue: true,
         },
       ],
     },

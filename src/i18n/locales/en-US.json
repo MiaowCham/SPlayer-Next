@@ -362,7 +362,7 @@
     }
   },
   "login": {
-    "qrTipWaiting": "Open the Cloud Music app and scan the QR code",
+    "qrTipWaiting": "Open the app and scan the QR code",
     "qrTipScanned": "Scanned, please confirm in the app",
     "qrTipExpired": "QR code expired, refreshing",
     "qrTipDone": "Signed in",
@@ -868,6 +868,7 @@
       "lyricGeneral": "Content & Style",
       "lyricTranslationPronunciation": "Translation & Pronunciation",
       "lyricDisplay": "Display Effects",
+      "lyricAMLLOptimize": "Lyric Optimization",
       "lyricSpring": "Spring Animation",
       "lyricLayout": "Layout & Opacity",
       "desktopLyric": "Desktop Lyric",
@@ -1057,6 +1058,10 @@
     "smartPreferOnline": {
       "label": "Auto-Upgrade Lyric Format",
       "description": "Fetch a higher-ranked format from other platforms when the current one is low"
+    },
+    "preferPluginLyric": {
+      "label": "Prefer Plugin Lyrics",
+      "description": "Request plugin lyrics concurrently and auto-replace if a higher-ranked format is returned"
     },
     "detectBackgroundLyrics": {
       "label": "Auto-Detect Background Lyrics",
@@ -1298,6 +1303,30 @@
     "amllScaleSpringSoft": {
       "label": "Scale Soft Spring",
       "description": "Forces the active line scale animation to use a softer spring profile."
+    },
+    "amllCleanUnintentionalOverlaps": {
+      "label": "Clean Unintentional Overlaps",
+      "description": "Automatically trim minor unintentional timestamp overlaps between lines to avoid multiple active lines"
+    },
+    "amllTryAdvanceStartTime": {
+      "label": "Advance Animation Start Time",
+      "description": "Advance lyric entry animation (up to 1s) for smoother transitions"
+    },
+    "amllConvertExcessiveBackgroundLines": {
+      "label": "Convert Excessive Background Lines",
+      "description": "Convert consecutive multi-line background vocals into a single-line background vocal attached to the main line"
+    },
+    "amllSyncMainAndBackgroundLines": {
+      "label": "Sync Background Lines Timing",
+      "description": "Synchronize timing between main lines and background vocal lines"
+    },
+    "amllNormalizeSpaces": {
+      "label": "Normalize Spaces",
+      "description": "Collapse consecutive spaces in lyrics into a single space"
+    },
+    "amllResetLineTimestamps": {
+      "label": "Reset Line Timestamps",
+      "description": "Force line-level timestamps to match word-level timestamp boundaries"
     },
     "autoCenterCover": {
       "label": "Auto Center Cover",
@@ -1853,6 +1882,8 @@
       "desc": "Log in to retrieve playback streams directly from the platform",
       "vipTag": " · VIP Member",
       "loginWeb": "Web Login",
+      "loginQr": "QR Login",
+      "qrTitle": "Scan to Log In",
       "manualCookie": "Cookie Login",
       "logout": "Log Out",
       "logoutTitle": "Log Out from {name}",
