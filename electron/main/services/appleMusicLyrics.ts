@@ -438,14 +438,9 @@ export const getCachedAppleMusicTTML = (track: Track): string | null => {
   const script = String(config.appleMusicTranslationScript ?? "").trim();
   const key = buildCacheKey(track, language, script);
   const cached = getCachedTTML("appleMusic", key);
-  // 临时诊断日志：定位 AM 缓存读取链路问题，定位后可删除
-  coreLog.info(
-    `[appleMusicLyrics] getCachedAppleMusicTTML: ${track.title} cached=${cached === "miss" ? "miss" : cached === null ? "null(负缓存)" : `hit(${cached.length})`}`,
-  );
   if (cached === "miss" || !cached) return null;
   // 旧版本可能缓存了逐行歌词，校验不通过时清理并视为未命中
   if (!isSyllableTTML(cached)) {
-    coreLog.info(`[appleMusicLyrics] getCachedAppleMusicTTML: ${track.title} 逐行歌词，清除缓存`);
     setCachedTTML("appleMusic", key, null);
     return null;
   }

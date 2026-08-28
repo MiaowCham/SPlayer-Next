@@ -241,14 +241,7 @@ const shouldReplaceWithAppleMusic = (current: LyricData): boolean => {
 const scheduleAppleMusicUpgrade = (token: number, track: Track, force = false): void => {
   void resolveAppleMusicTTML(track)
     .then((resolved) => {
-      if (token !== currentToken) {
-        // 临时诊断日志：定位 AM 结果因 token 竞态被丢弃的问题，定位后可删除
-        logLyric(
-          "info",
-          `AM 升级结果被竞态丢弃: token=${token} != currentToken=${currentToken}, title=${track.title}`,
-        );
-        return;
-      }
+      if (token !== currentToken) return;
       if (!resolved) {
         logLyric("info", `AM 升级无结果: ${track.title}`);
         return;
@@ -272,7 +265,6 @@ const scheduleAppleMusicUpgrade = (token: number, track: Track, force = false): 
       }
     })
     .catch((err) => {
-      // 临时诊断日志：定位 resolveAppleMusicTTML 异常，定位后可删除
       logLyric(
         "error",
         `AM 升级异常: ${track.title} ${err instanceof Error ? err.message : String(err)}`,
@@ -282,7 +274,6 @@ const scheduleAppleMusicUpgrade = (token: number, track: Track, force = false): 
 
 /** 缓存命中不触网，按来源优先级立即采用 Apple Music 歌词。 */
 const tryCachedAppleMusic = async (token: number, track: Track): Promise<boolean> => {
-  // 临时诊断日志：定位 AM 缓存读取链路问题，定位后可删除
   let response: { ok: boolean; data?: string | null };
   try {
     response = await requestCachedAppleMusicTTML(track);
@@ -293,20 +284,14 @@ const tryCachedAppleMusic = async (token: number, track: Track): Promise<boolean
     );
     return false;
   }
-  logLyric(
-    "info",
-    `tryCachedAppleMusic: ok=${response.ok}, dataLen=${response.data?.length ?? 0}, token=${token}`,
-  );
   if (token !== currentToken || !response.ok || !response.data) return false;
-  const parsed = commitAndHasParsed(
+  return commitAndHasParsed(
     token,
     { source: "online", format: "ttml", provider: "appleMusic" },
     {
       content: response.data,
     },
   );
-  logLyric("info", `tryCachedAppleMusic: commitAndHasParsed=${parsed}`);
-  return parsed;
 };
 
 /** 判断 Apple Music 是否是自动来源排序中的首个可检索来源。 */
@@ -496,11 +481,10 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
       }
     }
   } catch (err) {
-    // 临时诊断日志：定位 loadForTrack 抛异常导致 NO-LRC 的问题，定位后可删除
     const failedTrack = useMediaStore().track;
     logLyric(
       "error",
-      `loadForTrack 异常: ${failedTrack?.title ?? "?"} ${err instanceof Error ? `${err.message} @ ${err.stack?.split("\n")[1]?.trim() ?? ""}` : String(err)}`,
+      `loadForTrack 异常: ${failedTrack?.title ?? "?"} ${err instanceof Error ? err.message : String(err)}`,
     );
     console.error("[lyricLoader] loadForTrack failed:", err);
     commit(token, null, null);
@@ -518,11 +502,6 @@ const refreshPreference = async (): Promise<void> => {
   if (token !== currentToken) return;
   const search = applyLyricSearchOverride(track, choice);
   const searchTrack = search.track;
-  // 临时诊断日志：定位偏好变化刷新链路问题，定位后可删除
-  logLyric(
-    "info",
-    `refreshPreference: ${track.source}:${track.id} "${track.title}" choice=${choice.source}, token=${token}`,
-  );
   if (await tryManaged(token, track, choice)) return;
   if (token !== currentToken) return;
   if (choice.source === "appleMusic") {
