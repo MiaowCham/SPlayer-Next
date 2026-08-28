@@ -55,6 +55,7 @@ import audio_match from "./audio_match";
 import lyric from "./lyric";
 import lyric_new from "./lyric_new";
 import cloud_lyric_get from "./cloud_lyric_get";
+import ugc_song_get from "./ugc_song_get";
 
 // 评论
 import comment_music from "./comment_music";
@@ -151,6 +152,7 @@ export const modules: Record<string, NeteaseModule> = {
   lyric,
   lyric_new,
   cloud_lyric_get,
+  ugc_song_get,
 
   comment_music,
   comment_hot,

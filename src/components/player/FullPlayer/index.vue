@@ -16,7 +16,6 @@ import AMLLLyrics from "@/components/player/Lyrics/AMLLLyrics.vue";
 import PlaylistPickerDialog from "@/components/modals/PlaylistPickerDialog.vue";
 import { useWindowControls } from "@/composables/useWindowControls";
 import * as player from "@/core/player";
-import { openExternal } from "@/utils/url";
 import IconFavorite from "~icons/material-symbols/favorite-rounded";
 import IconFavoriteOutline from "~icons/material-symbols/favorite-outline-rounded";
 import IconLucideListPlus from "~icons/lucide/list-plus";
@@ -115,6 +114,19 @@ const locatePendingTrack = (): void => {
 const displayTrack = computed(() => media.track ?? status.currentTrack);
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
 const hasTrack = computed(() => !!displayTrack.value);
+const isChineseLocale = computed(() => settings.locale.startsWith("zh"));
+/** 创作者名单按中文/西文环境选用顿号或逗号连接。 */
+const lyricCreatorsText = computed(() =>
+  media.lyricAuthors.join(isChineseLocale.value ? "、" : ", "),
+);
+/** 按创作者信息类别选择「创作者：/歌词制作：」等前缀文案。 */
+const lyricCreditKey = computed(() =>
+  media.lyricAuthorKind === "lyric-production"
+    ? "player.lyricProduction"
+    : media.lyricAuthorKind === "song-production"
+      ? "player.songProduction"
+      : "player.lyricCredit",
+);
 
 /** 精确播放时间（毫秒） */
 const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
@@ -461,16 +473,9 @@ const showComments = (): void => {
               >
                 <template #bottom>
                   <div v-if="media.lyricAuthors.length > 0" class="lyric-credit-line">
-                    <span class="lyric-credit-prefix">{{ $t("player.lyricCredit") }}</span>
-                    <template v-for="(author, idx) in media.lyricAuthors" :key="author">
-                      <span v-if="idx > 0" class="mx-1">,</span>
-                      <span
-                        class="lp-content lyric-credit"
-                        @click.stop="openExternal(`https://github.com/${author}`)"
-                      >
-                        {{ "@" + author }}
-                      </span>
-                    </template>
+                    <strong class="lyric-credit-prefix">{{ $t(lyricCreditKey) }}</strong>
+                    <span v-if="!isChineseLocale">&nbsp;</span>
+                    <span class="lyric-credit-content">{{ lyricCreatorsText }}</span>
                   </div>
                 </template>
               </AMLLLyrics>
@@ -500,16 +505,9 @@ const showComments = (): void => {
               >
                 <template #bottom>
                   <div v-if="media.lyricAuthors.length > 0" class="lyric-credit-line">
-                    <span class="lyric-credit-prefix">{{ $t("player.lyricCredit") }}</span>
-                    <template v-for="(author, idx) in media.lyricAuthors" :key="author">
-                      <span v-if="idx > 0" class="mx-1">,</span>
-                      <span
-                        class="lp-content lyric-credit"
-                        @click.stop="openExternal(`https://github.com/${author}`)"
-                      >
-                        {{ "@" + author }}
-                      </span>
-                    </template>
+                    <strong class="lyric-credit-prefix">{{ $t(lyricCreditKey) }}</strong>
+                    <span v-if="!isChineseLocale">&nbsp;</span>
+                    <span class="lyric-credit-content">{{ lyricCreatorsText }}</span>
                   </div>
                 </template>
               </Lyrics>
@@ -763,7 +761,7 @@ const showComments = (): void => {
   overflow-wrap: anywhere;
 }
 
-.lyric-credit {
-  margin-left: 0.5em;
+.lyric-credit-content {
+  cursor: default;
 }
 </style>

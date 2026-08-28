@@ -6,10 +6,17 @@ import { useSettingsStore } from "@/stores/settings";
 import { watchLyricPreference } from "@/services/lyric/loader";
 import { parseLyric } from "@/utils/lyric/parse";
 import { applyLyricLanguages } from "@/utils/lyric/language";
-import { extractLyricAuthors } from "@/utils/lyric/author";
+import {
+  extractLyricAuthorInfo,
+  extractNeteaseCreators,
+  type LyricAuthorKind,
+} from "@/utils/lyric/author";
+import { neteaseCall } from "@/apis/netease";
+import { useUserStore } from "@/stores/user";
 import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
 import { normalizeLyricLines } from "@/utils/lyric/normalize";
 import { applyProfanityUncensor } from "@/utils/preset/profanity";
+import { getValidArtists } from "@shared/utils/track";
 import { applyLyricCjkTransform } from "@/utils/lyric/cjkTransform";
 
 export const useMediaStore = defineStore("media", () => {
@@ -44,6 +51,50 @@ export const useMediaStore = defineStore("media", () => {
 
   /** 当前歌词文件制作者列表 */
   const lyricAuthors = ref<string[]>([]);
+  const lyricAuthorKind = ref<LyricAuthorKind | null>(null);
+  const onlineCreators = ref<string[] | null>(null);
+  let creatorToken = 0;
+  let creatorRequestKey = "";
+
+  /**
+   * 刷新当前网易云歌曲的创作者信息
+   * @param currentTrack - 发起请求时的歌曲，用于避免切歌后的旧响应覆盖
+   */
+  const refreshOnlineCreators = async (currentTrack: Track | null): Promise<void> => {
+    if (!currentTrack || currentTrack.source !== "netease") return;
+    const user = useUserStore();
+    if (!user.isLoggedIn) return;
+    const requestKey = `${currentTrack.source}:${currentTrack.id}`;
+    if (creatorRequestKey === requestKey) return;
+    const token = ++creatorToken;
+    creatorRequestKey = requestKey;
+    try {
+      const body = await neteaseCall(
+        "ugc_song_get",
+        { id: currentTrack.id },
+        {
+          notifyAuthFailure: false,
+        },
+      );
+      if (
+        token !== creatorToken ||
+        track.value?.source !== currentTrack.source ||
+        track.value.id !== currentTrack.id
+      ) {
+        return;
+      }
+      const creators = extractNeteaseCreators(body);
+      if (creators.length > 0) {
+        onlineCreators.value = creators;
+        lyricAuthors.value = creators;
+        lyricAuthorKind.value = "creator";
+      }
+    } catch {
+      // 在线创作者信息仅用于补充展示，请求失败时保留歌词文件作者。
+    } finally {
+      if (token === creatorToken) creatorRequestKey = "";
+    }
+  };
 
   /** 同步当前歌词源到主进程 */
   const syncToMain = (): void => {
@@ -65,7 +116,13 @@ export const useMediaStore = defineStore("media", () => {
    * @param newDetail - 新的歌曲详细信息；省略则保留现有 detail
    */
   const setTrack = (newTrack: Track, newDetail?: TrackDetail): void => {
+    creatorToken++;
+    creatorRequestKey = "";
     track.value = newTrack;
+    lyricAuthors.value = [];
+    lyricAuthorKind.value = null;
+    onlineCreators.value = null;
+    void refreshOnlineCreators(newTrack);
     if (newDetail) detail.value = newDetail;
   };
 
@@ -115,7 +172,9 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric.value = null;
     lyricContent.value = null;
     parsedLyric.value = [];
-    lyricAuthors.value = [];
+    lyricAuthors.value = onlineCreators.value ?? [];
+    lyricAuthorKind.value = onlineCreators.value ? "creator" : null;
+    if (!onlineCreators.value) void refreshOnlineCreators(track.value);
     lyricIndex.value = -1;
     lyricLoading.value = true;
     syncToMain();
@@ -151,6 +210,7 @@ export const useMediaStore = defineStore("media", () => {
         const lines = parseLyric(input, source.format, settings.locale, {
           detectBackground: settings.lyric.detectBackgroundLyrics,
           fallbackTranslation: settings.lyric.fallbackTranslation,
+          normalizeNonStandardHan: settings.lyric.normalizeNonStandardHan,
           platform:
             source.platform ?? (isPlatform(track.value?.source) ? track.value.source : undefined),
         });
@@ -171,8 +231,24 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric.value = hasContent ? source : null;
     lyricContent.value = hasContent ? input : null;
     parsedLyric.value = nextLines;
-    lyricAuthors.value =
-      hasContent && source && input ? extractLyricAuthors(input.content, source.format) : [];
+    if (onlineCreators.value) {
+      lyricAuthors.value = onlineCreators.value;
+      lyricAuthorKind.value = "creator";
+    } else if (hasContent && source && input) {
+      const authorInfo = extractLyricAuthorInfo(input.content, source.format);
+      if (authorInfo.authors.length > 0) {
+        lyricAuthors.value = authorInfo.authors;
+        lyricAuthorKind.value = authorInfo.kind;
+      } else {
+        lyricAuthors.value = getValidArtists(track.value?.artists).map((artist) =>
+          artist.name.trim(),
+        );
+        lyricAuthorKind.value = lyricAuthors.value.length > 0 ? "song-production" : null;
+      }
+    } else {
+      lyricAuthors.value = [];
+      lyricAuthorKind.value = null;
+    }
     lyricIndex.value = -1;
     lyricLoading.value = false;
     syncToMain();
@@ -205,6 +281,10 @@ export const useMediaStore = defineStore("media", () => {
     lyricContent.value = null;
     parsedLyric.value = [];
     lyricAuthors.value = [];
+    lyricAuthorKind.value = null;
+    onlineCreators.value = null;
+    creatorToken++;
+    creatorRequestKey = "";
     lyricLoading.value = false;
     lyricIndex.value = -1;
     syncToMain();
@@ -219,6 +299,7 @@ export const useMediaStore = defineStore("media", () => {
     lyricFormat,
     parsedLyric,
     lyricAuthors,
+    lyricAuthorKind,
     lyricLoading,
     lyricIndex,
     setTrack,
