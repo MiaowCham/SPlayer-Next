@@ -131,6 +131,8 @@ export interface LyricSettings {
   amllShowWordRomanization: boolean;
   /** AMLL 是否独立计算逐词发音遮罩进度 */
   independentWordRomanizationProgress: boolean;
+  /** 是否将康熙部首/CJK 兼容表意文字等非标准汉字还原为标准汉字 */
+  normalizeNonStandardHan: boolean;
   /** 逐字高亮效果 */
   enableWordHighlight: boolean;
   /** 逐字上浮动画强度 */

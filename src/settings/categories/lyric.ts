@@ -58,6 +58,13 @@ const lyricCategory: SettingCategory = {
           ],
           defaultValue: "default",
         },
+        {
+          key: "normalizeNonStandardHan",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.normalizeNonStandardHan" },
+          defaultValue: true,
+          tag: { text: "Beta" },
+        },
       ],
     },
     {

@@ -114,6 +114,7 @@ export const useSettingsStore = defineStore(
       amllShowLineRomanization: true,
       amllShowWordRomanization: true,
       independentWordRomanizationProgress: false,
+      normalizeNonStandardHan: true,
       enableWordHighlight: true,
       floatAnimationIntensity: "medium",
       enableEmphasizeEffect: false,
@@ -327,6 +328,9 @@ export const useSettingsStore = defineStore(
         }
         if (typeof lyric.independentWordRomanizationProgress !== "boolean") {
           lyric.independentWordRomanizationProgress = false;
+        }
+        if (typeof lyric.normalizeNonStandardHan !== "boolean") {
+          lyric.normalizeNonStandardHan = true;
         }
         if (typeof lyric.disableCjkEmphasis !== "boolean") {
           lyric.disableCjkEmphasis = false;

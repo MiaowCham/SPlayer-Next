@@ -1048,6 +1048,10 @@
       "simplified": "偏好简体",
       "traditional": "偏好繁体"
     },
+    "normalizeNonStandardHan": {
+      "label": "修复非标准汉字",
+      "description": "把康熙部首、CJK 兼容表意文字等同形异码字符还原为正常汉字，避免字体无法覆盖导致显示异常"
+    },
     "cjkTransform": {
       "label": "歌词文字转换",
       "description": "使用 OpenCC 转换歌词文字；旧设置会自动迁移为中文繁简体偏好",

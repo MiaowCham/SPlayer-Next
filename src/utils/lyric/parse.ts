@@ -17,6 +17,8 @@ export interface ParseLyricOptions {
   detectBackground?: boolean;
   platform?: import("@shared/types/platform").Platform;
   fallbackTranslation?: boolean;
+  /** 是否将康熙部首等非标准汉字还原为标准汉字 */
+  normalizeNonStandardHan?: boolean;
 }
 
 /**
@@ -136,7 +138,10 @@ export const parseLyric = (
   preferredLang = "",
   options: ParseLyricOptions = {},
 ): LyricLine[] => {
-  const content = normalizeKangxi(input.content);
+  // 非标准汉字还原默认开启，可由设置关闭
+  const normalizeHan =
+    options.normalizeNonStandardHan === false ? (text: string): string => text : normalizeKangxi;
+  const content = normalizeHan(input.content);
   if (format === "lqe") return parseLyric(parseLQEInput(content), "lys", preferredLang, options);
   const embedded =
     format === "lrcn"
@@ -152,14 +157,14 @@ export const parseLyric = (
       pairLNT(
         lines,
         parsedLrcn.lineIds,
-        parseLNT(normalizeKangxi(translation)),
+        parseLNT(normalizeHan(translation)),
         "translatedLyric",
         parsedLrcn.offset,
       );
     } else {
       pairTranslation(
         lines,
-        parseContent(normalizeKangxi(translation), translationFormat, "", options),
+        parseContent(normalizeHan(translation), translationFormat, "", options),
         "translatedLyric",
       );
     }
@@ -175,8 +180,8 @@ export const parseLyric = (
     if (romajiFormat !== "lnt") {
       const romajiLines =
         format === "lrcn" && romajiFormat === "lrc"
-          ? parseLRCN(normalizeKangxi(romaji), options.platform).lines
-          : parseContent(normalizeKangxi(romaji), romajiFormat, "", options);
+          ? parseLRCN(normalizeHan(romaji), options.platform).lines
+          : parseContent(normalizeHan(romaji), romajiFormat, "", options);
       pairTranslation(lines, romajiLines, "romanLyric");
     }
   }
@@ -185,7 +190,7 @@ export const parseLyric = (
     pairLNT(
       lines,
       parsedLrcn.lineIds,
-      parseLNT(normalizeKangxi(wordRomaji)),
+      parseLNT(normalizeHan(wordRomaji)),
       "romanLyric",
       parsedLrcn.offset,
     );

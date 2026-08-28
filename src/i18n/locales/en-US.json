@@ -1060,6 +1060,10 @@
       "simplified": "Prefer Simplified",
       "traditional": "Prefer Traditional"
     },
+    "normalizeNonStandardHan": {
+      "label": "Fix Non-standard Han Characters",
+      "description": "Restores Kangxi radicals, CJK compatibility ideographs and other visually identical variant codepoints to standard Han characters to avoid missing font glyphs"
+    },
     "cjkTransform": {
       "label": "Lyric Text Conversion",
       "description": "Converts lyric text with OpenCC; legacy values are migrated to the Chinese script preference",
