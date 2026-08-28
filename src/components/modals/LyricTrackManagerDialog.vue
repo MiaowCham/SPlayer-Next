@@ -9,9 +9,12 @@ import {
 } from "@/services/lyric/preference";
 import { useMediaStore } from "@/stores/media";
 import * as player from "@/core/player";
+import { getLyricSourceUrl } from "@/utils/format/shareUrl";
+import { openExternal } from "@/utils/url";
 import type { Track } from "@shared/types/player";
 import type { LyricMatchCandidate, TrackLyricPreference } from "@shared/types/lyrics";
 import { isPlatform } from "@shared/types/platform";
+import IconExternalLink from "~icons/lucide/external-link";
 
 const { t } = useI18n();
 const lyricManager = useLyricTrackManagerDialog();
@@ -50,15 +53,21 @@ const refresh = async (scanDirectory = true): Promise<void> => {
   matchLoading.value = true;
   try {
     if (scanDirectory) await window.api.lyrics.refreshManaged(track);
-    const [nextManaged, nextCandidates, nextPreference] = await Promise.all([
+    // 先显示本地/managed 候选（快），避免等在线搜索完成后才出列表
+    const [nextManaged, localCandidates, nextPreference] = await Promise.all([
       window.api.lyrics.getManaged(track),
-      window.api.lyrics.getTrackCandidates(track),
+      window.api.lyrics.getTrackCandidatesLocal(track),
       getEffectiveTrackLyricPreference(track),
     ]);
     if (token !== refreshToken || !lyricManager.open.value) return;
     managed.value = nextManaged;
-    candidates.value = nextCandidates;
     preference.value = nextPreference;
+    candidates.value = localCandidates;
+    matchLoading.value = false;
+    // 异步补全在线候选（平台/AM），完成后再叠加到列表
+    const fullCandidates = await window.api.lyrics.getTrackCandidates(track);
+    if (token !== refreshToken || !lyricManager.open.value) return;
+    candidates.value = fullCandidates;
   } catch {
     if (token === refreshToken) toast.error(t("lyricManager.refreshFailed"));
   } finally {
@@ -161,6 +170,16 @@ const candidateSourceLabel = (candidate: LyricMatchCandidate): string => {
   const base = t(`lyricManager.matchSource.${candidate.origin}`);
   if (candidate.origin !== "amll" || !candidate.platform) return base;
   return `${base} · ${t(`lyricManager.matchSource.${candidate.platform}`)}`;
+};
+
+/** 候选来源平台的原链接（用于"来源"按钮跳转）。 */
+const candidateSourceUrl = (candidate: LyricMatchCandidate): string | null =>
+  getLyricSourceUrl(candidate.origin, currentTrack());
+
+/** 打开候选来源平台的原始页面。 */
+const openCandidateSourceUrl = (candidate: LyricMatchCandidate): void => {
+  const url = candidateSourceUrl(candidate);
+  if (url) void openExternal(url);
 };
 
 const currentLyricDescription = computed(() => {
@@ -560,6 +579,18 @@ watch(
                 }}
               </div>
             </div>
+            <SButton
+              v-if="candidateSourceUrl(candidate)"
+              type="primary"
+              variant="secondary"
+              size="small"
+              :title="t('lyricManager.openSource')"
+              @click="openCandidateSourceUrl(candidate)"
+            >
+              <template #icon>
+                <IconExternalLink />
+              </template>
+            </SButton>
             <SButton
               type="primary"
               variant="secondary"

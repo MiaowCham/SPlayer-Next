@@ -230,6 +230,27 @@ const getSearchTrack = (track: Track): { track: Track; forceQuery: boolean } => 
 };
 
 /** 汇总本地版本、平台、本地 TTML 与 AMLL 候选。 */
+/** 仅返回本地/managed 歌词候选（不含在线搜索），供歌词管理面板先显示本地候选。 */
+const getTrackCandidatesLocal = async (track: Track): Promise<LyricMatchCandidate[]> => {
+  refreshManagedLyricVersions(track);
+  const active = getManagedLyric(track);
+  return listManagedLyricVersions(track).map((version): LyricMatchCandidate => ({
+    id: version.versionId,
+    origin: version.origin,
+    format: version.format,
+    filename: version.filename ?? `${version.origin}.${version.format}`,
+    content: version.content,
+    translation: version.translation,
+    translationFormat: version.translationFormat,
+    romaji: version.romaji,
+    romajiFormat: version.romajiFormat,
+    active: version.versionId === active?.versionId,
+    local: true,
+    importedAt: version.importedAt,
+  }));
+};
+
+/** 搜索并返回某曲目的所有候选歌词（本地 + 在线）。 */
 const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> => {
   refreshManagedLyricVersions(track);
   const active = getManagedLyric(track);
@@ -400,6 +421,9 @@ export const registerLyricsIpc = (): void => {
     return changed;
   });
   ipcMain.handle("lyrics:getTrackCandidates", (_evt, track: Track) => getTrackCandidates(track));
+  ipcMain.handle("lyrics:getTrackCandidatesLocal", (_evt, track: Track) =>
+    getTrackCandidatesLocal(track),
+  );
   ipcMain.handle("lyrics:getTrackPreference", (_evt, track: Track) =>
     getTrackLyricPreference(track),
   );

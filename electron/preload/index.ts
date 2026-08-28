@@ -451,6 +451,9 @@ const api = {
       ipcRenderer.invoke("lyrics:setTrackPreference", track, preference),
     // 获取单曲的本地版本和在线匹配候选
     getTrackCandidates: (track: unknown) => ipcRenderer.invoke("lyrics:getTrackCandidates", track),
+    // 仅获取单曲的本地/managed 候选（不含在线搜索，供面板先显示）
+    getTrackCandidatesLocal: (track: unknown) =>
+      ipcRenderer.invoke("lyrics:getTrackCandidatesLocal", track),
     // 选择并激活歌词候选
     selectTrackCandidate: (track: unknown, candidate: unknown) =>
       ipcRenderer.invoke("lyrics:selectTrackCandidate", track, candidate),

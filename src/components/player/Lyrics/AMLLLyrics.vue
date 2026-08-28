@@ -113,9 +113,6 @@ let lastCurrentTime = props.initialTime;
 const isPageHidden = ref(false);
 // 之前隐藏的标记，用于检测从隐藏恢复的时刻
 const isPreviousHidden = ref(false);
-// 临时性能日志：AMLL 帧耗时采样（定位后可删除）
-let perfAccumMs = 0;
-let perfFrameCount = 0;
 
 /** 同时激活多个主歌词行时，使用较高的滚动对齐点。 */
 const syncAlignPosition = (time: number): void => {
@@ -142,8 +139,6 @@ const syncCurrentTime = (time: number, isSeek?: boolean): void => {
 // 处理多语言显隐及音译偏好的本地高效清洗
 const processedLyrics = computed(() => {
   if (!props.lyricLines) return [];
-  // 临时性能日志：processedLyrics 重算耗时，定位后可删除
-  const perfStart = performance.now();
   const forceLineMode =
     props.largerLyricText === "pronunciation" &&
     props.showLineRomanization &&
@@ -199,10 +194,6 @@ const processedLyrics = computed(() => {
     }
     return newLine;
   });
-  const perfMs = performance.now() - perfStart;
-  if (perfMs > 2) {
-    console.warn(`[AMLL-perf] processedLyrics recomputed ${result.length} lines in ${perfMs.toFixed(2)}ms`);
-  }
   return result;
 });
 
@@ -241,19 +232,7 @@ const processLyricLanguage = (player = playerRef.value) => {
 
 const { resume: resumeRaf, pause: pauseRaf } = useRafFn(
   ({ delta }) => {
-    // 临时性能日志：采样 AMLL 每帧 update 耗时，定位性能瓶颈后可删除
-    const perfStart = performance.now();
     playerRef.value?.update(delta);
-    const frameMs = performance.now() - perfStart;
-    perfAccumMs += frameMs;
-    perfFrameCount++;
-    if (perfFrameCount >= 120) {
-      console.warn(
-        `[AMLL-perf] update avg ${(perfAccumMs / perfFrameCount).toFixed(2)}ms over ${perfFrameCount} frames (delta ${delta.toFixed(1)}ms)`,
-      );
-      perfAccumMs = 0;
-      perfFrameCount = 0;
-    }
   },
   { immediate: false },
 );
@@ -388,14 +367,8 @@ watch(processedLyrics, (newLyrics) => {
   if (isFrozen.value) {
     pendingLyrics = newLyrics;
   } else {
-    // 临时性能日志：AMLL setLyricLines（歌词重建）耗时，定位后可删除
-    const perfStart = performance.now();
     playerRef.value.setLyricLines(newLyrics, props.initialTime);
     processLyricLanguage();
-    const rebuildMs = performance.now() - perfStart;
-    if (rebuildMs > 2) {
-      console.warn(`[AMLL-perf] setLyricLines ${newLyrics.length} lines rebuilt in ${rebuildMs.toFixed(2)}ms`);
-    }
   }
 });
 
@@ -450,6 +423,11 @@ defineExpose({
   position: relative;
   overflow: hidden;
   user-select: none;
+}
+
+/* 允许歌词行字符不被 contain 的 paint 裁剪截断，同时保持布局隔离不变 */
+:deep(.FmKaba_lyricLine) {
+  contain: layout style;
 }
 
 :deep(.amll-lyric-player) {

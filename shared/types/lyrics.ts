@@ -267,6 +267,8 @@ export interface LyricsApi {
   setTrackPreference: (track: Track, preference: TrackLyricPreference) => Promise<void>;
   /** 获取单曲的本地版本与在线匹配候选 */
   getTrackCandidates: (track: Track) => Promise<LyricMatchCandidate[]>;
+  /** 仅获取单曲的本地/managed 候选（不含在线搜索），供歌词管理面板先显示本地候选 */
+  getTrackCandidatesLocal: (track: Track) => Promise<LyricMatchCandidate[]>;
   /** 选择一个歌词候选并设为当前活跃版本 */
   selectTrackCandidate: (track: Track, candidate: LyricMatchCandidate) => Promise<boolean>;
   /** 删除非活跃的本地歌词版本 */
