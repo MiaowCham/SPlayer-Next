@@ -35,14 +35,15 @@ const pickMain = (
 };
 
 /**
- * 翻译 / 罗马音：`ytlrc` / `yromalrc` 时间戳更贴 YRC 行边界，优先选用
+ * 翻译 / 罗马音：`ytlrc` / `yromalrc` 为逐字（YRC 时间戳，贴 YRC 行边界），
+ * `tlyric` / `romalrc` 为逐行 LRC；返回真实格式以免客户端按错格式解析不出内容。
  */
 const pickSub = (
   yPaired?: string,
   plain?: string,
-): { content: string; format: "lrc" } | undefined => {
+): { content: string; format: "yrc" | "lrc" } | undefined => {
   const preferred = yPaired?.trim();
-  if (preferred) return { content: preferred, format: "lrc" };
+  if (preferred) return { content: preferred, format: "yrc" };
   const fallback = plain?.trim();
   if (fallback) return { content: fallback, format: "lrc" };
   return undefined;
@@ -57,12 +58,7 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
   prefetchTTML("netease", [id]);
   // 缓存命中直接返回
   const cached = getCachedLyric("netease", id);
-  if (cached) {
-    // 纠正旧版本格式
-    if (cached.translationFormat === "yrc") cached.translationFormat = "lrc";
-    if (cached.romajiFormat === "yrc") cached.romajiFormat = "lrc";
-    return cached;
-  }
+  if (cached) return cached;
   try {
     const { status, body } = await callNetease("lyric_new", { id });
     if (status !== 200 || body.code !== 200) {
