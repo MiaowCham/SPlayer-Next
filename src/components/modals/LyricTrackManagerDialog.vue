@@ -9,6 +9,8 @@ import {
   setEffectiveTrackLyricPreference,
 } from "@/services/lyric/preference";
 import { useMediaStore } from "@/stores/media";
+import { useSettingsStore } from "@/stores/settings";
+import { DEFAULT_LYRIC_SOURCE_ORDER, type LyricSourceOrderItem } from "@/types/settings";
 import * as player from "@/core/player";
 import { getLyricSourceUrl } from "@/utils/format/shareUrl";
 import { openExternal } from "@/utils/url";
@@ -23,6 +25,7 @@ const { t } = useI18n();
 const lyricManager = useLyricTrackManagerDialog();
 const lyricOptimize = useLyricOptimizeDialog();
 const media = useMediaStore();
+const settings = useSettingsStore();
 const managed = ref<Awaited<ReturnType<typeof window.api.lyrics.getManaged>>>(null);
 const loading = ref(false);
 const matchLoading = ref(false);
@@ -121,14 +124,16 @@ const visibleCandidates = computed(() => {
       candidate.origin !== "appleMusic" ||
       (candidate.status === "available" && !!candidate.content.trim()),
   );
-  // 当前实际使用的候选置顶，其余保持来源顺序；避免使用中的歌词沉到列表底部。
-  const usedId = usedCandidate.value?.id;
-  if (usedId) {
-    return [...filtered].sort(
-      (a, b) => Number(b.id === usedId) - Number(a.id === usedId),
-    );
-  }
-  return filtered;
+  // 按歌词来源排序顺序（lyricSourceOrder）展示候选，便于用户按来源优先级挑选。
+  const sourceOrder = settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
+  const indexOf = (candidate: LyricMatchCandidate): number => {
+    // 候选 origin 映射到来源排序项；本地/manual origin 未在排序项时按 localTtml 处理
+    const item: LyricSourceOrderItem =
+      candidate.origin === "manual" ? "localTtml" : candidate.origin;
+    const idx = sourceOrder.indexOf(item);
+    return idx === -1 ? sourceOrder.length : idx;
+  };
+  return [...filtered].sort((a, b) => indexOf(a) - indexOf(b));
 });
 const isCurrentTrack = computed(() => {
   const track = lyricManager.track.value;
