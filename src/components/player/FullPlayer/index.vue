@@ -115,6 +115,15 @@ const displayTrack = computed(() => media.track ?? status.currentTrack);
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
 const hasTrack = computed(() => !!displayTrack.value);
 const isChineseLocale = computed(() => settings.locale.startsWith("zh"));
+/** 启用逐行模糊，且「暂停时解除模糊」或「拖动进度条跟随」时在对应状态临时关闭模糊。 */
+const effectiveEnableBlur = computed(
+  () =>
+    settings.lyric.enableBlur &&
+    !(
+      (settings.lyric.pauseClearBlur && !isPlaying.value) ||
+      (settings.player.followLyricOnProgressDrag && progressLyricDragging.value)
+    ),
+);
 /** 创作者名单按中文/西文环境选用顿号或逗号连接。 */
 const lyricCreatorsText = computed(() =>
   media.lyricAuthors.join(isChineseLocale.value ? "、" : ", "),
@@ -449,7 +458,7 @@ const showComments = (): void => {
                 :align-position="settings.lyric.alignPosition"
                 :word-fade-width="settings.lyric.wordFadeWidth"
                 :hide-passed-lines="settings.lyric.hidePassedLines"
-                :enable-blur="settings.lyric.enableBlur"
+                :enable-blur="effectiveEnableBlur"
                 :enable-word-highlight="settings.lyric.enableWordHighlight"
                 :float-animation-intensity="settings.lyric.floatAnimationIntensity"
                 :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
@@ -490,7 +499,7 @@ const showComments = (): void => {
                 :spring-config="springConfig"
                 :inactive-alpha="settings.lyric.inactiveAlpha"
                 :hide-passed-lines="settings.lyric.hidePassedLines"
-                :enable-blur="settings.lyric.enableBlur"
+                :enable-blur="effectiveEnableBlur"
                 :enable-word-highlight="settings.lyric.enableWordHighlight"
                 :float-animation-intensity="settings.lyric.floatAnimationIntensity"
                 :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"

@@ -564,6 +564,7 @@
     "noMatchResults": "No available lyrics found",
     "select": "Select",
     "selected": "Selected",
+    "openSource": "Open Source",
     "localVersion": "Local File",
     "deleteVersionHint": "Right-click to delete this local lyric",
     "inUseDeleteHint": "This lyric is currently in use and cannot be deleted",
@@ -1049,6 +1050,10 @@
       "label": "Auto-Upgrade Lyric Format",
       "description": "Fetch a higher-ranked format from other platforms when the current one is low"
     },
+    "preferTranslatedLyrics": {
+      "label": "Prefer Translated Lyrics",
+      "description": "Prefer candidates with translation; lyrics without translation are controlled by this option even if their format ranks higher"
+    },
     "detectBackgroundLyrics": {
       "label": "Auto-Detect Background Lyrics",
       "description": "Detect backing vocals from brackets. Disable this if lyrics are misdetected"
@@ -1387,6 +1392,10 @@
     "enableBlur": {
       "label": "Line Blur",
       "description": "Gradually blur lines further from the active line"
+    },
+    "pauseClearBlur": {
+      "label": "Clear Blur on Pause",
+      "description": "Disable line blur while paused, re-enable on resume"
     },
     "hidePassedLines": {
       "label": "Hide Passed Lines",

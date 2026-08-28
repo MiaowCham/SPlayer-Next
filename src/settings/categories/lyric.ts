@@ -37,6 +37,13 @@ const lyricCategory: SettingCategory = {
           defaultValue: false,
         },
         {
+          key: "preferTranslatedLyrics",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.preferTranslatedLyrics" },
+          defaultValue: false,
+          tag: { text: "Beta" },
+        },
+        {
           key: "lyricFormatOrder",
           type: "custom",
           component: LyricFormatOrderConfig,
@@ -340,6 +347,13 @@ const lyricCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "lyric.enableBlur" },
           defaultValue: false,
+        },
+        {
+          key: "pauseClearBlur",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.pauseClearBlur" },
+          defaultValue: false,
+          disabled: () => !useSettingsStore().lyric.enableBlur,
         },
         {
           key: "hidePassedLines",

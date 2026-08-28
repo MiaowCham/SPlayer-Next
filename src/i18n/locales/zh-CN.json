@@ -552,6 +552,7 @@
     "noMatchResults": "没有找到可用歌词",
     "select": "选择",
     "selected": "已选择",
+    "openSource": "前往歌词来源",
     "localVersion": "本地文件",
     "deleteVersionHint": "右键删除这份本地歌词",
     "inUseDeleteHint": "这份歌词正在使用，无法删除",
@@ -1037,6 +1038,10 @@
       "label": "自动升级歌词格式",
       "description": "当前歌词格式较低时，从其他平台获取更高级的格式覆盖"
     },
+    "preferTranslatedLyrics": {
+      "label": "优先选择有翻译的歌词",
+      "description": "在有翻译的候选时优先选择它；即使格式优先级更高但没有翻译的歌词也会被此选项控制"
+    },
     "detectBackgroundLyrics": {
       "label": "自动识别背景歌词",
       "description": "根据括号识别背景人声，误判时可关闭"
@@ -1363,6 +1368,10 @@
     "enableBlur": {
       "label": "逐行模糊",
       "description": "远离当前行的歌词逐渐模糊"
+    },
+    "pauseClearBlur": {
+      "label": "暂停时解除模糊",
+      "description": "暂停播放时取消逐行模糊，恢复播放后重新启用"
     },
     "hidePassedLines": {
       "label": "隐藏已播放行",

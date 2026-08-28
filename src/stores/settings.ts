@@ -94,6 +94,7 @@ export const useSettingsStore = defineStore(
       lyricSourceOrder: [...DEFAULT_LYRIC_SOURCE_ORDER],
       lyricFormatOrder: [...DEFAULT_LYRIC_FORMAT_ORDER],
       smartPreferOnline: false,
+      preferTranslatedLyrics: false,
       detectBackgroundLyrics: true,
       chineseScriptPreference: "default",
       adaptiveFontSize: true,
@@ -121,6 +122,7 @@ export const useSettingsStore = defineStore(
       disableCjkEmphasis: false,
       raiseAlignPositionOnOverlap: false,
       enableBlur: false,
+      pauseClearBlur: false,
       hidePassedLines: false,
       springPreset: "default",
       springMass: 0.9,
@@ -314,6 +316,9 @@ export const useSettingsStore = defineStore(
         if (typeof lyric.detectBackgroundLyrics !== "boolean") {
           lyric.detectBackgroundLyrics = true;
         }
+        if (typeof lyric.preferTranslatedLyrics !== "boolean") {
+          lyric.preferTranslatedLyrics = false;
+        }
         if (typeof lyric.fallbackTranslation !== "boolean") {
           lyric.fallbackTranslation = true;
         }
@@ -331,6 +336,9 @@ export const useSettingsStore = defineStore(
         }
         if (typeof lyric.normalizeNonStandardHan !== "boolean") {
           lyric.normalizeNonStandardHan = true;
+        }
+        if (typeof lyric.pauseClearBlur !== "boolean") {
+          lyric.pauseClearBlur = false;
         }
         if (typeof lyric.disableCjkEmphasis !== "boolean") {
           lyric.disableCjkEmphasis = false;

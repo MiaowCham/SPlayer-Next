@@ -187,9 +187,21 @@ export const resolveOnlineByPreference = async (
 
   if (settings.lyric.smartPreferOnline) {
     let best: OnlineResult | null = null;
-    const localIdx =
-      options.hasLocal && options.localFormat ? formatOrder.indexOf(options.localFormat) : -1;
-    let bestRank = localIdx === -1 ? Infinity : localIdx;
+    const preferTranslated = settings.lyric.preferTranslatedLyrics;
+    const rankOf = (result: OnlineResult): number => {
+      const idx = formatOrder.indexOf(result.source.format);
+      return idx === -1 ? Infinity : idx;
+    };
+    // 是否比当前 best 更优：开启「优先有翻译」时先比是否有翻译，再比格式优先级
+    const isBetter = (candidate: OnlineResult, current: OnlineResult | null): boolean => {
+      if (!current) return true;
+      if (preferTranslated) {
+        const candidateTrans = !!candidate.input.translation?.trim();
+        const currentTrans = !!current.input.translation?.trim();
+        if (candidateTrans !== currentTrans) return candidateTrans;
+      }
+      return rankOf(candidate) < rankOf(current);
+    };
     await Promise.all(
       candidates.map(async (platform) => {
         const result = await resolvePlatformLyric(platform, track, options.forceQuery);
@@ -198,12 +210,13 @@ export const resolveOnlineByPreference = async (
           logLyric("info", `  ${platform}: miss`);
           return;
         }
-        const idx = formatOrder.indexOf(result.source.format);
-        const rank = idx === -1 ? Infinity : idx;
-        logLyric("info", `  ${platform}: hit ${result.source.format} (rank=${rank})`);
-        if (rank < bestRank) {
+        const hasTrans = !!result.input.translation?.trim();
+        logLyric(
+          "info",
+          `  ${platform}: hit ${result.source.format}${hasTrans ? " (有翻译)" : ""} rank=${rankOf(result)}`,
+        );
+        if (isBetter(result, best)) {
           best = result;
-          bestRank = rank;
           options.onCandidate?.(result);
         }
       }),
