@@ -247,7 +247,17 @@ const scheduleAppleMusicUpgrade = (token: number, track: Track, force = false): 
         return;
       }
       const media = useMediaStore();
-      const replace = force || shouldReplaceWithAppleMusic(media.activeLyric);
+      let replace = force || shouldReplaceWithAppleMusic(media.activeLyric);
+      // 「优先翻译」优先级最高：当前歌词已带翻译时，禁止无翻译的 AM 歌词覆盖
+      if (
+        replace &&
+        useSettingsStore().lyric.preferTranslatedLyrics &&
+        media.lyricContent?.translation?.trim() &&
+        !resolved.input.translation?.trim()
+      ) {
+        logLyric("info", "AM 升级: 优先翻译开启且当前歌词有翻译，跳过无翻译的 AM 覆盖");
+        replace = false;
+      }
       logLyric(
         "info",
         `AM 升级: current=${describeActive()}, force=${force}, replace=${replace}`,
@@ -567,6 +577,7 @@ export const watchLyricPreference = (): void => {
       settings.locale,
       settings.lyric.lyricSourcePreference,
       settings.lyric.smartPreferOnline,
+      settings.lyric.preferTranslatedLyrics,
       settings.lyric.detectBackgroundLyrics,
       settings.lyric.fallbackTranslation,
       settings.system.lyric.enableOnlineTTMLLyric,
