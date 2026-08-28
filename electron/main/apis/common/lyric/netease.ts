@@ -15,7 +15,12 @@ import { coreLog } from "@main/utils/logger";
 import type { LyricMatchResult } from "@shared/types/lyrics";
 import type { Track } from "@shared/types/player";
 import { prefetchTTML } from "./ttml";
-import { buildLyricSearchKeyword, pickBestCandidate, type LyricCandidate } from "./utils";
+import {
+  buildLyricSearchKeyword,
+  normalizeNeteaseLrc,
+  pickBestCandidate,
+  type LyricCandidate,
+} from "./utils";
 
 /** 主歌词：yrc 优先，其次 lrc */
 const pickMain = (
@@ -25,7 +30,7 @@ const pickMain = (
   const yrcContent = yrc?.trim();
   if (yrcContent) return { content: yrcContent, format: "yrc" };
   const lrcContent = lrc?.trim();
-  if (lrcContent) return { content: lrcContent, format: "lrc" };
+  if (lrcContent) return { content: normalizeNeteaseLrc(lrcContent), format: "lrc" };
   return undefined;
 };
 
@@ -60,10 +65,20 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
   }
   try {
     const { status, body } = await callNetease("lyric_new", { id });
-    if (status !== 200 || body.code !== 200) return null;
+    if (status !== 200 || body.code !== 200) {
+      coreLog.info(
+        `[lyric:netease] getByPlatformId(${id}) 接口异常: status=${status}, code=${body?.code}`,
+      );
+      return null;
+    }
     // 主歌词：yrc > lrc
     const main = pickMain(body.yrc?.lyric, body.lrc?.lyric);
-    if (!main) return null;
+    if (!main) {
+      coreLog.info(
+        `[lyric:netease] getByPlatformId(${id}) 无主歌词: yrc=${!!body.yrc?.lyric}, lrc=${!!body.lrc?.lyric}`,
+      );
+      return null;
+    }
     // 翻译 / 罗马音
     const trans = pickSub(body.ytlrc?.lyric, body.tlyric?.lyric);
     const roma = pickSub(body.yromalrc?.lyric, body.romalrc?.lyric);
@@ -77,6 +92,9 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
       romajiFormat: roma?.format,
     };
     setCachedLyric("netease", id, result);
+    coreLog.info(
+      `[lyric:netease] getByPlatformId(${id}) 命中: format=${result.format}, chars=${result.content.length}`,
+    );
     return result;
   } catch (err) {
     coreLog.warn(`[lyric:netease] getByPlatformId(${id}) failed:`, err);

@@ -33,6 +33,26 @@ import type { LyricSourcePreference } from "@/types/settings";
 /** 竞态 token */
 let currentToken = 0;
 
+/** 渲染进程歌词日志：经 IPC 落到主进程文件日志，便于定位歌词加载链路。 */
+const logLyric = (level: "info" | "warn" | "error", message: string): void => {
+  void window.api.lyrics.log(level, message);
+};
+
+/** 用简短字符串描述当前已提交歌词，便于日志追踪。 */
+const describeActive = (): string => {
+  const media = useMediaStore();
+  const lyric = media.activeLyric;
+  if (!lyric) return "null";
+  return [
+    lyric.source,
+    lyric.format,
+    lyric.platform ?? lyric.provider ?? "",
+    `lines=${media.parsedLyric.length}`,
+  ]
+    .filter(Boolean)
+    .join(":");
+};
+
 /** 将逐曲来源首选项映射到现有在线解析器支持的基础偏好。 */
 const basePreference = (choice: TrackLyricPreference): LyricSourcePreference => {
   if (choice.source === "platform" || choice.source === "amll") return choice.platform;
@@ -69,6 +89,14 @@ const readLocal = async (
 const commit = (token: number, source: LyricData, input: LyricInput | null): void => {
   if (token !== currentToken) return;
   useMediaStore().setLyric(source, input);
+  const media = useMediaStore();
+  const desc = source
+    ? `${source.source}:${source.format}:${source.platform ?? source.provider ?? ""}`
+    : "null";
+  logLyric(
+    "info",
+    `commit → ${desc}, parsedLines=${media.parsedLyric.length}, token=${token}`,
+  );
 };
 
 /** 提交本地歌词 */
@@ -128,7 +156,11 @@ const applyOnline = async (
   const ttml = await resolveTTMLOverlay(track, online, ttmlPreference, forceQuery);
   if (token !== currentToken) return;
   if (ttml) {
-    commit(token, ttml.source, ttml.input);
+    // TTML 覆盖也必须解析出有效行，否则保留当前在线歌词，避免被无效 TTML 清成 NO-LRC
+    if (!commitResolvedAndHasParsed(token, ttml)) {
+      commit(token, online.source, online.input);
+      logLyric("warn", "applyOnline: TTML 覆盖解析为空，回退到在线歌词");
+    }
   }
 };
 
@@ -208,9 +240,18 @@ const shouldReplaceWithAppleMusic = (current: LyricData): boolean => {
 /** 异步搜索 Apple Music；先显示已命中的歌词，再按优先级热替换。 */
 const scheduleAppleMusicUpgrade = (token: number, track: Track, force = false): void => {
   void resolveAppleMusicTTML(track).then((resolved) => {
-    if (token !== currentToken || !resolved) return;
+    if (token !== currentToken) return;
+    if (!resolved) {
+      logLyric("info", `AM 升级无结果: ${track.title}`);
+      return;
+    }
     const media = useMediaStore();
-    if (force || shouldReplaceWithAppleMusic(media.activeLyric)) {
+    const replace = force || shouldReplaceWithAppleMusic(media.activeLyric);
+    logLyric(
+      "info",
+      `AM 升级: current=${describeActive()}, force=${force}, replace=${replace}`,
+    );
+    if (replace) {
       // 先记录当前有效歌词，避免无效 AM 结果把已有歌词清成 NO-LRC
       const previous =
         media.activeLyric && media.lyricContent
@@ -218,6 +259,7 @@ const scheduleAppleMusicUpgrade = (token: number, track: Track, force = false): 
           : null;
       if (!commitResolvedAndHasParsed(token, resolved) && previous && token === currentToken) {
         commit(token, previous.source, previous.input);
+        logLyric("info", "AM 提交后解析为空，已回退到上一有效歌词");
       }
     }
   });
@@ -293,6 +335,10 @@ const loadPlatformLyric = async (
   });
   if (token !== currentToken) return;
   if (online) {
+    logLyric(
+      "info",
+      `loadPlatformLyric: online=${online.source.platform}:${online.source.format}`,
+    );
     await applyOnline(
       token,
       track,
@@ -305,6 +351,7 @@ const loadPlatformLyric = async (
     !(await tryLocalRepo(token, track, choice, true, forceQuery)) &&
     !(await tryPluginFallback(token, track))
   ) {
+    logLyric("warn", `loadPlatformLyric: 无在线/本地/插件歌词 → commit null`);
     commit(token, null, null);
   }
 };
@@ -342,6 +389,10 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     if (token !== currentToken) return;
     const search = applyLyricSearchOverride(track, choice);
     const searchTrack = search.track;
+    logLyric(
+      "info",
+      `loadForTrack: ${track.source}:${track.id} "${track.title}" choice=${choice.source}, trackSource=${track.source}, forceQuery=${search.forceQuery}`,
+    );
     if (!search.forceQuery) {
       const preloaded = await consumePreloadedLyric(track);
       if (token !== currentToken) return;

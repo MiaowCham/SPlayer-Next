@@ -2,7 +2,12 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import type { Track } from "@shared/types/player";
-import { buildLyricSearchKeyword, pickBestCandidate, type LyricCandidate } from "./utils";
+import {
+  buildLyricSearchKeyword,
+  normalizeNeteaseLrc,
+  pickBestCandidate,
+  type LyricCandidate,
+} from "./utils";
 
 const track = (partial: Partial<Track>): Track => ({
   id: "local:1",
@@ -69,5 +74,40 @@ describe("buildLyricSearchKeyword", () => {
       ),
       "歌名 歌手 A 歌手 B",
     );
+  });
+});
+
+describe("normalizeNeteaseLrc", () => {
+  it("把 JSON 逐字行转成标准 LRC 行", () => {
+    const input = [
+      '{"t":0,"c":[{"tx":"作词: "},{"tx":"张卡斯"}]}',
+      '{"t":500,"c":[{"tx":"你"},{"tx":"好"}]}',
+      "[00:01.000]世界",
+    ].join("\n");
+    assert.equal(normalizeNeteaseLrc(input), "[00:00.000]作词: 张卡斯\n[00:00.500]你好\n[00:01.000]世界");
+  });
+
+  it("丢弃负时间戳的元数据行并保留纯文本 LRC", () => {
+    const input = [
+      '{"t":-1000,"c":[{"tx":"作词: "},{"tx":"某人"}]}',
+      "[00:02.800]正文",
+    ].join("\n");
+    assert.equal(normalizeNeteaseLrc(input), "[00:02.800]正文");
+  });
+
+  it("纯 JSON 逐字整首也能转出正文行", () => {
+    const input = [
+      '{"t":0,"c":[{"tx":"第"},{"tx":"一"},{"tx":"句"}]}',
+      '{"t":1200,"c":[{"tx":"第"},{"tx":"二"},{"tx":"句"}]}',
+    ].join("\n");
+    assert.equal(
+      normalizeNeteaseLrc(input),
+      "[00:00.000]第一句\n[00:01.200]第二句",
+    );
+  });
+
+  it("无 JSON 行时原样返回", () => {
+    const input = "[00:01.000]你好\n[00:02.000]世界";
+    assert.equal(normalizeNeteaseLrc(input), input);
   });
 });

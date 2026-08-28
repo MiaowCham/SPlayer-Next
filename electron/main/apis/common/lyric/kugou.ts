@@ -71,7 +71,10 @@ const fetchLyric = async (args: {
     }
 
     const main = pickFormatted(body.krc, body.lrc);
-    if (!main) return null;
+    if (!main) {
+      coreLog.info(`[lyric:kugou] fetchLyric(${args.hash}) 无主歌词: krc=${!!body.krc}, lrc=${!!body.lrc}`);
+      return null;
+    }
 
     const trans = body.trans?.trim();
     const roma = body.roma?.trim();
@@ -86,6 +89,9 @@ const fetchLyric = async (args: {
       romajiFormat: roma ? "lrc" : undefined,
     };
     setCachedLyric("kugou", args.hash, result);
+    coreLog.info(
+      `[lyric:kugou] fetchLyric(${args.hash}) 命中: format=${result.format}, chars=${result.content.length}`,
+    );
     return result;
   } catch (err) {
     coreLog.warn(`[lyric:kugou] fetchLyric(${args.hash}) failed:`, err);

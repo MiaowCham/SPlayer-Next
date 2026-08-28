@@ -223,6 +223,8 @@ export interface AppleMusicTTMLFetchResult {
 
 /** 渲染端歌词匹配入口 */
 export interface LyricsApi {
+  /** 渲染进程歌词加载日志，转发到主进程文件日志 */
+  log: (level: "info" | "warn" | "error", message: string) => Promise<void>;
   /** 读取歌曲的手动管理歌词 */
   getManaged: (track: Track) => Promise<ManagedLyric | null>;
   /** 重新扫描歌曲歌词目录并同步数据库 */

@@ -152,3 +152,58 @@ export const pickBestCandidate = <E>(
 
   return best;
 };
+
+/**
+ * 毫秒 → LRC 时间戳 `[mm:ss.mmm]`
+ * @param ms 毫秒时间
+ */
+export const formatLrcTimestamp = (ms: number): string => {
+  const sign = ms < 0 ? "-" : "";
+  const abs = Math.abs(Math.round(ms));
+  const minutes = Math.floor(abs / 60_000);
+  const seconds = Math.floor((abs % 60_000) / 1000);
+  const millis = abs % 1000;
+  return `${sign}${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
+};
+
+/**
+ * 归一化网易云 lrc 内容。
+ *
+ * `/api/song/lyric/v1` 现在把作词/作曲等元数据行返回成 JSON 逐字格式：
+ *   {"t":0,"c":[{"tx":"作词: "},{"tx":"张卡斯","li":"...","or":"..."}]}
+ * 部分歌曲正文也会整首用这种 JSON 逐字表示（每行一个 `t` + 词数组），
+ * 若不转换，`parseLRC` 会因找不到 `[mm:ss]` 行而得到空行（NO-LRC）。
+ * 这里把 JSON 逐字行转成标准 LRC 行，负时间戳（元数据）直接丢弃。
+ * @param lrc 原始 lrc.lyric 文本
+ */
+export const normalizeNeteaseLrc = (lrc: string): string => {
+  if (!lrc.includes('{"t":')) return lrc;
+  const out: string[] = [];
+  for (const raw of lrc.split("\n")) {
+    const line = raw.trim();
+    if (!line) {
+      out.push(raw);
+      continue;
+    }
+    if (line.startsWith("{")) {
+      try {
+        const obj = JSON.parse(line) as {
+          t?: number;
+          c?: { tx?: string }[];
+        };
+        const t = Number(obj.t);
+        const text = (obj.c ?? [])
+          .map((word) => String(word?.tx ?? ""))
+          .join("")
+          .trim();
+        if (!text || !Number.isFinite(t) || t < 0) continue;
+        out.push(`[${formatLrcTimestamp(t)}]${text}`);
+        continue;
+      } catch {
+        // 非 JSON 的 `{` 行原样保留
+      }
+    }
+    out.push(raw);
+  }
+  return out.join("\n");
+};

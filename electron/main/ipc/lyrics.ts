@@ -51,7 +51,7 @@ import {
   updateManagedLyricTrack,
 } from "@main/database/managedLyrics";
 import { getTrackLyricPreference, setTrackLyricPreference } from "@main/database/lyricPreferences";
-import { coreLog } from "@main/utils/logger";
+import { coreLog, lyricLog } from "@main/utils/logger";
 import { getMainWindow } from "@main/window";
 import { getTrackById, searchTracks } from "@main/database/queries";
 import { getTracks as getStreamingTracks } from "@main/database/streaming/tracks";
@@ -109,16 +109,24 @@ const dedup = <T>(key: string, run: () => Promise<T>): Promise<T> => {
  */
 const resolveById = async (platform: Platform, id: string): Promise<LyricMatchResponse> => {
   try {
+    let data: LyricMatchResult | null = null;
     switch (platform) {
       case "netease":
-        return { ok: true, data: await netease.getByPlatformId(id) };
+        data = await netease.getByPlatformId(id);
+        break;
       case "qqmusic":
-        return { ok: true, data: await qqmusic.getByPlatformId(id) };
+        data = await qqmusic.getByPlatformId(id);
+        break;
       case "kugou":
-        return { ok: true, data: await kugou.getByPlatformId(id) };
+        data = await kugou.getByPlatformId(id);
+        break;
       default:
         return { ok: false, error: `unsupported platform: ${platform}` };
     }
+    lyricLog.info(
+      `[matchById] ${platform}:${id} → ${data ? `hit ${data.format}` : "miss"}`,
+    );
+    return { ok: true, data };
   } catch (err) {
     coreLog.warn(`[lyrics] matchById(${platform}, ${id}) failed:`, err);
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -128,16 +136,24 @@ const resolveById = async (platform: Platform, id: string): Promise<LyricMatchRe
 /** 按 Track 元数据 fuzzy 匹配 */
 const resolveByQuery = async (platform: Platform, track: Track): Promise<LyricMatchResponse> => {
   try {
+    let data: LyricMatchResult | null = null;
     switch (platform) {
       case "netease":
-        return { ok: true, data: await netease.getByQuery(track) };
+        data = await netease.getByQuery(track);
+        break;
       case "qqmusic":
-        return { ok: true, data: await qqmusic.getByQuery(track) };
+        data = await qqmusic.getByQuery(track);
+        break;
       case "kugou":
-        return { ok: true, data: await kugou.getByQuery(track) };
+        data = await kugou.getByQuery(track);
+        break;
       default:
         return { ok: false, error: `unsupported platform: ${platform}` };
     }
+    lyricLog.info(
+      `[matchByQuery] ${platform} "${track.title}" → ${data ? `hit ${data.format}` : "miss"}`,
+    );
+    return { ok: true, data };
   } catch (err) {
     coreLog.warn(`[lyrics] matchByQuery(${platform}, ${track.title}) failed:`, err);
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -600,6 +616,12 @@ export const registerLyricsIpc = (): void => {
       `byQuery:${platform}:${track.id}:${track.title}:${track.artists.map((artist) => artist.name).join("/")}`,
       () => resolveByQuery(platform, track),
     ),
+  );
+  ipcMain.handle(
+    "lyrics:log",
+    (_evt, level: "info" | "warn" | "error", message: string) => {
+      lyricLog[level](`[renderer] ${message}`);
+    },
   );
   ipcMain.handle(
     "lyrics:fetchTTMLOverlay",

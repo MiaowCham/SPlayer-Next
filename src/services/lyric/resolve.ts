@@ -13,6 +13,11 @@ import {
   requestTTMLOverlay,
 } from "./request";
 
+/** 渲染进程歌词日志：经 IPC 落到主进程文件日志。 */
+const logLyric = (level: "info" | "warn" | "error", message: string): void => {
+  void window.api.lyrics.log(level, message);
+};
+
 /** 支持 AMLL TTML DB 的平台列表 */
 const TTML_PLATFORMS = ["netease", "qqmusic"] as const;
 
@@ -175,6 +180,10 @@ export const resolveOnlineByPreference = async (
     );
     if (candidates.length === 0) return null;
   }
+  logLyric(
+    "info",
+    `resolveOnlineByPreference: preference=${preference}, smartPreferOnline=${settings.lyric.smartPreferOnline}, candidates=${candidates.join(",")}`,
+  );
 
   if (settings.lyric.smartPreferOnline) {
     let best: OnlineResult | null = null;
@@ -184,9 +193,14 @@ export const resolveOnlineByPreference = async (
     await Promise.all(
       candidates.map(async (platform) => {
         const result = await resolvePlatformLyric(platform, track, options.forceQuery);
-        if (!isCurrent() || !result) return;
+        if (!isCurrent()) return;
+        if (!result) {
+          logLyric("info", `  ${platform}: miss`);
+          return;
+        }
         const idx = formatOrder.indexOf(result.source.format);
         const rank = idx === -1 ? Infinity : idx;
+        logLyric("info", `  ${platform}: hit ${result.source.format} (rank=${rank})`);
         if (rank < bestRank) {
           best = result;
           bestRank = rank;
@@ -194,20 +208,27 @@ export const resolveOnlineByPreference = async (
         }
       }),
     );
+    const chosen = best as OnlineResult | null;
+    logLyric("info", `  best=${chosen ? `${chosen.source.platform}:${chosen.source.format}` : "null"}`);
     return isCurrent() ? best : null;
   }
 
   for (const platform of candidates) {
     const result = await resolvePlatformLyric(platform, track, options.forceQuery);
     if (!isCurrent()) return null;
-    if (!result) continue;
+    if (!result) {
+      logLyric("info", `  ${platform}: miss`);
+      continue;
+    }
     if (
       options.hasLocal &&
       options.localFormat &&
       !isOnlineResultUpgrade(result, options.localFormat)
     ) {
+      logLyric("info", `  ${platform}: hit ${result.source.format} 但不优于本地`);
       continue;
     }
+    logLyric("info", `  ${platform}: hit ${result.source.format} → 采用`);
     return result;
   }
   return null;

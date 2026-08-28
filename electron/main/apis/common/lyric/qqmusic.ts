@@ -54,7 +54,10 @@ export const getByPlatformId = async (
     }
 
     const main = pickFormatted(body.qrc, body.lrc);
-    if (!main) return null;
+    if (!main) {
+      coreLog.info(`[lyric:qqmusic] getByPlatformId(${id}) 无主歌词: qrc=${!!body.qrc}, lrc=${!!body.lrc}`);
+      return null;
+    }
 
     const trans = body.trans?.trim();
     const roma = body.roma?.trim();
@@ -70,6 +73,9 @@ export const getByPlatformId = async (
       extra: mid ? { mid } : undefined,
     };
     setCachedLyric("qqmusic", id, result);
+    coreLog.info(
+      `[lyric:qqmusic] getByPlatformId(${id}) 命中: format=${result.format}, chars=${result.content.length}`,
+    );
     return result;
   } catch (err) {
     coreLog.warn(`[lyric:qqmusic] getByPlatformId(${id}) failed:`, err);

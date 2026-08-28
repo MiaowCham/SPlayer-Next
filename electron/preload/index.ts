@@ -403,6 +403,9 @@ const api = {
       subscribe<CloudUploadProgress>("cloud:upload-progress", callback),
   },
   lyrics: {
+    // 渲染进程歌词加载日志 → 主进程文件日志
+    log: (level: "info" | "warn" | "error", message: string) =>
+      ipcRenderer.invoke("lyrics:log", level, message),
     // 读取歌曲的手动管理歌词
     getManaged: (track: unknown) => ipcRenderer.invoke("lyrics:getManaged", track),
     // 重新扫描歌曲歌词目录并同步数据库
