@@ -82,7 +82,6 @@ const save = async (): Promise<void> => {
       title: t("lyricManager.optimizeOverwriteTitle"),
       description: t("lyricManager.optimizeOverwriteDesc"),
       type: "warning",
-      layer: "topmost",
     });
     if (!confirmed) return;
   }
@@ -134,7 +133,13 @@ watch(showPrettyTtml, (pretty) => {
 </script>
 
 <template>
-  <SDialog :open="open" :title="t('lyricManager.optimize')" width="720px" tall layer="topmost" @update:open="optimize.setOpen($event)">
+  <SDialog
+    :open="open"
+    :title="t('lyricManager.optimize')"
+    width="720px"
+    tall
+    @update:open="optimize.setOpen($event)"
+  >
     <div class="flex flex-col gap-3">
       <!-- TTML：原始 / 美化 两个 tab -->
       <template v-if="format === 'ttml' || format === 'ttmlLine'">

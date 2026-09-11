@@ -19,8 +19,6 @@ export interface DialogOptions {
   type?: DialogType;
   /** 是否显示关闭按钮，默认 true */
   closable?: boolean;
-  /** 弹窗层级，用于覆盖已有模态框的二级流程 */
-  layer?: "default" | "top" | "topmost";
 }
 
 export interface DialogItem {

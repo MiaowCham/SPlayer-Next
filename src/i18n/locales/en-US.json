@@ -254,6 +254,10 @@
       "paste": "Paste",
       "pasteSearch": "Paste and Search"
     },
+    "menu": {
+      "hideFromSidebar": "Hide from sidebar",
+      "customizeSidebar": "Customize sidebar"
+    },
     "link": {
       "song": "Play [{id}]",
       "album": "Go to album [{id}]",
@@ -850,6 +854,7 @@
     },
     "section": {
       "platformLogin": "Platform Login",
+      "platformConfig": "Platform Config",
       "network": "Network & Proxy",
       "aboutApp": "About",
       "specialThanks": "Special Thanks",
@@ -857,7 +862,6 @@
       "community": "Community",
       "update": "Update",
       "language": "Language",
-      "playback": "Player",
       "playControl": "Playback Control",
       "audioSource": "Audio Source",
       "scrobble": "Scrobble",
@@ -878,6 +882,8 @@
       "appearanceStyle": "Appearance Style",
       "layout": "Layout",
       "font": "Fonts",
+      "playerBar": "Player Bar",
+      "nowPlaying": "Now Playing",
       "media": "Media Controls",
       "device": "Output Device",
       "hotkeys": "Hotkeys",
@@ -946,6 +952,12 @@
     "rememberLastTrack": {
       "label": "Remember Progress",
       "description": "Restore playback position on startup"
+    },
+    "searchPlayBehavior": {
+      "label": "Search Playback Behavior",
+      "description": "Playback strategy when double-clicking a track on the search page",
+      "current": "Play Current Track Only",
+      "all": "Play All Results"
     },
     "showLyricInBar": {
       "label": "Show Lyric While Playing",
@@ -1266,7 +1278,9 @@
       "restartRequiredTitle": "Restart Required",
       "restartRequiredContent": "This setting requires an app restart. Save and relaunch now?",
       "testChannelTitle": "Switch to a Test Channel",
-      "testChannelContent": "Beta and Alpha channels receive test releases early. Alpha releases may be highly unstable. Switch anyway?"
+      "testChannelContent": "Beta and Alpha channels receive test releases early. Alpha releases may be highly unstable. Switch anyway?",
+      "kugouLoginVersionTitle": "Switch KG Login Version",
+      "kugouLoginVersionContent": "After switching, the current credentials will not match the new version. You must log out and scan the QR code again, or VIP privileges and high-quality playback will stop working. Switch anyway?"
     },
     "useAMSpring": {
       "label": "Spring Animation Debug Switch",
@@ -1711,6 +1725,10 @@
       "default": "Default",
       "fullscreen": "Fullscreen"
     },
+    "coverLyricRatio": {
+      "label": "Cover/Lyrics Ratio",
+      "description": "Width ratio between cover and lyric areas in Now Playing"
+    },
     "themeMode": {
       "label": "Theme Mode",
       "description": "Application color theme",
@@ -1785,6 +1803,23 @@
     "sidebarPlaylistCover": {
       "label": "Show Playlist Covers",
       "description": "Show playlist covers instead of default icons in the sidebar"
+    },
+    "sidebarCustomize": {
+      "label": "Customize Sidebar",
+      "description": "Group, reorder and toggle sidebar navigation items",
+      "hint": "Drag handles to reorder and regroup; click the eye to toggle visibility",
+      "nav": "Navigation",
+      "groups": "Playlist Groups",
+      "group": "Group {n}",
+      "addGroup": "Add Group",
+      "emptyGroup": "Drag items here",
+      "noPlaylists": "No playlists",
+      "keepEmptyDivider": "Keep dividers for empty groups",
+      "nameWithDivider": "Show dividers alongside group names",
+      "showName": "Show group name in sidebar",
+      "confirmResetTitle": "Reset to defaults?",
+      "confirmResetDesc": "Groups, names, order and visibility will be reset to defaults!",
+      "featureDisabled": "Feature disabled"
     },
     "showStatsInSidebar": {
       "label": "Show Play Stats Entry",
@@ -1880,9 +1915,10 @@
     "platformLogin": {
       "title": "Log in to {name} Account",
       "desc": "Log in to retrieve playback streams directly from the platform",
-      "vipTag": " · VIP Member",
       "loginWeb": "Web Login",
       "loginQr": "QR Login",
+      "loginQrQQ": "QQ QR Login",
+      "loginQrWX": "WeChat QR Login",
       "qrTitle": "Scan to Log In",
       "manualCookie": "Cookie Login",
       "logout": "Log Out",
@@ -1959,6 +1995,12 @@
     "neteaseRealIp": {
       "label": "Use Real IP",
       "description": "May be restricted overseas or in some regions; enable this to try to resolve it"
+    },
+    "kugouLoginVersion": {
+      "label": "KG Login Version",
+      "description": "Re-login is required after switching",
+      "standard": "Standard",
+      "concept": "Concept"
     },
     "neteaseScrobbleEnabled": {
       "label": "Enable scrobble",

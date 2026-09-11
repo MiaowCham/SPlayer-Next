@@ -418,7 +418,8 @@ watch(processedLyrics, (newLyrics) => {
   if (!initialized.value || isFrozen.value) {
     pendingLyrics = newLyrics;
   } else {
-    playerRef.value.setLyricLines(newLyrics, props.initialTime);
+    const currentTime = getCurrentTime() + status.lyricOffsetMs;
+    playerRef.value.setLyricLines(newLyrics, currentTime);
     processLyricLanguage();
   }
 });
@@ -470,7 +471,8 @@ const resume = () => {
     return;
   }
   if (pendingLyrics) {
-    playerRef.value?.setLyricLines(pendingLyrics);
+    const currentTime = getCurrentTime() + status.lyricOffsetMs;
+    playerRef.value?.setLyricLines(pendingLyrics, currentTime);
     processLyricLanguage();
     pendingLyrics = null;
   }

@@ -75,6 +75,8 @@ export class LineAnimationController {
       }
 
     if (!targets?.length) return;
+    // 无 Web Animations API 的环境（如 happy-dom 测试）跳过动画，避免 element.animate 缺失报错
+    if (typeof targets[0].element.animate !== "function") return;
 
     const relativeTime = Math.max(0, currentTime - line.startTime);
     const anims: Animation[] = [];

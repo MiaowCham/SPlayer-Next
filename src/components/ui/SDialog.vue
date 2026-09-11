@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { CSSProperties } from "vue";
+import { usePopupZIndex } from "@/composables/useZIndex";
 
 export interface SDialogProps {
   /** 控制打开状态（v-model:open） */
@@ -30,8 +31,8 @@ export interface SDialogProps {
   lazy?: boolean;
   /** 关闭后销毁内容 */
   destroyOnClose?: boolean;
-  /** 弹窗层级；top 用于二级流程，topmost 用于覆盖二级流程的确认框 */
-  layer?: "default" | "top" | "topmost";
+  /** 自定义固定层级 */
+  zIndex?: number;
 }
 
 const props = withDefaults(defineProps<SDialogProps>(), {
@@ -43,7 +44,6 @@ const props = withDefaults(defineProps<SDialogProps>(), {
   height: "auto",
   lazy: true,
   destroyOnClose: false,
-  layer: "default",
 });
 
 const DESTROY_DELAY_MS = 180;
@@ -54,10 +54,6 @@ const containerStyle = computed(() => ({
   maxHeight: props.height === "auto" ? "85vh" : undefined,
   top: props.top,
 }));
-const layerClass = computed(() => {
-  if (props.layer === "topmost") return "z-320";
-  return props.layer === "top" ? "z-310" : "z-300";
-});
 
 const emit = defineEmits<{
   "update:open": [value: boolean];
@@ -67,12 +63,16 @@ const isOpen = ref(props.open ?? false);
 const mounted = ref((!props.lazy && !props.destroyOnClose) || isOpen.value);
 let destroyTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** 更新内容挂载状态 */
+const { zIndex: activeZIndex, onOpenChange } = usePopupZIndex(toRef(props, "zIndex"));
+
+/** 更新内容挂载状态与动态层级 */
 const syncMounted = (open: boolean): void => {
   if (destroyTimer) {
     clearTimeout(destroyTimer);
     destroyTimer = undefined;
   }
+
+  onOpenChange(open);
 
   if (open) {
     mounted.value = true;
@@ -116,17 +116,16 @@ const setOpen = (val: boolean): void => {
     <DialogPortal v-if="mounted">
       <!-- 遮罩层 -->
       <DialogOverlay
+        :style="{ zIndex: activeZIndex }"
         :class="[
           'fixed inset-0 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out',
-          layerClass,
           cover ? 'bg-black/50' : 'bg-black/40',
         ]"
       />
       <DialogContent
-        :style="containerStyle"
+        :style="[containerStyle, { zIndex: activeZIndex }]"
         :class="[
           'fixed left-1/2 -translate-x-1/2',
-          layerClass,
           top ? '' : 'top-1/2 -translate-y-1/2',
           'rounded-xl shadow-xl overflow-hidden',
           'flex flex-col',

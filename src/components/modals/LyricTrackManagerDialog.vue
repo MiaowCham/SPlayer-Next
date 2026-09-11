@@ -305,7 +305,6 @@ const deleteCandidate = async (candidate: LyricMatchCandidate): Promise<void> =>
     title: t("lyricManager.deleteVersionTitle"),
     content: t("lyricManager.deleteVersionDescription", { filename: candidate.filename }),
     type: "error",
-    layer: "topmost",
   });
   if (!confirmed) return;
   candidateActionId.value = candidate.id;
@@ -402,7 +401,6 @@ const importLyric = async (): Promise<void> => {
         title: t("lyricManager.overwriteTitle"),
         content: t("lyricManager.overwriteDescription", { filename: result.filename }),
         type: "warning",
-        layer: "topmost",
       });
       if (!overwrite) return;
       await window.api.lyrics.setManaged(track, lyric, true);
@@ -460,7 +458,6 @@ watch(
     title-tag="Beta"
     variant="settings"
     width="620px"
-    layer="top"
     @update:open="lyricManager.setOpen"
   >
     <div v-if="lyricManager.track.value" class="flex flex-col gap-4">
@@ -659,7 +656,6 @@ watch(
     :title="t('lyricManager.customSearch')"
     variant="settings"
     width="460px"
-    layer="topmost"
   >
     <div class="flex flex-col gap-4">
       <p class="text-sm text-on-surface-variant/70">
@@ -679,7 +675,6 @@ watch(
     :title="t('lyricManager.syncTitle')"
     variant="settings"
     width="560px"
-    layer="top"
   >
     <div class="flex flex-col gap-3">
       <div class="flex gap-2">
