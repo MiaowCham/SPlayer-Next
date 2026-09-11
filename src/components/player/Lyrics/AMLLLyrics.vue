@@ -16,12 +16,23 @@ import {
 import "@applemusic-like-lyrics/core/style.css";
 import "./renderer.css";
 
+/**
+ * SPlayer 与 AMLL 补丁之间的私有行协议，不属于上游公开 API。
+ * Core 会克隆并优化行数据，升级时必须确认字段仍能到达 LyricLineEl。
+ * 消费位置、未迁移字段和验证步骤见根目录 amll-hooks.md。
+ */
 type AmlLyricLine = LyricLine & {
+  /** 旧版关闭逐字高亮 hook；当前 0.5.2 补丁未迁移其消费者。 */
   __amllDisableWordHighlight?: true;
+  /** 旧版关闭强调 hook；当前 0.5.2 补丁未迁移其消费者。 */
   __amllDisableEmphasize?: true;
+  /** 旧版排除 CJK 强调 hook；当前 0.5.2 补丁未迁移其消费者。 */
   __amllDisableCjkEmphasis?: true;
+  /** 旧版上浮强度 hook；当前 0.5.2 补丁未迁移其消费者。 */
   __amllFloatAnimationIntensity?: LyricFloatAnimationIntensity;
+  /** 发音提升为主文字时开启双层遮罩；Core.createWord 与遮罩生成器共同消费。 */
   __amllIndependentMainWordMask?: true;
+  /** 正文为主文字时开启双层遮罩；两层分别测量宽高并复用 Core 行级时间轴。 */
   __amllIndependentRomanWordMask?: true;
 };
 
@@ -102,7 +113,8 @@ const settings = useSettingsStore();
 const status = useStatusStore();
 
 const wrapperRef = ref<HTMLDivElement | null>(null);
-const playerRef = ref<CoreLyricPlayer>();
+// Core 实例必须保留原始身份：挂载时用它判定异步等待后实例是否已被卸载或替换。
+const playerRef = shallowRef<CoreLyricPlayer>();
 const bottomLineEl = ref<HTMLElement>();
 const clockInitialized = ref(false);
 // 播放器是否已初始化完成
@@ -113,6 +125,7 @@ const isFrozen = ref(false);
 // 冻结期间缓存的待应用歌词
 let pendingLyrics: LyricLine[] | null = null;
 let lastCurrentTime = props.initialTime;
+let lastAlignPosition: number | undefined;
 // 页面隐藏状态的响应式跟踪
 const isPageHidden = ref(false);
 // 之前隐藏的标记，用于检测从隐藏恢复的时刻
@@ -121,26 +134,40 @@ const isPreviousHidden = ref(false);
 const nextFrame = (): Promise<void> =>
   new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
-/** 同时激活多个主歌词行时，使用较高的滚动对齐点。 */
+/**
+ * 将重叠高亮状态接入 AMLL 的对齐配置与布局刷新。
+ * 0.5.2 的两个 setter 仅写入 layoutState，切换时必须显式调用 calcLayout。
+ * 缓存最终对齐点，避免每次播放进度推送都触发布局；升级时复核 setter 的刷新语义。
+ * @param time - 已同步给 Core 的播放时间（毫秒）
+ */
 const syncAlignPosition = (time: number): void => {
   const player = playerRef.value;
   if (!player) return;
-  const activeMainLineCount = processedLyrics.value.filter(
-    (line) => !line.isBG && line.startTime <= time && line.endTime > time,
-  ).length;
+  let activeMainLineCount = 0;
+  if (props.raiseAlignPositionOnOverlap) {
+    // 使用 Core 优化后的主行时间，避免与实际高亮区间不一致。
+    for (const group of player.currentLyricGroups) {
+      const line = group.mainLine.getLine();
+      if (!line.isBG && line.startTime <= time && line.endTime > time && ++activeMainLineCount > 1)
+        break;
+    }
+  }
   const alignPosition =
     props.raiseAlignPositionOnOverlap && props.alignPosition > 0.15 && activeMainLineCount > 1
       ? 0.15
       : props.alignPosition;
+  if (lastAlignPosition === alignPosition) return;
+  lastAlignPosition = alignPosition;
   player.setAlignPosition(alignPosition);
   player.setAlignAnchor(alignPosition > 0.4 ? "center" : "top");
+  void player.calcLayout();
 };
 
-/** 同步时间前先更新当前重叠段的对齐位置。 */
+/** 同步时间后更新重叠段布局，确保新对齐点立即生效。 */
 const syncCurrentTime = (time: number, isSeek?: boolean): void => {
   lastCurrentTime = time;
-  syncAlignPosition(time);
   playerRef.value?.setCurrentTime(time, isSeek);
+  syncAlignPosition(time);
 };
 
 // 处理多语言显隐及音译偏好的本地高效清洗
@@ -183,6 +210,7 @@ const processedLyrics = computed(() => {
       newLine.__amllDisableCjkEmphasis = true;
     }
     newLine.__amllFloatAnimationIntensity = props.floatAnimationIntensity;
+    // 标记描述发音所在层；任一标记都会拆开两层，否则祖先遮罩仍会裁掉子层高亮。
     if (props.independentWordRomanizationProgress && wordPronunciationVisible) {
       if (props.largerLyricText === "pronunciation") {
         newLine.__amllIndependentMainWordMask = true;
@@ -344,7 +372,7 @@ onMounted(async () => {
     await nextFrame();
     if (playerRef.value !== player) return;
   }
-  player.setCurrentTime(getCurrentTime() + status.lyricOffsetMs, true);
+  syncCurrentTime(getCurrentTime() + status.lyricOffsetMs, true);
   player.update(0);
   initialized.value = true;
   contentVisible.value = true;
@@ -395,6 +423,7 @@ watchEffect(() => {
 watch(
   () => [
     props.alignPosition,
+    props.raiseAlignPositionOnOverlap,
     props.wordFadeWidth,
     props.hidePassedLines,
     props.enableBlur,
@@ -420,6 +449,7 @@ watch(processedLyrics, (newLyrics) => {
   } else {
     const currentTime = getCurrentTime() + status.lyricOffsetMs;
     playerRef.value.setLyricLines(newLyrics, currentTime);
+    syncCurrentTime(currentTime, true);
     processLyricLanguage();
   }
 });
@@ -440,6 +470,7 @@ watch(
     if (processedLyrics.value.length > 0 && !isFrozen.value) {
       const currentTime = getCurrentTime() + status.lyricOffsetMs;
       playerRef.value.setLyricLines(processedLyrics.value, currentTime);
+      syncCurrentTime(currentTime, true);
       processLyricLanguage();
     }
   },
@@ -473,6 +504,7 @@ const resume = () => {
   if (pendingLyrics) {
     const currentTime = getCurrentTime() + status.lyricOffsetMs;
     playerRef.value?.setLyricLines(pendingLyrics, currentTime);
+    syncCurrentTime(currentTime, true);
     processLyricLanguage();
     pendingLyrics = null;
   }

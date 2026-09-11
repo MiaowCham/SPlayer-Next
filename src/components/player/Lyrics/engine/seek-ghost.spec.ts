@@ -110,6 +110,54 @@ describe("歌词引擎 seek 后布局", () => {
     );
   });
 
+  it("多行同亮时抬高，退出重叠或关闭设置后恢复", () => {
+    const container = createContainer();
+    const renderer = new LyricRenderer(container, {
+      playing: true,
+      alignPosition: 0.35,
+      raiseAlignPositionOnOverlap: true,
+    });
+    const lines = makeLines(3);
+    lines[0].endTime = 4500;
+    lines[0].words[1].endTime = 4500;
+    renderer.setLyrics(lines);
+    const engine = renderer as unknown as {
+      positionSprings: { getCurrentPosition(): number }[];
+    };
+    renderer.setCurrentTime(3500);
+    runToSettle(renderer);
+    expect(engine.positionSprings[0].getCurrentPosition()).toBeCloseTo(800 * 0.15 - 20, 0);
+    renderer.setConfig({ raiseAlignPositionOnOverlap: false });
+    runToSettle(renderer);
+    expect(engine.positionSprings[0].getCurrentPosition()).toBeCloseTo(800 * 0.35 - 20, 0);
+    renderer.setConfig({ raiseAlignPositionOnOverlap: true });
+    renderer.setCurrentTime(4600);
+    runToSettle(renderer);
+    expect(engine.positionSprings[1].getCurrentPosition()).toBeCloseTo(800 * 0.35 - 20, 0);
+    renderer.dispose();
+    container.remove();
+  });
+
+  it("背景行同亮不触发抬高", () => {
+    const container = createContainer();
+    const renderer = new LyricRenderer(container, {
+      playing: true,
+      alignPosition: 0.35,
+      raiseAlignPositionOnOverlap: true,
+    });
+    const lines = makeLines(3);
+    lines[1].isBG = true;
+    renderer.setLyrics(lines);
+    renderer.setCurrentTime(1000);
+    runToSettle(renderer);
+    const engine = renderer as unknown as {
+      positionSprings: { getCurrentPosition(): number }[];
+    };
+    expect(engine.positionSprings[0].getCurrentPosition()).toBeCloseTo(800 * 0.35 - 20, 0);
+    renderer.dispose();
+    container.remove();
+  });
+
   it("快速长距离前进拖动后无重叠", () => {
     const container = createContainer();
     const renderer = new LyricRenderer(container, { playing: true });

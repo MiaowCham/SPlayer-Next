@@ -1,0 +1,373 @@
+diff --git a/dist/amll-core.cjs b/dist/amll-core.cjs
+index 819b12c2307970f3b2dc160b47c90bc9a560887d..61a5eba2847f9c97656c1570ec42e69661b2278f 100644
+--- a/dist/amll-core.cjs
++++ b/dist/amll-core.cjs
+@@ -4131,7 +4131,15 @@ var LyricLineEl = class extends LyricLineBase {
+ 		const mainWordEl = document.createElement("span");
+ 		const subElements = [];
+ 		const romanWord = word.romanWord?.trim() ?? "";
+-		const wordContainer = hasRubyLine ? document.createElement("div") : mainWordEl;
++		// SPlayer 私有行协议由 AMLLLyrics.vue 写入；升级时检查克隆和优化仍保留这两个字段。
++		// 两层必须是兄弟遮罩，mainWordEl 只负责原有布局和上浮，避免祖先遮罩再次裁剪发音。
++		const separateMasks = this.lyricLine.__amllIndependentMainWordMask === true || this.lyricLine.__amllIndependentRomanWordMask === true;
++		const mainMaskElement = separateMasks ? document.createElement("div") : mainWordEl;
++		if (separateMasks) {
++			mainMaskElement.classList.add("amll-main-mask");
++			mainWordEl.appendChild(mainMaskElement);
++		}
++		const wordContainer = hasRubyLine ? document.createElement("div") : mainMaskElement;
+ 		if (hasRubyLine) {
+ 			const rubyWordEl = document.createElement("div");
+ 			const rubySegments = this.getRubySegments(word);
+@@ -4145,8 +4153,8 @@ var LyricLineEl = class extends LyricLineBase {
+ 			rubyWordEl.classList.add(lyric_player_module_default.rubyWord);
+ 			mainWordEl.classList.add(lyric_player_module_default.wordWithRuby);
+ 			wordContainer.classList.add(lyric_player_module_default.wordBody);
+-			mainWordEl.appendChild(rubyWordEl);
+-			mainWordEl.appendChild(wordContainer);
++			mainMaskElement.appendChild(rubyWordEl);
++			mainMaskElement.appendChild(wordContainer);
+ 		}
+ 		const displayWord = this.lyricPlayer.processObsceneWord(word);
+ 		if (shouldEmphasize) {
+@@ -4169,15 +4177,24 @@ var LyricLineEl = class extends LyricLineBase {
+ 			wordEl.textContent = displayWord.trim();
+ 			wordContainer.appendChild(wordEl);
+ 		} else if (romanWord.length === 0) wordContainer.textContent = displayWord.trim();
++		// 发音容器保留上游的字号与留白，内层仅测量实际发音，避免容器宽度被正文撑大。
++		let romanMaskElement;
+ 		if (hasRomanLine) {
+ 			const romanWordEl = document.createElement("div");
+-			romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
+ 			romanWordEl.classList.add(lyric_player_module_default.romanWord);
+-			wordContainer.appendChild(romanWordEl);
++			if (separateMasks) {
++				romanMaskElement = document.createElement("div");
++				romanMaskElement.classList.add("amll-roman-mask");
++				romanMaskElement.textContent = romanWord.length > 0 ? romanWord : "\xA0";
++				romanWordEl.appendChild(romanMaskElement);
++			} else romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
++			(separateMasks ? mainWordEl : wordContainer).appendChild(romanWordEl);
+ 		}
+ 		return {
+ 			...word,
+ 			mainElement: mainWordEl,
++			mainMaskElement,
++			romanMaskElement,
+ 			subElements,
+ 			elementAnimations: [this.initFloatAnimation(word, mainWordEl)],
+ 			maskAnimations: [],
+@@ -4341,7 +4358,8 @@ var LyricLineEl = class extends LyricLineBase {
+ 			}
+ 		}
+ 		if (this.balancer && LyricLineBase.wordSegmenter) this.balancer.balanceLineBreaks(this.lyricPlayer._getIsNonDynamic(), this.splittedWords.length > 0, LyricLineBase.wordSegmenter);
+-		if (this.lyricPlayer.supportMaskImage) this.generateWebAnimationBasedMaskImage();
++		// 独立模式统一使用行级动画，WebKit 分支在生成器内转换属性名，以共享暂停和跳转逻辑。
++		if (this.lyricPlayer.supportMaskImage || this.lyricLine.__amllIndependentMainWordMask === true || this.lyricLine.__amllIndependentRomanWordMask === true) this.generateWebAnimationBasedMaskImage();
+ 		else this.generateCalcBasedMaskImage();
+ 		if (this.isEnabled) {
+ 			const isPlayerRunning = this.lyricPlayer.getIsPlaying?.() ?? true;
+@@ -4375,11 +4393,42 @@ var LyricLineEl = class extends LyricLineBase {
+ 			}
+ 		}
+ 	}
+-	generateWebAnimationBasedMaskImage() {
+-		const totalFadeDuration = Math.max(0, ...this.splittedWords.map((w) => w.endTime), this.lyricLine.endTime) - this.lyricLine.startTime;
+-		this.splittedWords.forEach((word, i) => {
++	/**
++	 * 按上游连续时间轴生成遮罩；SPlayer 独立模式仅替换每层的测量视图。
++	 * 升级时保留累计宽度、渐变越界插值和 getRubySegments 的新版实现，勿恢复旧逐词计时器。
++	 * @param maskWords - 原始词集合或某一层的临时测量视图，时间单位为毫秒
++	 * @param appendMasks - 是否向共享动画数组追加当前层，避免第二层取消第一层动画
++	 */
++	generateWebAnimationBasedMaskImage(maskWords = this.splittedWords, appendMasks = false) {
++		if (!appendMasks && (this.lyricLine.__amllIndependentMainWordMask === true || this.lyricLine.__amllIndependentRomanWordMask === true)) {
++			// 必须原地清空：临时视图与原词共享数组，由 enable/pause/disposeElements 统一管理。
++			for (const word of maskWords) {
++				for (const animation of word.maskAnimations) animation.cancel();
++				word.maskAnimations.length = 0;
++			}
++			for (const layer of ["mainMaskElement", "romanMaskElement"]) {
++				// 尺寸仅在重建或 ResizeObserver 测量时读取；不改原词宽高，避免影响换行和布局。
++				// 对象展开保留 maskAnimations 引用；不能在临时视图上替换该数组。
++				const row = maskWords.map((word) => {
++					const element = word[layer];
++					return {
++						...word,
++						mainElement: element,
++						width: element?.clientWidth ?? 0,
++						height: element?.clientHeight ?? 0,
++						padding: 0
++					};
++				});
++				this.generateWebAnimationBasedMaskImage(row, true);
++			}
++			return;
++		}
++		const lineDuration = Math.max(0, ...maskWords.map((w) => w.endTime), this.lyricLine.endTime) - this.lyricLine.startTime;
++		// 零时长歌词也需有效的帧偏移；默认模式保持上游原有时间计算。
++		const totalFadeDuration = appendMasks ? Math.max(1, lineDuration) : lineDuration;
++		maskWords.forEach((word, i) => {
+ 			const wordEl = word.mainElement;
+-			if (wordEl) {
++			if (wordEl && (!appendMasks || word.width > 0 && word.height > 0)) {
+ 				const fadeWidth = word.height * this.lyricPlayer.getWordFadeWidth();
+ 				const [maskImage, totalAspect] = generateFadeGradient(fadeWidth / (word.width + word.padding * 2));
+ 				const totalAspectStr = `${totalAspect * 100}% 100%`;
+@@ -4394,7 +4443,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 					wordEl.style.webkitMaskOrigin = "left";
+ 					wordEl.style.webkitMaskSize = totalAspectStr;
+ 				}
+-				const widthBeforeSelf = this.splittedWords.slice(0, i).reduce((a, b) => a + b.width, 0) + (this.splittedWords[0] ? fadeWidth : 0);
++				const widthBeforeSelf = maskWords.slice(0, i).reduce((a, b) => a + b.width, 0) + (maskWords[0] ? fadeWidth : 0);
+ 				const minOffset = -(word.width + word.padding * 2 + fadeWidth);
+ 				const clampOffset = (x) => clamp(x, minOffset, 0);
+ 				let curPos = -widthBeforeSelf - word.width - word.padding - fadeWidth;
+@@ -4435,7 +4484,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 				};
+ 				pushFrame();
+ 				let lastTimeStamp = 0;
+-				this.splittedWords.forEach((otherWord, j) => {
++				maskWords.forEach((otherWord, j) => {
+ 					{
+ 						const curTimeStamp = otherWord.startTime - this.lyricLine.startTime;
+ 						const staticDuration = curTimeStamp - lastTimeStamp;
+@@ -4465,7 +4514,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 									timeOffset += perCharDuration / totalFadeDuration;
+ 									curPos += widthPerChar;
+ 									if (j === 0 && charIndex === 0) curPos += fadeWidth * 1.5;
+-									if (j === this.splittedWords.length - 1 && charIndex === rubyCharCount - 1) curPos += fadeWidth * .5;
++									if (j === maskWords.length - 1 && charIndex === rubyCharCount - 1) curPos += fadeWidth * .5;
+ 									if (perCharDuration > 0) pushFrame();
+ 									lastTimeStamp += perCharDuration;
+ 									charIndex++;
+@@ -4484,22 +4533,27 @@ var LyricLineEl = class extends LyricLineBase {
+ 								timeOffset += segmentDuration / totalFadeDuration;
+ 								curPos += segmentWidth;
+ 								if (j === 0 && segmentIndex === 0) curPos += fadeWidth * 1.5;
+-								if (j === this.splittedWords.length - 1 && segmentIndex === segmentCount - 1) curPos += fadeWidth * .5;
++								if (j === maskWords.length - 1 && segmentIndex === segmentCount - 1) curPos += fadeWidth * .5;
+ 								if (segmentDuration > 0) pushFrame();
+ 								lastTimeStamp += segmentDuration;
+ 							}
+ 						}
+ 					}
+ 				});
+-				for (const a of word.maskAnimations) a.cancel();
++				if (!appendMasks) {
++					for (const a of word.maskAnimations) a.cancel();
++					word.maskAnimations.length = 0;
++				}
+ 				try {
+-					const ani = wordEl.animate(frames, {
++					const maskFrames = this.lyricPlayer.supportMaskImage ? frames : frames.map(({ maskPosition, ...frame }) => ({ ...frame, webkitMaskPosition: maskPosition }));
++					const ani = wordEl.animate(maskFrames, {
+ 						duration: totalFadeDuration || 1,
+ 						id: `fade-word-${word.word}-${i}`,
+ 						fill: "both"
+ 					});
+ 					ani.pause();
+-					word.maskAnimations = [ani];
++					// 追加到原词共享数组，确保两层都响应上游暂停、seek、隐藏恢复和销毁。
++					word.maskAnimations.push(ani);
+ 				} catch (err) {
+ 					console.warn("应用渐变动画发生错误", frames, totalFadeDuration, err);
+ 				}
+diff --git a/dist/amll-core.mjs b/dist/amll-core.mjs
+index 37bd9873e58044f0900c04c2ab80da5a6d29f16a..0a8b1454a8020f448c943c08cefc89c1e6518fa7 100644
+--- a/dist/amll-core.mjs
++++ b/dist/amll-core.mjs
+@@ -4106,7 +4106,15 @@ var LyricLineEl = class extends LyricLineBase {
+ 		const mainWordEl = document.createElement("span");
+ 		const subElements = [];
+ 		const romanWord = word.romanWord?.trim() ?? "";
+-		const wordContainer = hasRubyLine ? document.createElement("div") : mainWordEl;
++		// SPlayer 私有行协议由 AMLLLyrics.vue 写入；升级时检查克隆和优化仍保留这两个字段。
++		// 两层必须是兄弟遮罩，mainWordEl 只负责原有布局和上浮，避免祖先遮罩再次裁剪发音。
++		const separateMasks = this.lyricLine.__amllIndependentMainWordMask === true || this.lyricLine.__amllIndependentRomanWordMask === true;
++		const mainMaskElement = separateMasks ? document.createElement("div") : mainWordEl;
++		if (separateMasks) {
++			mainMaskElement.classList.add("amll-main-mask");
++			mainWordEl.appendChild(mainMaskElement);
++		}
++		const wordContainer = hasRubyLine ? document.createElement("div") : mainMaskElement;
+ 		if (hasRubyLine) {
+ 			const rubyWordEl = document.createElement("div");
+ 			const rubySegments = this.getRubySegments(word);
+@@ -4120,8 +4128,8 @@ var LyricLineEl = class extends LyricLineBase {
+ 			rubyWordEl.classList.add(lyric_player_module_default.rubyWord);
+ 			mainWordEl.classList.add(lyric_player_module_default.wordWithRuby);
+ 			wordContainer.classList.add(lyric_player_module_default.wordBody);
+-			mainWordEl.appendChild(rubyWordEl);
+-			mainWordEl.appendChild(wordContainer);
++			mainMaskElement.appendChild(rubyWordEl);
++			mainMaskElement.appendChild(wordContainer);
+ 		}
+ 		const displayWord = this.lyricPlayer.processObsceneWord(word);
+ 		if (shouldEmphasize) {
+@@ -4144,15 +4152,24 @@ var LyricLineEl = class extends LyricLineBase {
+ 			wordEl.textContent = displayWord.trim();
+ 			wordContainer.appendChild(wordEl);
+ 		} else if (romanWord.length === 0) wordContainer.textContent = displayWord.trim();
++		// 发音容器保留上游的字号与留白，内层仅测量实际发音，避免容器宽度被正文撑大。
++		let romanMaskElement;
+ 		if (hasRomanLine) {
+ 			const romanWordEl = document.createElement("div");
+-			romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
+ 			romanWordEl.classList.add(lyric_player_module_default.romanWord);
+-			wordContainer.appendChild(romanWordEl);
++			if (separateMasks) {
++				romanMaskElement = document.createElement("div");
++				romanMaskElement.classList.add("amll-roman-mask");
++				romanMaskElement.textContent = romanWord.length > 0 ? romanWord : "\xA0";
++				romanWordEl.appendChild(romanMaskElement);
++			} else romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
++			(separateMasks ? mainWordEl : wordContainer).appendChild(romanWordEl);
+ 		}
+ 		return {
+ 			...word,
+ 			mainElement: mainWordEl,
++			mainMaskElement,
++			romanMaskElement,
+ 			subElements,
+ 			elementAnimations: [this.initFloatAnimation(word, mainWordEl)],
+ 			maskAnimations: [],
+@@ -4316,7 +4333,8 @@ var LyricLineEl = class extends LyricLineBase {
+ 			}
+ 		}
+ 		if (this.balancer && LyricLineBase.wordSegmenter) this.balancer.balanceLineBreaks(this.lyricPlayer._getIsNonDynamic(), this.splittedWords.length > 0, LyricLineBase.wordSegmenter);
+-		if (this.lyricPlayer.supportMaskImage) this.generateWebAnimationBasedMaskImage();
++		// 独立模式统一使用行级动画，WebKit 分支在生成器内转换属性名，以共享暂停和跳转逻辑。
++		if (this.lyricPlayer.supportMaskImage || this.lyricLine.__amllIndependentMainWordMask === true || this.lyricLine.__amllIndependentRomanWordMask === true) this.generateWebAnimationBasedMaskImage();
+ 		else this.generateCalcBasedMaskImage();
+ 		if (this.isEnabled) {
+ 			const isPlayerRunning = this.lyricPlayer.getIsPlaying?.() ?? true;
+@@ -4350,11 +4368,42 @@ var LyricLineEl = class extends LyricLineBase {
+ 			}
+ 		}
+ 	}
+-	generateWebAnimationBasedMaskImage() {
+-		const totalFadeDuration = Math.max(0, ...this.splittedWords.map((w) => w.endTime), this.lyricLine.endTime) - this.lyricLine.startTime;
+-		this.splittedWords.forEach((word, i) => {
++	/**
++	 * 按上游连续时间轴生成遮罩；SPlayer 独立模式仅替换每层的测量视图。
++	 * 升级时保留累计宽度、渐变越界插值和 getRubySegments 的新版实现，勿恢复旧逐词计时器。
++	 * @param maskWords - 原始词集合或某一层的临时测量视图，时间单位为毫秒
++	 * @param appendMasks - 是否向共享动画数组追加当前层，避免第二层取消第一层动画
++	 */
++	generateWebAnimationBasedMaskImage(maskWords = this.splittedWords, appendMasks = false) {
++		if (!appendMasks && (this.lyricLine.__amllIndependentMainWordMask === true || this.lyricLine.__amllIndependentRomanWordMask === true)) {
++			// 必须原地清空：临时视图与原词共享数组，由 enable/pause/disposeElements 统一管理。
++			for (const word of maskWords) {
++				for (const animation of word.maskAnimations) animation.cancel();
++				word.maskAnimations.length = 0;
++			}
++			for (const layer of ["mainMaskElement", "romanMaskElement"]) {
++				// 尺寸仅在重建或 ResizeObserver 测量时读取；不改原词宽高，避免影响换行和布局。
++				// 对象展开保留 maskAnimations 引用；不能在临时视图上替换该数组。
++				const row = maskWords.map((word) => {
++					const element = word[layer];
++					return {
++						...word,
++						mainElement: element,
++						width: element?.clientWidth ?? 0,
++						height: element?.clientHeight ?? 0,
++						padding: 0
++					};
++				});
++				this.generateWebAnimationBasedMaskImage(row, true);
++			}
++			return;
++		}
++		const lineDuration = Math.max(0, ...maskWords.map((w) => w.endTime), this.lyricLine.endTime) - this.lyricLine.startTime;
++		// 零时长歌词也需有效的帧偏移；默认模式保持上游原有时间计算。
++		const totalFadeDuration = appendMasks ? Math.max(1, lineDuration) : lineDuration;
++		maskWords.forEach((word, i) => {
+ 			const wordEl = word.mainElement;
+-			if (wordEl) {
++			if (wordEl && (!appendMasks || word.width > 0 && word.height > 0)) {
+ 				const fadeWidth = word.height * this.lyricPlayer.getWordFadeWidth();
+ 				const [maskImage, totalAspect] = generateFadeGradient(fadeWidth / (word.width + word.padding * 2));
+ 				const totalAspectStr = `${totalAspect * 100}% 100%`;
+@@ -4369,7 +4418,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 					wordEl.style.webkitMaskOrigin = "left";
+ 					wordEl.style.webkitMaskSize = totalAspectStr;
+ 				}
+-				const widthBeforeSelf = this.splittedWords.slice(0, i).reduce((a, b) => a + b.width, 0) + (this.splittedWords[0] ? fadeWidth : 0);
++				const widthBeforeSelf = maskWords.slice(0, i).reduce((a, b) => a + b.width, 0) + (maskWords[0] ? fadeWidth : 0);
+ 				const minOffset = -(word.width + word.padding * 2 + fadeWidth);
+ 				const clampOffset = (x) => clamp(x, minOffset, 0);
+ 				let curPos = -widthBeforeSelf - word.width - word.padding - fadeWidth;
+@@ -4410,7 +4459,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 				};
+ 				pushFrame();
+ 				let lastTimeStamp = 0;
+-				this.splittedWords.forEach((otherWord, j) => {
++				maskWords.forEach((otherWord, j) => {
+ 					{
+ 						const curTimeStamp = otherWord.startTime - this.lyricLine.startTime;
+ 						const staticDuration = curTimeStamp - lastTimeStamp;
+@@ -4440,7 +4489,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 									timeOffset += perCharDuration / totalFadeDuration;
+ 									curPos += widthPerChar;
+ 									if (j === 0 && charIndex === 0) curPos += fadeWidth * 1.5;
+-									if (j === this.splittedWords.length - 1 && charIndex === rubyCharCount - 1) curPos += fadeWidth * .5;
++									if (j === maskWords.length - 1 && charIndex === rubyCharCount - 1) curPos += fadeWidth * .5;
+ 									if (perCharDuration > 0) pushFrame();
+ 									lastTimeStamp += perCharDuration;
+ 									charIndex++;
+@@ -4459,22 +4508,27 @@ var LyricLineEl = class extends LyricLineBase {
+ 								timeOffset += segmentDuration / totalFadeDuration;
+ 								curPos += segmentWidth;
+ 								if (j === 0 && segmentIndex === 0) curPos += fadeWidth * 1.5;
+-								if (j === this.splittedWords.length - 1 && segmentIndex === segmentCount - 1) curPos += fadeWidth * .5;
++								if (j === maskWords.length - 1 && segmentIndex === segmentCount - 1) curPos += fadeWidth * .5;
+ 								if (segmentDuration > 0) pushFrame();
+ 								lastTimeStamp += segmentDuration;
+ 							}
+ 						}
+ 					}
+ 				});
+-				for (const a of word.maskAnimations) a.cancel();
++				if (!appendMasks) {
++					for (const a of word.maskAnimations) a.cancel();
++					word.maskAnimations.length = 0;
++				}
+ 				try {
+-					const ani = wordEl.animate(frames, {
++					const maskFrames = this.lyricPlayer.supportMaskImage ? frames : frames.map(({ maskPosition, ...frame }) => ({ ...frame, webkitMaskPosition: maskPosition }));
++					const ani = wordEl.animate(maskFrames, {
+ 						duration: totalFadeDuration || 1,
+ 						id: `fade-word-${word.word}-${i}`,
+ 						fill: "both"
+ 					});
+ 					ani.pause();
+-					word.maskAnimations = [ani];
++					// 追加到原词共享数组，确保两层都响应上游暂停、seek、隐藏恢复和销毁。
++					word.maskAnimations.push(ani);
+ 				} catch (err) {
+ 					console.warn("应用渐变动画发生错误", frames, totalFadeDuration, err);
+ 				}
+diff --git a/dist/style.css b/dist/style.css
+index 70b5c0350240b7d82347f0f527659683f7b0b9e9..97b58eda7c79492787c875de0bf7632037168dea 100644
+--- a/dist/style.css
++++ b/dist/style.css
+@@ -140,6 +140,18 @@
+   }
+ }
+ 
++/* SPlayer 独立遮罩 hook：主文字按内容宽度测量，外层词容器仍由上游控制布局。 */
++.amll-lyric-player .amll-main-mask {
++  display: inline-block;
++}
++
++/* 为 g/j/p/y 等下伸字符留出遮罩边界；负边距抵消额外行高，升级字号样式时需复核。 */
++.amll-lyric-player .amll-roman-mask {
++  display: inline-block;
++  padding-block-end: .125em;
++  margin-block-end: -.125em;
++}
++
+ .FmKaba_lyricBgLine {
+   opacity: .4;
+   font-size: max(calc(1em * var(--amll-lp-bg-line-scale, .7)), 10px);
