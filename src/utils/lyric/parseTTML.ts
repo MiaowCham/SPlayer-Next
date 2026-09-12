@@ -40,6 +40,8 @@ const getInheritedLanguage = (el: Element): LyricLanguage | undefined => {
   let current: Element | null = el;
   while (current) {
     const language = getAttr(current, "lang")?.toLowerCase();
+    // 粤语标签不能降为泛中文，否则汉语拼音过滤会失去明确的保护依据。
+    if (language?.startsWith("yue") || language?.startsWith("zh-yue")) return "yue";
     if (language?.startsWith("zh")) return "zh-CN";
     if (language?.startsWith("ja")) return "ja";
     if (language?.startsWith("ko")) return "ko";

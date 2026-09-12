@@ -1,0 +1,11 @@
+Lyricify-Backgrounds 来源与移植声明
+
+来源：https://github.com/WXRIW/Lyricify-Backgrounds
+参考提交：bdd31b5c5f678bbdf8946c6258883291f6b58657
+原项目许可证：Apache License 2.0（同目录 Lyricify-Backgrounds.txt）。
+
+SPlayer-Next 将该项目新版及经典版 Apple Music 风格背景的 C# 网格算法、
+控制点、HLSL 着色器与 WinUI 渲染阶段改写为 TypeScript / GLSL ES / WebGL2。
+WebGL 资源管理、封面解码、可见性与应用设置集成为本项目适配代码。
+音频输入使用 SPlayer-Next 现有 FFT，不移植 Windows 音频捕获后端。
+本声明由 SPlayer-Next 为移植添加，不代表原作者对本项目的认可。

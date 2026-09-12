@@ -241,15 +241,21 @@ const appearanceCategory: SettingCategory = {
             { value: "blur", labelKey: "settings.playerBgType.blur" },
             { value: "solid", labelKey: "settings.playerBgType.solid" },
             { value: "animation", labelKey: "settings.playerBgType.animation" },
+            { value: "apple-music", labelKey: "settings.playerBgType.appleMusic" },
+            { value: "apple-music-classic", labelKey: "settings.playerBgType.appleMusicClassic" },
           ],
           defaultValue: "blur",
           confirm: {
-            when: (next) => next === "animation",
+            when: (next) =>
+              next === "animation" || next === "apple-music" || next === "apple-music-classic",
             titleKey: "settings.confirm.highResourceTitle",
             contentKey: "settings.confirm.highResourceContent",
             type: "warning",
           },
-          childrenCondition: () => useSettingsStore().player.playerBgType === "animation",
+          childrenCondition: () =>
+            ["animation", "apple-music", "apple-music-classic"].includes(
+              useSettingsStore().player.playerBgType,
+            ),
           hideChildren: true,
           children: [
             {
@@ -291,6 +297,7 @@ const appearanceCategory: SettingCategory = {
             {
               key: "playerBgBeat",
               type: "switch",
+              visible: () => useSettingsStore().player.playerBgType !== "apple-music-classic",
               binding: { store: "settings", path: "player.playerBgBeat" },
               defaultValue: false,
             },

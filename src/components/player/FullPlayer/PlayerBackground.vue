@@ -4,6 +4,7 @@ import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
 import BackgroundRender from "./BackgroundRender.vue";
+import AppleMusicBackground from "./AppleMusicBackground.vue";
 
 const media = useMediaStore();
 const settings = useSettingsStore();
@@ -132,6 +133,26 @@ onBeforeUnmount(() => {
       <BackgroundRender
         :album="media.track?.cover || DEFAULT_COVER"
         :playing="bgPlaying"
+        :fps="settings.player.playerBgFps"
+        :flow-speed="settings.player.playerBgFlowSpeed"
+        :render-scale="settings.player.playerBgRenderScale"
+        :has-lyric="media.parsedLyric.length > 0"
+        :enable-beat="settings.player.playerBgBeat"
+      />
+    </div>
+  </Transition>
+  <Transition
+    v-else-if="bgType === 'apple-music' || bgType === 'apple-music-classic'"
+    name="bg-fade"
+  >
+    <div v-if="bgReady" class="absolute inset-0 overflow-hidden -z-1">
+      <AppleMusicBackground
+        :key="bgType"
+        :variant="bgType === 'apple-music-classic' ? 'classic' : 'modern'"
+        :album="media.track?.cover || DEFAULT_COVER"
+        :visible="status.isPlayerExpanded"
+        :playing="bgPlaying"
+        :audio-playing="status.isPlaying"
         :fps="settings.player.playerBgFps"
         :flow-speed="settings.player.playerBgFlowSpeed"
         :render-scale="settings.player.playerBgRenderScale"

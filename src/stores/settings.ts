@@ -189,6 +189,7 @@ export const useSettingsStore = defineStore(
       showTranslation: true,
       fallbackTranslation: true,
       showRomanization: true,
+      hideChinesePronunciation: false,
       amllShowLineRomanization: true,
       amllShowWordRomanization: true,
       independentWordRomanizationProgress: false,
@@ -413,6 +414,9 @@ export const useSettingsStore = defineStore(
         }
         if (typeof lyric.forceLinePronunciationAsMain !== "boolean") {
           lyric.forceLinePronunciationAsMain = false;
+        }
+        if (typeof lyric.hideChinesePronunciation !== "boolean") {
+          lyric.hideChinesePronunciation = false;
         }
         if (typeof lyric.independentWordRomanizationProgress !== "boolean") {
           lyric.independentWordRomanizationProgress = false;

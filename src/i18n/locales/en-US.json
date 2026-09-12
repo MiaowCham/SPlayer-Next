@@ -1697,16 +1697,22 @@
       "label": "Word by Word",
       "description": "Render highlight progress per word"
     },
+    "hideChinesePronunciation": {
+      "label": "Hide Mandarin Pinyin",
+      "description": "Hide confirmed Mandarin pinyin matching the lyrics. Keep Cantonese and other pronunciations, including uncertain cases."
+    },
     "playerBgType": {
       "label": "Player Background",
       "description": "Background type of the full-screen player",
       "blur": "Blur",
       "solid": "Solid",
-      "animation": "Fluid"
+      "animation": "Fluid",
+      "appleMusic": "Apple Music Inspired (Modern)",
+      "appleMusicClassic": "Apple Music Inspired (Classic)"
     },
     "playerBgFlowSpeed": {
       "label": "Flow Speed",
-      "description": "Animation flow speed of the fluid background"
+      "description": "Animation flow speed of dynamic backgrounds"
     },
     "playerBgRenderScale": {
       "label": "Render Scale",
@@ -1714,15 +1720,15 @@
     },
     "playerBgFps": {
       "label": "Frame Rate",
-      "description": "Render frame rate of the fluid background; higher is smoother but heavier"
+      "description": "Render frame rate of dynamic backgrounds; higher is smoother but heavier"
     },
     "playerBgFreezeOnPause": {
       "label": "Freeze When Paused",
-      "description": "Stop the fluid background animation while playback is paused"
+      "description": "Stop dynamic background motion while playback is paused"
     },
     "playerBgBeat": {
       "label": "Beat Pulse",
-      "description": "Make the fluid background pulse with the low-frequency beat of the music"
+      "description": "Make dynamic backgrounds pulse with low-frequency beats (not available in Classic)"
     },
     "coverLayout": {
       "label": "Cover Layout",

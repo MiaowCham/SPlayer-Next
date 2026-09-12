@@ -18,6 +18,7 @@ import { normalizeLyricLines } from "@/utils/lyric/normalize";
 import { applyProfanityUncensor } from "@/utils/preset/profanity";
 import { getValidArtists } from "@shared/utils/track";
 import { applyLyricCjkTransform } from "@/utils/lyric/cjkTransform";
+import { hideChinesePronunciation } from "@/utils/lyric/hideChinesePronunciation";
 
 export const useMediaStore = defineStore("media", () => {
   watchLyricPreference();
@@ -116,6 +117,7 @@ export const useMediaStore = defineStore("media", () => {
    * @param newDetail - 新的歌曲详细信息；省略则保留现有 detail
    */
   const setTrack = (newTrack: Track, newDetail?: TrackDetail): void => {
+    transformToken++;
     creatorToken++;
     creatorRequestKey = "";
     track.value = newTrack;
@@ -181,6 +183,7 @@ export const useMediaStore = defineStore("media", () => {
 
   /** 重置歌词状态 */
   const resetLyricState = (): void => {
+    transformToken++;
     activeLyric.value = null;
     lyricContent.value = null;
     parsedLyric.value = [];
@@ -192,13 +195,14 @@ export const useMediaStore = defineStore("media", () => {
     syncToMain();
   };
 
-  /** 简繁转换竞态 token */
+  /** 异步展示转换的竞态代次，防止切歌和关闭过滤后旧结果回写。 */
   let transformToken = 0;
 
-  // 监听中文繁简偏好及强迫症设置变化并重新解析当前歌词
+  // 展示设置变化后从原始输入重建，关闭过滤时才能恢复原有发音。
   watch(
     () => [
       useSettingsStore().lyric.chineseScriptPreference,
+      useSettingsStore().lyric.hideChinesePronunciation,
       useSettingsStore().preset.uncensorProfanity,
     ],
     () => {
@@ -242,7 +246,8 @@ export const useMediaStore = defineStore("media", () => {
     const hasContent = nextLines.length > 0;
     activeLyric.value = hasContent ? source : null;
     lyricContent.value = hasContent ? input : null;
-    parsedLyric.value = nextLines;
+    // 首次字典加载期间不先广播未过滤发音，避免多个歌词窗口短暂闪出拼音。
+    parsedLyric.value = settings.lyric.hideChinesePronunciation ? [] : nextLines;
     if (onlineCreators.value) {
       lyricAuthors.value = onlineCreators.value;
       lyricAuthorKind.value = "creator";
@@ -262,17 +267,37 @@ export const useMediaStore = defineStore("media", () => {
       lyricAuthorKind.value = null;
     }
     lyricIndex.value = -1;
-    lyricLoading.value = false;
+    lyricLoading.value = hasContent && settings.lyric.hideChinesePronunciation;
     syncToMain();
 
-    // 应用 OpenCC 简繁转换
+    // 展示过滤先于简繁转换，统一同步给主播放器和独立歌词窗口；原始输入不改写。
     const chineseScriptPreference = settings.lyric.chineseScriptPreference;
-    if (hasContent && chineseScriptPreference !== "default") {
-      applyLyricCjkTransform(nextLines, chineseScriptPreference).then((transformed) => {
-        if (currentTransformToken !== transformToken) return;
-        parsedLyric.value = transformed;
-        syncToMain();
-      });
+    if (
+      hasContent &&
+      (settings.lyric.hideChinesePronunciation || chineseScriptPreference !== "default")
+    ) {
+      const displayLines = settings.lyric.hideChinesePronunciation
+        ? hideChinesePronunciation(nextLines)
+        : Promise.resolve(nextLines);
+      displayLines
+        .then((lines) =>
+          chineseScriptPreference === "default"
+            ? lines
+            : applyLyricCjkTransform(lines, chineseScriptPreference),
+        )
+        .then((transformed) => {
+          if (currentTransformToken !== transformToken) return;
+          parsedLyric.value = transformed;
+          lyricLoading.value = false;
+          syncToMain();
+        })
+        .catch((error) => {
+          if (currentTransformToken !== transformToken) return;
+          console.warn("[media] lyric display transform failed", error);
+          parsedLyric.value = nextLines;
+          lyricLoading.value = false;
+          syncToMain();
+        });
     }
   };
 
@@ -286,6 +311,7 @@ export const useMediaStore = defineStore("media", () => {
 
   /** 清空所有状态 */
   const clear = (): void => {
+    transformToken++;
     track.value = null;
     playbackContext.value = undefined;
     detail.value = null;

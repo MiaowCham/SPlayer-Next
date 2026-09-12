@@ -34,7 +34,7 @@ export const DEFAULT_LYRIC_FORMAT_ORDER: readonly LyricFormat[] = [
 export type LyricSource = "external" | "embedded" | "online" | "managed";
 
 /** 歌词行语言；und-Hani 与 und-Latn 分别表示语言未知的汉字与拉丁文字 */
-export type LyricLanguage = "ja" | "ko" | "zh-CN" | "und-Hani" | "und-Latn";
+export type LyricLanguage = "ja" | "ko" | "zh-CN" | "yue" | "und-Hani" | "und-Latn";
 
 /** 歌词数据 */
 export type LyricData = {

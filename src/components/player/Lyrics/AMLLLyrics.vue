@@ -545,7 +545,8 @@ defineExpose({
   height: 100%;
 }
 
-:deep(:lang(zh)) {
+:deep(:lang(zh)),
+:deep(:lang(yue)) {
   font-family: var(--lyric-font-zh, inherit);
 }
 

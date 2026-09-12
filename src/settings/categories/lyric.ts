@@ -317,6 +317,13 @@ const lyricCategory: SettingCategory = {
           defaultValue: true,
           visible: () => lyricEngine() === "amll",
         },
+        {
+          key: "hideChinesePronunciation",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.hideChinesePronunciation" },
+          defaultValue: false,
+          tag: { text: "Beta" },
+        },
       ],
     },
     {

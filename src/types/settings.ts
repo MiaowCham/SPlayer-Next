@@ -4,7 +4,7 @@ import type { Platform } from "@shared/types/platform";
 import type { QualityLevel } from "@/utils/quality";
 
 /** 播放器背景类型 */
-export type PlayerBgType = "blur" | "solid" | "animation";
+export type PlayerBgType = "blur" | "solid" | "animation" | "apple-music" | "apple-music-classic";
 export type CoverLayout = "default" | "fullscreen";
 
 /**
@@ -174,6 +174,8 @@ export interface LyricSettings {
   fallbackTranslation: boolean;
   /** 是否显示音译歌词 */
   showRomanization: boolean;
+  /** 隐藏可确认的汉语拼音，不隐藏粤拼及其他类型发音 */
+  hideChinesePronunciation: boolean;
   /** AMLL 是否显示逐行音译 */
   amllShowLineRomanization: boolean;
   /** AMLL 是否显示逐词音译 */

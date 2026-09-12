@@ -45,7 +45,7 @@ export const applyLyricCjkTransform = async (
     }
 
     // 正文只处理语言识别为中文的行。
-    if (line.language === "zh-CN") {
+    if (line.language === "zh-CN" || line.language === "yue") {
       for (let wIdx = 0; wIdx < line.words.length; wIdx++) {
         const word = line.words[wIdx];
         if (word.word) {
@@ -86,7 +86,10 @@ export const applyLyricCjkTransform = async (
     // 繁简转换后，若翻译内容与正文仅繁简之差（忽略空格后文字一致），则隐藏翻译，只显示被偏好处理后的正文。
     for (const line of resultLines) {
       if (!line.translatedLyric) continue;
-      const mainText = line.words.map((word) => word.word).join("").replace(/\s+/g, "");
+      const mainText = line.words
+        .map((word) => word.word)
+        .join("")
+        .replace(/\s+/g, "");
       const transText = line.translatedLyric.replace(/\s+/g, "");
       if (mainText && transText && mainText === transText) {
         line.translatedLyric = "";

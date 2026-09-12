@@ -170,7 +170,8 @@
   }
 }
 
-.lp-main:lang(zh) {
+.lp-main:lang(zh),
+.lp-main:lang(yue) {
   font-family: var(--lyric-font-zh, inherit);
 }
 
