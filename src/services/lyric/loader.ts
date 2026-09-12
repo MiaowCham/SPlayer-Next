@@ -119,7 +119,9 @@ const commitAndHasParsed = (
 ): boolean => {
   commit(token, source, input);
   if (token !== currentToken) return false;
-  return useMediaStore().parsedLyric.length > 0;
+  const media = useMediaStore();
+  // 拼音过滤异步完成前 parsedLyric 会暂时为空，不能据此判定原始歌词解析失败。
+  return !!media.activeLyric && !!media.lyricContent;
 };
 
 /** 提交已解析歌词候选并返回是否有效 */

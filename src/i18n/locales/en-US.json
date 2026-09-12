@@ -1707,8 +1707,8 @@
       "blur": "Blur",
       "solid": "Solid",
       "animation": "Fluid",
-      "appleMusic": "Apple Music Inspired (Modern)",
-      "appleMusicClassic": "Apple Music Inspired (Classic)"
+      "appleMusic": "Apple Music",
+      "appleMusicClassic": "Apple Music Classic"
     },
     "playerBgFlowSpeed": {
       "label": "Flow Speed",

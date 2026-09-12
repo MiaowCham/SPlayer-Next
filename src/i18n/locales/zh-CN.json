@@ -1683,8 +1683,8 @@
       "blur": "模糊",
       "solid": "纯色",
       "animation": "流体",
-      "appleMusic": "Apple Music 风格（新版）",
-      "appleMusicClassic": "Apple Music 风格（经典）"
+      "appleMusic": "Apple Music",
+      "appleMusicClassic": "Apple Music 经典"
     },
     "playerBgFlowSpeed": {
       "label": "流动速度",

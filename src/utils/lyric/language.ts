@@ -21,6 +21,7 @@ const LATIN_RE = /\p{Script=Latin}/u;
 const CHINESE_GLYPH_EVIDENCE_RE = /[这這们們说說话语让讓还還听聽欢歡爱为為发發吗嗎汉龙书车]/u;
 const CHINESE_WORD_EVIDENCE_RE =
   /(?:你|妳|您|我们|我們|你们|你們|他们|他們|她们|她們|没有|沒有|不会|不會|因为|因為|所以)/u;
+const LANGUAGE_DOMINANCE_THRESHOLD = 0.6;
 
 /**
  * 判断文本是否有足够证据可安全视为中文。
@@ -43,36 +44,47 @@ export const isConfirmedChineseText = (text: string): boolean =>
 export const applyLyricLanguages = (lines: LyricLine[]): void => {
   const lineContents = lines.map((line) => line.words.map((word) => word.word).join(""));
 
-  let hasKana = false;
-  let hasHangul = false;
+  let kanaCount = 0;
+  let hangulCount = 0;
+  let hanCount = 0;
+  let confirmedChineseCount = 0;
   for (const content of lineContents) {
-    if (KANA_RE.test(content)) hasKana = true;
-    if (HANGUL_RE.test(content)) hasHangul = true;
+    for (const char of content) {
+      if (KANA_RE.test(char)) kanaCount++;
+      else if (HANGUL_RE.test(char)) hangulCount++;
+      else if (HAN_RE.test(char)) {
+        hanCount++;
+        if (isConfirmedChineseText(char)) confirmedChineseCount++;
+      }
+    }
   }
+  const scriptCount = kanaCount + hangulCount + hanCount;
+  const dominantJapanese = kanaCount / Math.max(1, scriptCount) >= LANGUAGE_DOMINANCE_THRESHOLD;
+  const dominantKorean = hangulCount / Math.max(1, scriptCount) >= LANGUAGE_DOMINANCE_THRESHOLD;
+  const dominantChinese =
+    confirmedChineseCount / Math.max(1, hanCount) >= LANGUAGE_DOMINANCE_THRESHOLD &&
+    hanCount / Math.max(1, scriptCount) >= LANGUAGE_DOMINANCE_THRESHOLD;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const content = lineContents[i];
-    // 解析器提供的 BCP 47 语言标签比脚本启发式更可靠。
-    if (line.language) continue;
-
     if (KANA_RE.test(content)) {
       line.language = "ja";
     } else if (HANGUL_RE.test(content)) {
       line.language = "ko";
     } else if (HAN_RE.test(content)) {
-      if (hasKana) {
+      if (dominantJapanese) {
         line.language = "ja";
-      } else if (hasHangul) {
+      } else if (dominantKorean) {
         line.language = "ko";
-      } else if (isConfirmedChineseText(content)) {
+      } else if (dominantChinese || isConfirmedChineseText(content)) {
         line.language = "zh-CN";
       } else {
-        line.language = "und-Hani";
+        if (!line.language) line.language = "und-Hani";
       }
     } else if (LATIN_RE.test(content)) {
       line.language = "und-Latn";
-    } else {
+    } else if (!line.language) {
       delete line.language;
     }
   }

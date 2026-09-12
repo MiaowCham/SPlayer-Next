@@ -15,25 +15,51 @@ const createLine = (content: string, options: Partial<LyricLine> = {}): LyricLin
 });
 
 describe("applyLyricLanguages", () => {
-  it("用假名上下文将纯汉字行识别为日语", () => {
+  it("正文脚本优先于错误的语言标签", () => {
+    const lines = [
+      {
+        words: [{ word: "ループザルーム", startTime: 0, endTime: 1 }],
+        language: "und-Latn",
+      },
+    ] as LyricLine[];
+
+    applyLyricLanguages(lines);
+
+    assert.equal(lines[0].language, "ja");
+  });
+
+  it("正文无法判断时回退到语言标签", () => {
+    const lines = [
+      {
+        words: [{ word: "愛", startTime: 0, endTime: 1 }],
+        language: "ja",
+      },
+    ] as LyricLine[];
+
+    applyLyricLanguages(lines);
+
+    assert.equal(lines[0].language, "ja");
+  });
+
+  it("假名未达到整曲占比阈值时不替纯汉字行猜测语言", () => {
     const lines = [createLine("愛"), createLine("君が好き")];
 
     applyLyricLanguages(lines);
 
     assert.deepEqual(
       lines.map((line) => line.language),
-      ["ja", "ja"],
+      ["und-Hani", "ja"],
     );
   });
 
-  it("整首出现假名时不把纯汉字行识别为中文", () => {
+  it("假名达到整曲占比阈值后将纯汉字行识别为日语", () => {
     const lines = [createLine("爱"), createLine("君が好き", { translatedLyric: "我喜欢你" })];
 
     applyLyricLanguages(lines);
 
     assert.deepEqual(
       lines.map((line) => line.language),
-      ["ja", "ja"],
+      ["zh-CN", "ja"],
     );
   });
 
@@ -59,12 +85,12 @@ describe("applyLyricLanguages", () => {
     );
   });
 
-  it("不覆盖解析器提供的显式语言", () => {
+  it("正文证据达到阈值时覆盖错误的显式语言", () => {
     const lines = [createLine("我爱你", { language: "ja" })];
 
     applyLyricLanguages(lines);
 
-    assert.equal(lines[0].language, "ja");
+    assert.equal(lines[0].language, "zh-CN");
   });
 
   it("不把拉丁文字断言为英语", () => {

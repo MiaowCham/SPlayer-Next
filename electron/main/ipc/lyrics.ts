@@ -414,7 +414,9 @@ const saveOptimizedLyric = async (
     input = { ...input, content: normalizeTtml(input.content).content };
   }
   const dir = getManagedTrackLyricsDir(track);
-  const baseName = `${candidate.origin}.${format}`;
+  const baseName = candidate.local
+    ? candidate.filename
+    : `${candidate.origin}.${format}`;
   const mainPath = path.join(dir, baseName);
   const isLocal = candidate.local;
 
