@@ -37,15 +37,13 @@ export class SPlayerLyricPlayer extends LyricPlayer {
     const secondLine = second.getLine();
     const firstElement = first.getElement();
     const secondElement = second.getElement();
-    const firstHeight = firstElement?.getBoundingClientRect().height ?? 0;
-    const secondHeight = secondElement?.getBoundingClientRect().height ?? 0;
-    const gap =
-      Math.max(0, secondElement?.getBoundingClientRect().top ?? 0) -
-      Math.max(0, firstElement?.getBoundingClientRect().bottom ?? 0);
+    const firstHeight = firstElement?.offsetHeight ?? 0;
+    const secondHeight = secondElement?.offsetHeight ?? 0;
     return {
       firstHeight,
       secondHeight,
-      gap,
+      // 不能使用两行当前的绝对坐标，否则对齐动画会反过来影响下一次计算。
+      gap: 0,
       overlapDuration:
         Math.min(firstLine.endTime, secondLine.endTime) -
         Math.max(firstLine.startTime, secondLine.startTime),
