@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { LyricLine } from "@shared/types/lyrics";
 import type { LargerLyricText, LyricFloatAnimationIntensity } from "@/types/settings";
-import { LyricPlayer as CoreLyricPlayer } from "@applemusic-like-lyrics/core";
+import { SPlayerLyricPlayer as CoreLyricPlayer } from "./amll-player";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { getCurrentTime } from "@/services/playback";
@@ -124,7 +124,6 @@ const contentVisible = ref(false);
 const isFrozen = ref(false);
 // 冻结期间缓存的待应用歌词
 let pendingLyrics: LyricLine[] | null = null;
-let lastCurrentTime = props.initialTime;
 let lastAlignPosition: number | undefined;
 // 页面隐藏状态的响应式跟踪
 const isPageHidden = ref(false);
@@ -138,20 +137,13 @@ const nextFrame = (): Promise<void> =>
  * 将重叠高亮状态接入 AMLL 的对齐配置与布局刷新。
  * 0.5.2 的两个 setter 仅写入 layoutState，切换时必须显式调用 calcLayout。
  * 缓存最终对齐点，避免每次播放进度推送都触发布局；升级时复核 setter 的刷新语义。
- * @param time - 已同步给 Core 的播放时间（毫秒）
  */
-const syncAlignPosition = (time: number): void => {
+const syncAlignPosition = (): void => {
   const player = playerRef.value;
   if (!player) return;
-  let activeMainLineCount = 0;
-  if (props.raiseAlignPositionOnOverlap) {
-    // 使用 Core 优化后的主行时间，避免与实际高亮区间不一致。
-    for (const group of player.currentLyricGroups) {
-      const line = group.mainLine.getLine();
-      if (!line.isBG && line.startTime <= time && line.endTime > time && ++activeMainLineCount > 1)
-        break;
-    }
-  }
+  const activeMainLineCount = props.raiseAlignPositionOnOverlap
+    ? player.getBufferedMainLineCount()
+    : 0;
   const alignPosition =
     props.raiseAlignPositionOnOverlap && props.alignPosition > 0.15 && activeMainLineCount > 1
       ? 0.15
@@ -165,9 +157,8 @@ const syncAlignPosition = (time: number): void => {
 
 /** 同步时间后更新重叠段布局，确保新对齐点立即生效。 */
 const syncCurrentTime = (time: number, isSeek?: boolean): void => {
-  lastCurrentTime = time;
   playerRef.value?.setCurrentTime(time, isSeek);
-  syncAlignPosition(time);
+  syncAlignPosition();
 };
 
 // 处理多语言显隐及音译偏好的本地高效清洗
@@ -268,7 +259,7 @@ const processLyricLanguage = (player = playerRef.value) => {
 /** 同步播放器配置 */
 const syncPlayerOptions = (player = playerRef.value): void => {
   if (!player) return;
-  syncAlignPosition(lastCurrentTime);
+  syncAlignPosition();
   player.setWordFadeWidth(props.wordFadeWidth);
   player.setHidePassedLines(props.hidePassedLines);
   player.setEnableBlur(props.enableBlur);

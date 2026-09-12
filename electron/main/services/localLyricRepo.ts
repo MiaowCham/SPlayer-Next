@@ -19,6 +19,7 @@ import { normalize } from "@main/apis/common/lyric/utils";
 import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
 import type { Track } from "@shared/types/player";
+import { normalizeTtml } from "@shared/utils/ttml";
 
 /** 同名候选：艺术家仅作区分，不作硬门槛 */
 interface NameCandidate {
@@ -28,8 +29,8 @@ interface NameCandidate {
 }
 
 interface RepoIndex {
-  byNcm: Map<string, string>;
-  byQq: Map<string, string>;
+  byNcm: Map<string, string[]>;
+  byQq: Map<string, string[]>;
   /** 归一化标题 → 同名候选 */
   byTitle: Map<string, NameCandidate[]>;
 }
@@ -94,8 +95,15 @@ const buildIndex = async (dir: string): Promise<RepoIndex> => {
       continue;
     }
     const meta = extractTtmlMeta(text);
-    if (meta.ncmId && !index.byNcm.has(meta.ncmId)) index.byNcm.set(meta.ncmId, file);
-    if (meta.qqId && !index.byQq.has(meta.qqId)) index.byQq.set(meta.qqId, file);
+    for (const [id, byId] of [
+      [meta.ncmId, index.byNcm],
+      [meta.qqId, index.byQq],
+    ] as const) {
+      if (!id) continue;
+      const matches = byId.get(id);
+      if (matches) matches.push(file);
+      else byId.set(id, [file]);
+    }
     if (meta.name) {
       const titleKey = normalize(meta.name);
       const candidate: NameCandidate = { artist: normalize(meta.artist ?? ""), file };
@@ -135,14 +143,21 @@ const getIndex = async (): Promise<RepoIndex | null> => {
   return building;
 };
 
-/** 读取文件，失败返回 null */
-const tryRead = async (file: string | undefined): Promise<string | null> => {
-  if (!file) return null;
-  try {
-    return await readFileAutoEncoding(file);
-  } catch {
-    return null;
+/** 按优先级读取候选；格式化文件缺少显式空格时继续下一份，不让坏文件截断回退链。 */
+const tryRead = async (files: readonly string[] | undefined): Promise<string | null> => {
+  for (const file of files ?? []) {
+    try {
+      const text = await readFileAutoEncoding(file);
+      if (normalizeTtml(text).missingExplicitSpaces) {
+        coreLog.warn(`[localLyric] 跳过缺少显式空格的格式化 TTML：${file}`);
+        continue;
+      }
+      return text;
+    } catch {
+      continue;
+    }
   }
+  return null;
 };
 
 /**
@@ -212,7 +227,14 @@ export const matchLocalTTML = async (track: Track, forceQuery = false): Promise<
   // 标题命中；同名多条时再用艺术家软性区分
   const candidates = index.byTitle.get(normalize(track.title));
   if (candidates && candidates.length > 0) {
-    return tryRead(pickByArtist(candidates, normalize(track.artists[0]?.name ?? "")));
+    const preferred = pickByArtist(candidates, normalize(track.artists[0]?.name ?? ""));
+    const hit = await tryRead([
+      preferred,
+      ...candidates
+        .filter((candidate) => candidate.file !== preferred)
+        .map((candidate) => candidate.file),
+    ]);
+    if (hit) return hit;
   }
   // 兜底：平台 id 回查
   return forceQuery ? null : matchByCachedId(track, index);

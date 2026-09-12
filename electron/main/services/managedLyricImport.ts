@@ -5,6 +5,7 @@ import { setManagedLyric } from "@main/database/managedLyrics";
 import { extractTtmlMeta } from "@main/services/localLyricRepo";
 import { coreLog } from "@main/utils/logger";
 import type { Track } from "@shared/types/player";
+import { normalizeTtml } from "@shared/utils/ttml";
 
 /** 批量导入网易云 TTML 的统计结果 */
 export interface TtmlImportResult {
@@ -32,6 +33,7 @@ interface PendingTtml {
   content: string;
   file: string;
   id: string;
+  missingExplicitSpaces: boolean;
 }
 
 /** 为网易云封面 URL 设置列表缩略图尺寸。 */
@@ -81,8 +83,16 @@ const resolveTracks = async (ids: string[]): Promise<Map<string, Track>> => {
   }
 };
 
-/** 导入目录内带网易云元数据的 TTML 文件 */
-export const importNeteaseTtmlDirectory = async (dir: string): Promise<TtmlImportResult> => {
+/**
+ * 导入目录内带网易云元数据的 TTML，缺少显式空格的格式化文件集中询问一次。
+ * @param dir - 用户选择的目录
+ * @param confirmMissingSpaces - 确认是否继续导入缺少空格的文件，返回 false 时只跳过这些文件
+ * @returns 导入、跳过与失败统计
+ */
+export const importNeteaseTtmlDirectory = async (
+  dir: string,
+  confirmMissingSpaces: (count: number) => Promise<boolean>,
+): Promise<TtmlImportResult> => {
   const result: TtmlImportResult = { imported: 0, replaced: 0, skipped: 0, failed: 0 };
   const pending: PendingTtml[] = [];
   for (const file of await collectTtml(dir)) {
@@ -93,14 +103,23 @@ export const importNeteaseTtmlDirectory = async (dir: string): Promise<TtmlImpor
         result.skipped++;
         continue;
       }
-      pending.push({ content, file, id: meta.ncmId });
+      pending.push({
+        content,
+        file,
+        id: meta.ncmId,
+        missingExplicitSpaces: normalizeTtml(content).missingExplicitSpaces,
+      });
     } catch {
       result.failed++;
     }
   }
 
-  const tracks = await resolveTracks([...new Set(pending.map((item) => item.id))]);
-  for (const item of pending) {
+  const missingCount = pending.filter((item) => item.missingExplicitSpaces).length;
+  const allowMissingSpaces = missingCount === 0 || (await confirmMissingSpaces(missingCount));
+  const accepted = pending.filter((item) => !item.missingExplicitSpaces || allowMissingSpaces);
+  result.skipped += pending.length - accepted.length;
+  const tracks = await resolveTracks([...new Set(accepted.map((item) => item.id))]);
+  for (const item of accepted) {
     try {
       setManagedLyric(
         tracks.get(item.id) ?? { source: "netease", id: item.id },

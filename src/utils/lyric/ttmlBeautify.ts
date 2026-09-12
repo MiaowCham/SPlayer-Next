@@ -7,6 +7,8 @@
  * 压缩：把 <space/> 还原为实际空格，并压回一行紧凑 TTML（实际保存格式）。
  */
 
+import { normalizeTtml } from "@shared/utils/ttml";
+
 /** 转义 XML 文本 */
 const escapeText = (text: string): string =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -14,7 +16,7 @@ const escapeText = (text: string): string =>
 /** 序列化属性（保留原有属性与命名空间前缀） */
 const serializeAttrs = (el: Element): string =>
   Array.from(el.attributes)
-    .map((attr) => ` ${attr.name}="${escapeText(attr.value)}"`)
+    .map((attr) => ` ${attr.name}="${escapeText(attr.value).replace(/"/g, "&quot;")}"`)
     .join("");
 
 /**
@@ -26,14 +28,14 @@ const serializeAttrs = (el: Element): string =>
  */
 const prettyNode = (el: Element, depth: number, out: string[]): void => {
   const indent = "  ".repeat(depth);
-  const tagName = el.localName;
+  const tagName = el.tagName;
   const attrs = serializeAttrs(el);
   const textChildren = Array.from(el.childNodes).filter(
     (n) => n.nodeType === Node.TEXT_NODE,
   ) as Text[];
 
   // 无子元素且无有效文本：自闭合
-  if (el.children.length === 0 && !textChildren.some((n) => n.textContent?.trim())) {
+  if (el.children.length === 0 && !textChildren.some((n) => n.textContent?.length)) {
     out.push(`${indent}<${tagName}${attrs}/>`);
     return;
   }
@@ -46,7 +48,7 @@ const prettyNode = (el: Element, depth: number, out: string[]): void => {
       if (child.nodeType === Node.TEXT_NODE) {
         const text = child.textContent ?? "";
         if (text.trim()) parts.push(escapeText(text));
-        else if (text.includes(" ") || text.includes("\u3000")) parts.push("<space/>");
+        else if (text.includes(" ") || text.includes("\u3000")) parts.push(escapeText(text));
       }
     }
     const inner = parts.join("");
@@ -69,7 +71,11 @@ const prettyNode = (el: Element, depth: number, out: string[]): void => {
         out.push(`${indent}  ${escapeText(text)}`);
       } else if (text.includes(" ") || text.includes("\u3000")) {
         // 词间/标签间的有意义空格，用 <space/> 标记，防止被格式化吞掉
-        out.push(`${indent}  <space/>`);
+        for (const space of text) {
+          out.push(
+            space === " " ? `${indent}  <space/>` : `${indent}  <span>${escapeText(space)}</span>`,
+          );
+        }
       }
     }
   }
@@ -95,7 +101,13 @@ const parseTtml = (compact: string): Document | null => {
  * @returns 美化后的 TTML；无法解析时返回原文本
  */
 export const compactTtmlToPretty = (compact: string): string => {
-  const doc = parseTtml(compact);
+  let normalized: string;
+  try {
+    normalized = normalizeTtml(compact).content;
+  } catch {
+    return compact;
+  }
+  const doc = parseTtml(normalized);
   if (!doc) return compact;
   const out: string[] = [];
   prettyNode(doc.documentElement as Element, 0, out);
@@ -104,13 +116,13 @@ export const compactTtmlToPretty = (compact: string): string => {
 
 /** 序列化紧凑形式：<space/> 元素还原为空格，非空白文本原样，缩进空白忽略 */
 const compactNode = (el: Element, out: string[]): void => {
-  const tagName = el.localName;
+  const tagName = el.tagName;
   const attrs = serializeAttrs(el);
   const textChildren = Array.from(el.childNodes).filter(
     (n) => n.nodeType === Node.TEXT_NODE,
   ) as Text[];
 
-  if (el.children.length === 0 && !textChildren.some((n) => n.textContent?.trim())) {
+  if (el.children.length === 0 && !textChildren.some((n) => n.textContent?.length)) {
     out.push(`<${tagName}${attrs}/>`);
     return;
   }
@@ -127,7 +139,7 @@ const compactNode = (el: Element, out: string[]): void => {
     } else if (child.nodeType === Node.TEXT_NODE) {
       const text = child.textContent ?? "";
       // 忽略纯空白（缩进/换行），保留有意义文本（含首尾空格）
-      if (text.trim()) out.push(escapeText(text));
+      if (text.trim() || el.children.length === 0) out.push(escapeText(text));
     }
   }
   out.push(`</${tagName}>`);

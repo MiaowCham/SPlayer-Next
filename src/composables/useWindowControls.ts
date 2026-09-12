@@ -52,8 +52,9 @@ export const useWindowControls = () => {
         ]),
     });
     if (!confirmed) return;
+    // 保存本次确认的选项；“不再询问”仅控制下次是否显示弹窗。
+    appearance.closeAction = choice.value;
     if (remember.value) {
-      appearance.closeAction = choice.value;
       appearance.rememberCloseChoice = true;
     }
     choice.value === "hide" ? hide() : quit();

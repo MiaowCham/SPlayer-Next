@@ -79,6 +79,10 @@ export interface LyricLine {
   translatedLyric: string;
   /** 该行的音译歌词，将会显示在翻译歌词行的下方 */
   romanLyric: string;
+  /** 发音含显式分隔空格，提升为主文字时保留作者排版，不自动补空格。 */
+  preserveRomanizationSpacing?: boolean;
+  /** 主文字已完成发音排版，渲染器不再补空格或按空白重分音节。 */
+  preserveWordSpacing?: boolean;
   /** 句子的起始时间，单位为毫秒 */
   startTime: number;
   /** 句子的结束时间，单位为毫秒 */

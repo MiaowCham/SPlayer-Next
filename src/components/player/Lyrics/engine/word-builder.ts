@@ -48,8 +48,11 @@ export const buildWordSpans = (
   mainDiv: HTMLDivElement,
   enableEmphasize = true,
   disableCjkEmphasis = false,
+  preserveSpacing = false,
 ): BuildResult => {
-  const chunks = chunkAndSplitLyricWords(words);
+  // 发音提升已决定音节边界与空格；再次分词会改写时间或把原文连续音节拆开。
+  const chunks = preserveSpacing ? words : chunkAndSplitLyricWords(words);
+  if (preserveSpacing) mainDiv.style.whiteSpace = "pre-wrap";
   const measurements: WordMeasurement[] = [];
   const animTargets: WordAnimTarget[] = [];
 
@@ -65,7 +68,7 @@ export const buildWordSpans = (
   );
   const lastChunk = nonEmptyChunks[nonEmptyChunks.length - 1];
 
-  if (!hasWhitespaceInfo) {
+  if (!hasWhitespaceInfo && !preserveSpacing) {
     let previousText = "";
     for (const chunk of chunks) {
       const atoms = Array.isArray(chunk) ? chunk : [chunk];
@@ -143,7 +146,7 @@ export const buildWordSpans = (
         previousText = mergedText;
       }
     } else if (!chunk.word.trim()) {
-      mainDiv.appendChild(document.createTextNode(" "));
+      mainDiv.appendChild(document.createTextNode(preserveSpacing ? chunk.word : " "));
       previousText = "";
     } else {
       const text = chunk.word;
@@ -151,8 +154,10 @@ export const buildWordSpans = (
       const isLast = chunk === lastChunk;
 
       if (text.trimStart() !== text) {
-        mainDiv.appendChild(document.createTextNode(" "));
-      } else if (needsSpaceBetween(previousText, text)) {
+        mainDiv.appendChild(
+          document.createTextNode(preserveSpacing ? text.match(/^\s+/u)![0] : " "),
+        );
+      } else if (!preserveSpacing && needsSpaceBetween(previousText, text)) {
         mainDiv.appendChild(document.createTextNode(" "));
       }
 
@@ -173,7 +178,9 @@ export const buildWordSpans = (
       }
 
       if (text.trimEnd() !== text) {
-        mainDiv.appendChild(document.createTextNode(" "));
+        mainDiv.appendChild(
+          document.createTextNode(preserveSpacing ? text.match(/\s+$/u)![0] : " "),
+        );
         previousText = "";
       } else {
         previousText = text.trim();

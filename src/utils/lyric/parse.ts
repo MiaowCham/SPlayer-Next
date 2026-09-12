@@ -248,7 +248,7 @@ const splitEmbeddedLrcn = (
   const translations: { content: string; format: LyricFormat; lang: string | null }[] = [];
   for (let index = 0; index < markers.length; index++) {
     const match = markers[index];
-    const body = text.slice(match.index! + match[0].length, markers[index + 1]?.index).trim();
+    const body = text.slice(match.index! + match[0].length, markers[index + 1]?.index).trimStart();
     const value = match[2].toLowerCase();
     const parsedFormat: LyricFormat = /lrcn\s*trans|\blnt\b/.test(value)
       ? "lnt"
@@ -305,6 +305,7 @@ const pairLNT = (
     if (field === "romanLyric" && trans.hasTimedWords) {
       completeLntWordTimes(trans.words, target, offset, trans.startTime);
       alignLntRomanWords(target.words, trans.words, offset);
+      target.preserveRomanizationSpacing = trans.words.some((word) => /\s/u.test(word.word));
     }
   }
 };
@@ -362,8 +363,8 @@ const alignLntRomanWords = (
     }
     if (!exactStart && bestOverlap < 0.1) matched = -1;
     const roman = romanWords[matched];
-    const romanText = roman?.word.trim();
-    if (romanText) {
+    const romanText = roman?.word;
+    if (romanText?.trim()) {
       word.romanWord = romanText;
       searchStart = Math.max(searchStart, matched + 1);
     }

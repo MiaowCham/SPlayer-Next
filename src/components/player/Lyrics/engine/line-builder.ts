@@ -94,6 +94,7 @@ export const buildLineElements = (
         mainDiv,
         options.enableEmphasizeEffect,
         options.disableCjkEmphasis,
+        line.preserveWordSpacing,
       );
       wordMeasurements[i] = result.measurements;
       lineAnimTargets[i] = result.animTargets;

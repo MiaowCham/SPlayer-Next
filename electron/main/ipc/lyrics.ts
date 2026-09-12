@@ -69,6 +69,7 @@ import type {
 } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
 import type { Track } from "@shared/types/player";
+import { normalizeTtml } from "@shared/utils/ttml";
 
 /** 进行中请求映射 */
 const inflight = new Map<string, Promise<unknown>>();
@@ -124,9 +125,7 @@ const resolveById = async (platform: Platform, id: string): Promise<LyricMatchRe
       default:
         return { ok: false, error: `unsupported platform: ${platform}` };
     }
-    lyricLog.info(
-      `[matchById] ${platform}:${id} → ${data ? `hit ${data.format}` : "miss"}`,
-    );
+    lyricLog.info(`[matchById] ${platform}:${id} → ${data ? `hit ${data.format}` : "miss"}`);
     return { ok: true, data };
   } catch (err) {
     coreLog.warn(`[lyrics] matchById(${platform}, ${id}) failed:`, err);
@@ -411,6 +410,9 @@ const saveOptimizedLyric = async (
   input: LyricInput,
 ): Promise<boolean> => {
   const format = candidate.format;
+  if (format === "ttml" || format === "ttmlLine") {
+    input = { ...input, content: normalizeTtml(input.content).content };
+  }
   const dir = getManagedTrackLyricsDir(track);
   const baseName = `${candidate.origin}.${format}`;
   const mainPath = path.join(dir, baseName);
@@ -437,7 +439,11 @@ const saveOptimizedLyric = async (
   if (!EMBEDDED_LYRIC_FORMATS.has(format)) {
     await fs.mkdir(dir, { recursive: true });
     if (input.translation?.trim()) {
-      await fs.writeFile(path.join(dir, `${candidate.origin}_trans.lrc`), input.translation, "utf8");
+      await fs.writeFile(
+        path.join(dir, `${candidate.origin}_trans.lrc`),
+        input.translation,
+        "utf8",
+      );
     }
     if (input.romaji?.trim()) {
       await fs.writeFile(path.join(dir, `${candidate.origin}_roma.lrc`), input.romaji, "utf8");
@@ -740,7 +746,21 @@ export const registerLyricsIpc = (): void => {
       properties: ["openDirectory"],
     });
     const dir = result.filePaths[0];
-    return result.canceled || !dir ? null : importNeteaseTtmlDirectory(dir);
+    if (result.canceled || !dir) return null;
+    return importNeteaseTtmlDirectory(dir, async (count) => {
+      const confirmation = await dialog.showMessageBox({
+        type: "warning",
+        title: "格式化 TTML 缺少空格",
+        message: `发现 ${count} 份格式化 TTML 完全没有合法的歌词空格。`,
+        detail:
+          "元素之间的排版空白会被忽略，歌词可能连在一起。请使用 <space/> 或元素内的空格（如 <span>word </span>）。是否仍要导入这些文件？",
+        buttons: ["继续导入", "跳过这些文件"],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+      });
+      return confirmation.response === 0;
+    });
   });
   ipcMain.handle("lyrics:matchById", (_evt, platform: Platform, id: string) =>
     dedup(`byId:${platform}:${id}`, () => resolveById(platform, id)),
@@ -751,12 +771,9 @@ export const registerLyricsIpc = (): void => {
       () => resolveByQuery(platform, track),
     ),
   );
-  ipcMain.handle(
-    "lyrics:log",
-    (_evt, level: "info" | "warn" | "error", message: string) => {
-      lyricLog[level](`[renderer] ${message}`);
-    },
-  );
+  ipcMain.handle("lyrics:log", (_evt, level: "info" | "warn" | "error", message: string) => {
+    lyricLog[level](`[renderer] ${message}`);
+  });
   ipcMain.handle(
     "lyrics:fetchTTMLOverlay",
     (_evt, track: Track, platform: "netease" | "qqmusic", forceQuery = false) =>
@@ -780,17 +797,14 @@ export const registerLyricsIpc = (): void => {
       }
     },
   );
-  ipcMain.handle(
-    "lyrics:getCachedAppleMusicTTML",
-    (_evt, track: Track): LyricTTMLResponse => {
-      try {
-        return { ok: true, data: getCachedAppleMusicTTML(track) };
-      } catch (err) {
-        coreLog.warn(`[lyrics] getCachedAppleMusicTTML(${track.title}) failed:`, err);
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
-      }
-    },
-  );
+  ipcMain.handle("lyrics:getCachedAppleMusicTTML", (_evt, track: Track): LyricTTMLResponse => {
+    try {
+      return { ok: true, data: getCachedAppleMusicTTML(track) };
+    } catch (err) {
+      coreLog.warn(`[lyrics] getCachedAppleMusicTTML(${track.title}) failed:`, err);
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
   ipcMain.handle("lyrics:getAppleMusicTTMLStatus", () => ({
     hasMediaUserToken: hasAppleMusicMediaUserToken(),
     storage: getAppleMusicMediaUserTokenStorage(),

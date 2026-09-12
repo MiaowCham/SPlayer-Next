@@ -14,6 +14,7 @@
 import type { LyricLanguage, LyricLine, LyricWord } from "@shared/types/lyrics";
 import { parseTTMLTime } from "./timestamp";
 import { pickTranslationIndex } from "./translationLanguage";
+import { normalizeTtml } from "@shared/utils/ttml";
 
 /**
  * 获取元素属性值，兼容命名空间前缀（如 ttm:agent → agent）
@@ -253,7 +254,9 @@ const collectTranslations = (
 ): Map<string, { main: string; bg: string }> => {
   const candidates = new Map<string, TransCandidate[]>();
 
-  for (const textEl of Array.from(doc.querySelectorAll("text[for]"))) {
+  for (const textEl of Array.from(doc.querySelectorAll("*")).filter(
+    (el) => el.localName === "text",
+  )) {
     const parent = textEl.parentElement;
     if (!parent || (parent.localName !== "translation" && !parent.closest("translations"))) {
       continue;
@@ -332,7 +335,9 @@ const collectTransliterations = (doc: Document): TransliterationMaps => {
   const lines = new Map<string, { main: string; bg: string }>();
   const words = new Map<string, { main: RomanWord[]; bg: RomanWord[] }>();
 
-  for (const textEl of Array.from(doc.querySelectorAll("text[for]"))) {
+  for (const textEl of Array.from(doc.querySelectorAll("*")).filter(
+    (el) => el.localName === "text",
+  )) {
     const parent = textEl.parentElement;
     if (
       !parent ||
@@ -351,7 +356,12 @@ const collectTransliterations = (doc: Document): TransliterationMaps => {
 
     for (const node of Array.from(textEl.childNodes)) {
       if (node.nodeType === Node.TEXT_NODE) {
-        lineMain += node.textContent ?? "";
+        const text = node.textContent ?? "";
+        if (mainWords.length > 0 && !text.trim() && !/[\r\n]/u.test(text)) {
+          mainWords[mainWords.length - 1].text += text;
+        } else {
+          lineMain += text;
+        }
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         const childEl = node as Element;
         if (getAttr(childEl, "role") === "x-bg") {
@@ -361,7 +371,13 @@ const collectTransliterations = (doc: Document): TransliterationMaps => {
               bgWords.push({
                 startTime: parseTTMLTime(span.getAttribute("begin") ?? ""),
                 endTime: parseTTMLTime(span.getAttribute("end") ?? ""),
-                text: stripParens(span.textContent ?? ""),
+                text:
+                  (span.textContent ?? "").replace(/^[（(]|[）)]$/gu, "") +
+                  (span.nextSibling?.nodeType === Node.TEXT_NODE &&
+                  !span.nextSibling.textContent?.trim() &&
+                  !/[\r\n]/u.test(span.nextSibling.textContent ?? "")
+                    ? (span.nextSibling.textContent ?? "")
+                    : ""),
               });
             }
           } else {
@@ -446,7 +462,7 @@ export const parseTTML = (
   preferredLang = "",
   fallbackTranslation = true,
 ): LyricLine[] => {
-  const doc = new DOMParser().parseFromString(text, "application/xml");
+  const doc = new DOMParser().parseFromString(normalizeTtml(text).content, "application/xml");
   if (doc.querySelector("parsererror")) {
     throw new Error("Invalid TTML XML");
   }
@@ -526,7 +542,7 @@ export const parseTTML = (
           // 逐字 span 之间有意义的空格，保留为空白单词
           const lastWord = line.words[line.words.length - 1];
           line.words.push({
-            word: " ",
+            word,
             startTime: lastWord?.endTime ?? line.startTime,
             endTime: lastWord?.endTime ?? line.startTime,
           });
@@ -562,6 +578,13 @@ export const parseTTML = (
             line.words.push(lyricWord);
             timedWords.push(lyricWord);
             lastWasTimedSpan = true;
+          } else if (span.textContent && !span.textContent.trim()) {
+            const previous = line.words.at(-1);
+            line.words.push({
+              word: span.textContent,
+              startTime: previous?.endTime ?? line.startTime,
+              endTime: previous?.endTime ?? line.startTime,
+            });
           }
         }
       }
@@ -610,7 +633,7 @@ export const parseTTML = (
   };
 
   // 遍历所有带时间标记的 <p> 元素
-  for (const p of Array.from(doc.querySelectorAll("p"))) {
+  for (const p of Array.from(doc.querySelectorAll("*")).filter((el) => el.localName === "p")) {
     if (getAttr(p, "begin") && getAttr(p, "end")) {
       parseParagraph(p, false, false, null);
     }

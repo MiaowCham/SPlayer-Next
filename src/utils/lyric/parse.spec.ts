@@ -356,7 +356,8 @@ describe("lyric parse", () => {
       "lrcn",
     );
 
-    expect(line.words.map((word) => word.romanWord)).toEqual([undefined, "ni", "hao"]);
+    expect(line.words.map((word) => word.romanWord)).toEqual([undefined, " ni ", " hao "]);
+    expect(line.preserveRomanizationSpacing).toBe(true);
   });
 
   it("LRCN Trans 逐字音译按行 ID 精确配对，允许乱序且未知 ID 保持为空", () => {

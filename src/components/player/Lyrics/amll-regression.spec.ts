@@ -5,6 +5,7 @@ import { mount, type VueWrapper } from "@vue/test-utils";
 import { LyricPlayer } from "@applemusic-like-lyrics/core";
 import type { LyricLine } from "@shared/types/lyrics";
 import AMLLLyrics from "./AMLLLyrics.vue";
+import { promotePronunciation } from "./romanization";
 
 vi.mock("@/stores/settings", () => ({
   useSettingsStore: () => ({
@@ -112,6 +113,8 @@ describe("AMLL 独立发音遮罩", () => {
     for (const [start, end] of [
       ["\tcreateWord(", "\n\tbuildWord("],
       ["\tupdateMaskImageSync(", "\n\tgetElement("],
+      ["function normalizeSpaces(", "function resetLineTimestamps("],
+      ["function chunkAndSplitLyricWords(", "//#endregion"],
     ]) {
       const esmStart = esm.indexOf(start);
       const cjsStart = cjs.indexOf(start);
@@ -226,13 +229,40 @@ describe("AMLL 独立发音遮罩", () => {
   });
 });
 
+describe("AMLL 发音空格 hook", () => {
+  it("开启上游空格标准化后仍保留作者分隔与音节完整时间", () => {
+    player = new LyricPlayer();
+    const source = makeLine();
+    source.words[0].romanWord = "ni  hao  ";
+    source.words[1].romanWord = "ya";
+    player.setOptimizeOptions({ normalizeSpaces: true, resetLineTimestamps: false });
+    player.setLyricLines([promotePronunciation(source, "word")]);
+    const line = player.currentLyricGroups[0].mainLine;
+    line.show();
+    expect(line.getLine().words[0].word).toBe("ni  hao  ");
+    const timed = (line as unknown as { splittedWords: LyricLine["words"] }).splittedWords;
+    expect(timed).toHaveLength(2);
+    expect(timed.map(({ startTime, endTime }) => [startTime, endTime])).toEqual([
+      [0, 1000],
+      [1000, 4000],
+    ]);
+    expect(line.getElement().textContent).toContain("ni  hao");
+    const spaces = Array.from(line.getElement().querySelectorAll("*")).flatMap((el) =>
+      Array.from(el.childNodes)
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent),
+    );
+    expect(spaces).toContain("  ");
+  });
+});
+
 describe("AMLL 多行同亮抬高", () => {
   it("暂停时切换立即布局，并随重叠开始和结束恢复对齐点", async () => {
     const align = vi.spyOn(LyricPlayer.prototype, "setAlignPosition");
     const layout = vi.spyOn(LyricPlayer.prototype, "calcLayout");
     wrapper = mount(AMLLLyrics, {
       props: {
-        lyricLines: [makeLine(), makeLine(2000, 6000)],
+        lyricLines: [makeLine(), makeLine(2000, 6000), makeLine(6000, 9000)],
         playing: false,
         alignPosition: 0.35,
       },
@@ -246,6 +276,10 @@ describe("AMLL 多行同亮抬高", () => {
     expect(align).toHaveBeenLastCalledWith(0.15);
     expect(layout).toHaveBeenCalled();
     exposed.setCurrentTime(4500);
+    expect(align).toHaveBeenLastCalledWith(0.15);
+    exposed.setCurrentTime(6500);
+    expect(align).toHaveBeenLastCalledWith(0.35);
+    exposed.setCurrentTime(4500, true);
     expect(align).toHaveBeenLastCalledWith(0.35);
     exposed.setCurrentTime(2500, true);
     expect(align).toHaveBeenLastCalledWith(0.15);

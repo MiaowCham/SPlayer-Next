@@ -28,6 +28,32 @@ const createLine = (romanLyric: string, romanWords: Array<string | undefined>): 
 });
 
 describe("歌词音译渲染准备", () => {
+  it("手工发音空格覆盖 CJK 自动分隔，并保留连续空格", () => {
+    const line = createLine("", ["ni  ", "hao", "ma"]);
+    const result = promotePronunciation(line, "word");
+    expect(result.words.map((word) => word.word)).toEqual(["ni  ", "hao", "ma"]);
+  });
+
+  it("无显式空格时，非 CJK 等价音节直接复用原文的符号与大小写", () => {
+    const line = createLine("", ["hello", "world"]);
+    line.words[0].word = "HELLO, ";
+    line.words[1].word = "World!";
+    expect(promotePronunciation(line, "word").words.map((word) => word.word)).toEqual([
+      "HELLO, ",
+      "World!",
+    ]);
+  });
+
+  it("LRCN 发音音节内部已有空格时也不追加分隔", () => {
+    const line = createLine("", ["ko", "ko ro", "ni"]);
+    line.preserveRomanizationSpacing = true;
+    expect(promotePronunciation(line, "word").words.map((word) => word.word)).toEqual([
+      "ko",
+      "ko ro",
+      "ni",
+    ]);
+  });
+
   it("默认渲染器优先保留逐行音译，缺失时以空格拼接逐字发音", () => {
     expect(resolveDefaultRomanization(createLine("ni hao", ["ni", "hao"]))).toBe("ni hao");
     expect(resolveDefaultRomanization(createLine("", [" ni ", "hao"]))).toBe("ni hao");
@@ -58,18 +84,18 @@ describe("歌词音译渲染准备", () => {
 
     expect(promoted.words.map(({ word, romanWord }) => ({ word, romanWord }))).toEqual([
       { word: "词0", romanWord: "词0" },
-      { word: "ku taru ", romanWord: "词1" },
+      { word: "ku taru", romanWord: "词1" },
     ]);
   });
 
-  it("提升非 CJK 逐字发音时跟随原歌词音节内的空格", () => {
+  it("发音已有显式空格时保留全部空格，不按原文重排", () => {
     const line = createLine("", ["hel-lo ", "world "]);
     line.words[0].word = "hello world";
     line.words[1].word = "again";
 
     const promoted = promotePronunciation(line, "word");
 
-    expect(promoted.words.map((word) => word.word)).toEqual(["hel-lo ", "world"]);
+    expect(promoted.words.map((word) => word.word)).toEqual(["hel-lo ", "world "]);
   });
 
   it("提升日文假名逐字发音时也给每个音节补分隔空格", () => {
@@ -79,17 +105,17 @@ describe("歌词音译渲染准备", () => {
 
     const promoted = promotePronunciation(line, "word");
 
-    expect(promoted.words.map((word) => word.word)).toEqual(["ko ", "ko ro "]);
+    expect(promoted.words.map((word) => word.word)).toEqual(["ko ", "ko ro"]);
   });
 
   it("提升非 CJK 逐字发音时识别相邻音节之间的空格", () => {
-    const line = createLine("", ["həlo", "wɜːld "]);
+    const line = createLine("", ["həlo", "wɜːld"]);
     line.words[0].word = "hello";
     line.words[1].word = " world";
 
     const promoted = promotePronunciation(line, "word");
 
-    expect(promoted.words.map((word) => word.word)).toEqual(["həlo ", "wɜːld"]);
+    expect(promoted.words.map((word) => word.word)).toEqual(["həlo", " wɜːld"]);
   });
 
   it("提升非 CJK 逐字发音时保留独立空白词元且不重复补空格", () => {
@@ -124,7 +150,7 @@ describe("歌词音译渲染准备", () => {
     const [promoted] = promoteDefaultPronunciation([line], true);
 
     expect(promoted.isLineLyric).toBeUndefined();
-    expect(promoted.words.map((word) => word.word)).toEqual(["ci ", "ling "]);
+    expect(promoted.words.map((word) => word.word)).toEqual(["ci ", "ling"]);
     expect(promoted.words.map((word) => word.romanWord)).toEqual(["词0", "词1"]);
   });
 

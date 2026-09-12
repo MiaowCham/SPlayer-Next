@@ -79,19 +79,18 @@ const adaptPronunciationSpacing = (
   original: string,
   nextOriginal: string | undefined,
 ): string => {
-  const pronunciation = value.trimEnd();
+  const pronunciation = value.trim();
   const isCjkSyllable =
     /[\p{Unified_Ideograph}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(
       original,
     );
-  const hasInternalWhitespace = /\s/u.test(original.trim());
-  const hasTrailingWhitespace = /\s$/u.test(original);
-  const hasLeadingWhitespaceInNext = !!nextOriginal?.trim() && /^\s/u.test(nextOriginal);
-  const hasOriginalWhitespace =
-    hasInternalWhitespace || hasTrailingWhitespace || hasLeadingWhitespaceInNext;
-  return (isCjkSyllable || hasOriginalWhitespace) && pronunciation
-    ? `${pronunciation} `
-    : pronunciation;
+  if (isCjkSyllable) {
+    return nextOriginal?.trim() ? `${pronunciation} ` : pronunciation;
+  }
+  // 非 CJK 只复制当前原文音节的边界空格；下一音节会保留自己的前导空格。
+  const leading = original.match(/^\s+/u)?.[0] ?? "";
+  const trailing = original.match(/\s+$/u)?.[0] ?? "";
+  return `${leading}${pronunciation}${trailing}`;
 };
 
 const westernPunctuation: Record<string, string> = {
@@ -195,14 +194,24 @@ export const promotePronunciation = (line: LyricLine, mode: "line" | "word"): Ly
   if (!originalText) return line;
 
   if (mode === "word" && hasWordRomanization(line)) {
+    const preserveSpacing =
+      line.preserveRomanizationSpacing ||
+      line.words.some((word) => /^\s|\s$/u.test(word.romanWord ?? ""));
     const promoted: AmlLyricLine = {
       ...line,
       language: "und-Latn",
+      preserveWordSpacing: true,
       __amllSkipWhitespaceSplit: true,
       words: line.words.map((word, index) => {
         const pronunciation = word.romanWord;
+        if (preserveSpacing && !word.word.trim() && !pronunciation?.trim()) {
+          return { ...word, word: "" };
+        }
         if (!pronunciation?.trim()) return { ...word };
         const { ruby: _ruby, ...plainWord } = word;
+        if (preserveSpacing) {
+          return { ...plainWord, word: pronunciation, romanWord: word.word };
+        }
         if (isSameSyllable(word.word, pronunciation)) {
           return {
             ...plainWord,

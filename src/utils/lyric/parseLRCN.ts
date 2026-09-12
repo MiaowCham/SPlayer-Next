@@ -228,7 +228,7 @@ export const parseLRCN = (text: string, platform?: Platform): ParsedLRCN => {
 export const parseLNT = (text: string): ParsedLNTLine[] => {
   const result: ParsedLNTLine[] = [];
   for (const raw of text.split(/\r?\n/)) {
-    const match = /^\[([^\]]+)\](.*)$/.exec(raw.trim());
+    const match = /^\[([^\]]+)\](.*)$/.exec(raw.trimStart());
     if (!match) continue;
     const tag = match[1].trim();
     if (/^(translate|transliteration|lang):/i.test(tag)) continue;

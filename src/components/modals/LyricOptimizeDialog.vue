@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
 import { useLyricOptimizeDialog } from "@/composables/useLyricOptimizeDialog";
 import { toast } from "@/composables/useToast";
 import { dialog } from "@/composables/useDialog";
 import type { LyricFormat } from "@shared/types/lyrics";
 import type { Track } from "@shared/types/player";
 import { compactTtmlToPretty, prettyTtmlToCompact } from "@/utils/lyric/ttmlBeautify";
+import { normalizeTtml } from "@shared/utils/ttml";
 
 const optimize = useLyricOptimizeDialog();
 const { t } = useI18n();
@@ -27,11 +27,44 @@ const transText = ref("");
 const romajiText = ref("");
 
 /** TTML 是否切换到美化视图 */
-const showPrettyTtml = ref(true);
+const showPrettyTtml = computed(() => activeTab.value === "pretty");
 /** 美化 TTML（由原始 TTML 生成/编辑） */
 const prettyTtml = ref("");
-/** 非内嵌格式的当前编辑 tab（主歌词 / 翻译 / 发音） */
-const activeTab = ref<"main" | "trans" | "roma">("main");
+/** TTML 与非内嵌格式共用的当前编辑页签。 */
+const activeTab = ref("main");
+const isTtml = computed(() => format.value === "ttml" || format.value === "ttmlLine");
+const tabs = computed(() =>
+  isTtml.value
+    ? [
+        { key: "raw", label: t("lyricManager.rawTtml") },
+        { key: "pretty", label: t("lyricManager.prettyTtml") },
+      ]
+    : [
+        { key: "main", label: mainTabLabel.value },
+        ...(!isEmbedded.value
+          ? [
+              { key: "trans", label: t("lyricManager.translation") },
+              { key: "roma", label: t("lyricManager.romaji") },
+            ]
+          : []),
+      ],
+);
+const editorText = computed({
+  get: () =>
+    activeTab.value === "pretty"
+      ? prettyTtml.value
+      : activeTab.value === "trans"
+        ? transText.value
+        : activeTab.value === "roma"
+          ? romajiText.value
+          : mainText.value,
+  set: (value: string) => {
+    if (activeTab.value === "pretty") prettyTtml.value = value;
+    else if (activeTab.value === "trans") transText.value = value;
+    else if (activeTab.value === "roma") romajiText.value = value;
+    else mainText.value = value;
+  },
+});
 
 /** tab 标题：按实际格式显示（如 qrc → QRC） */
 const mainTabLabel = computed(() => {
@@ -42,27 +75,54 @@ const mainTabLabel = computed(() => {
 
 const canEmbed = computed(() => isEmbedded.value);
 
-// 打开时加载候选内容
-watch(open, () => {
-  const c = candidate.value;
-  if (!c) return;
-  mainText.value = c.content ?? "";
-  transText.value = c.translation ?? "";
-  romajiText.value = c.romaji ?? "";
-  if (format.value === "ttml" || format.value === "ttmlLine") {
-    prettyTtml.value = compactTtmlToPretty(c.content ?? "");
-  }
-});
+// 重新打开或切换候选时重置编辑状态，避免上一首歌词的 tab 和内容串入。
+watch(
+  [open, candidate],
+  () => {
+    const c = candidate.value;
+    if (!open.value || !c) return;
+    mainText.value = c.content ?? "";
+    transText.value = c.translation ?? "";
+    romajiText.value = c.romaji ?? "";
+    activeTab.value = isTtml.value ? "pretty" : "main";
+    if (isTtml.value) {
+      try {
+        const normalized = normalizeTtml(mainText.value);
+        prettyTtml.value = normalized.formatted
+          ? mainText.value
+          : compactTtmlToPretty(mainText.value);
+        mainText.value = normalized.content;
+      } catch {
+        // 保留无效文本供用户修正，保存时由解析校验阻止写入。
+        prettyTtml.value = mainText.value;
+      }
+    }
+  },
+  { immediate: true },
+);
 
 /** 保存：把编辑结果写回本地歌词 */
 const save = async (): Promise<void> => {
   if (!candidate.value || !track.value) return;
   const trackData = track.value as unknown as Track;
   const c = candidate.value;
-  const content =
+  let content =
     (format.value === "ttml" || format.value === "ttmlLine") && showPrettyTtml.value
       ? prettyTtmlToCompact(prettyTtml.value)
       : mainText.value;
+  if (isTtml.value) {
+    try {
+      content = normalizeTtml(content).content;
+      if (
+        new DOMParser().parseFromString(content, "application/xml").querySelector("parsererror")
+      ) {
+        throw new Error("TTML XML 格式无效");
+      }
+    } catch {
+      toast.error(t("lyricManager.invalidTtml"));
+      return;
+    }
+  }
   const trans = canEmbed.value ? undefined : transText.value;
   const romaji = canEmbed.value ? undefined : romajiText.value;
 
@@ -124,12 +184,15 @@ const save = async (): Promise<void> => {
   }
 };
 
-/** 切换 TTML 视图时同步内容 */
-watch(showPrettyTtml, (pretty) => {
-  if (format.value !== "ttml" && format.value !== "ttmlLine") return;
-  if (pretty) prettyTtml.value = compactTtmlToPretty(mainText.value);
-  else mainText.value = prettyTtmlToCompact(prettyTtml.value);
-});
+/** 切换真实 Tab 前同步两个 TTML 视图，初始化不触发反向转换。 */
+const switchTab = (nextTab: string): void => {
+  if (nextTab === activeTab.value) return;
+  if (isTtml.value) {
+    if (activeTab.value === "pretty") mainText.value = prettyTtmlToCompact(prettyTtml.value);
+    else prettyTtml.value = compactTtmlToPretty(mainText.value);
+  }
+  activeTab.value = nextTab;
+};
 </script>
 
 <template>
@@ -141,92 +204,13 @@ watch(showPrettyTtml, (pretty) => {
     @update:open="optimize.setOpen($event)"
   >
     <div class="flex flex-col gap-3">
-      <!-- TTML：原始 / 美化 两个 tab -->
-      <template v-if="format === 'ttml' || format === 'ttmlLine'">
-        <div class="flex items-center gap-1 border-b border-outline-variant/30 pb-2">
-          <SButton
-            :type="!showPrettyTtml ? 'primary' : 'default'"
-            :variant="!showPrettyTtml ? 'filled' : 'secondary'"
-            size="small"
-            class="rounded-md! shadow-none!"
-            @click="showPrettyTtml = false"
-          >
-            原始 TTML
-          </SButton>
-          <SButton
-            :type="showPrettyTtml ? 'primary' : 'default'"
-            :variant="showPrettyTtml ? 'filled' : 'secondary'"
-            size="small"
-            class="rounded-md! shadow-none!"
-            @click="showPrettyTtml = true"
-          >
-            美化 TTML
-          </SButton>
-        </div>
-        <textarea
-          v-if="!showPrettyTtml"
-          v-model="mainText"
-          class="w-full h-80 bg-surface-panel rounded-lg p-3 text-sm font-mono resize-y"
-          spellcheck="false"
-        />
-        <textarea
-          v-else
-          v-model="prettyTtml"
-          class="w-full h-80 bg-surface-panel rounded-lg p-3 text-sm font-mono resize-y"
-          spellcheck="false"
-        />
-      </template>
-
-      <!-- 其他格式：主歌词 / 翻译 / 发音 三个 tab（一次只显示一个内容区） -->
-      <template v-else>
-        <div class="flex items-center gap-1 border-b border-outline-variant/30 pb-2">
-          <SButton
-            :type="activeTab === 'main' ? 'primary' : 'default'"
-            :variant="activeTab === 'main' ? 'filled' : 'secondary'"
-            size="small"
-            class="rounded-md! shadow-none!"
-            @click="activeTab = 'main'"
-          >
-            {{ mainTabLabel }}
-          </SButton>
-          <SButton
-            :type="activeTab === 'trans' ? 'primary' : 'default'"
-            :variant="activeTab === 'trans' ? 'filled' : 'secondary'"
-            size="small"
-            class="rounded-md! shadow-none!"
-            @click="activeTab = 'trans'"
-          >
-            {{ t("lyricManager.translation") }}
-          </SButton>
-          <SButton
-            :type="activeTab === 'roma' ? 'primary' : 'default'"
-            :variant="activeTab === 'roma' ? 'filled' : 'secondary'"
-            size="small"
-            class="rounded-md! shadow-none!"
-            @click="activeTab = 'roma'"
-          >
-            {{ t("lyricManager.romaji") }}
-          </SButton>
-        </div>
-        <textarea
-          v-if="activeTab === 'main'"
-          v-model="mainText"
-          class="w-full h-[28rem] bg-surface-panel rounded-lg p-3 text-sm font-mono resize-y"
-          spellcheck="false"
-        />
-        <textarea
-          v-else-if="activeTab === 'trans'"
-          v-model="transText"
-          class="w-full h-[28rem] bg-surface-panel rounded-lg p-3 text-sm font-mono resize-y"
-          spellcheck="false"
-        />
-        <textarea
-          v-else
-          v-model="romajiText"
-          class="w-full h-[28rem] bg-surface-panel rounded-lg p-3 text-sm font-mono resize-y"
-          spellcheck="false"
-        />
-      </template>
+      <STabs :model-value="activeTab" :tabs="tabs" @update:model-value="switchTab" />
+      <textarea
+        v-model="editorText"
+        :aria-label="tabs.find((tab) => tab.key === activeTab)?.label"
+        class="w-full h-[28rem] bg-surface-panel rounded-lg p-3 text-sm font-mono resize-y"
+        spellcheck="false"
+      />
     </div>
 
     <template #footer="{ close }">

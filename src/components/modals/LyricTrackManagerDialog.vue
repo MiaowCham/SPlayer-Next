@@ -17,6 +17,7 @@ import { openExternal } from "@/utils/url";
 import type { Track } from "@shared/types/player";
 import type { LyricMatchCandidate, TrackLyricPreference } from "@shared/types/lyrics";
 import { isPlatform } from "@shared/types/platform";
+import { normalizeTtml } from "@shared/utils/ttml";
 import IconExternalLink from "~icons/lucide/external-link";
 import IconWrench from "~icons/lucide/wrench";
 import LyricOptimizeDialog from "./LyricOptimizeDialog.vue";
@@ -395,6 +396,17 @@ const importLyric = async (): Promise<void> => {
   if (!lyric) return;
   loading.value = true;
   try {
+    if (lyric.format === "ttml" || lyric.format === "ttmlLine") {
+      const { missingExplicitSpaces } = normalizeTtml(lyric.content);
+      if (missingExplicitSpaces) {
+        const proceed = await dialog.confirm({
+          title: t("lyricManager.formattedTtmlWarningTitle"),
+          content: t("lyricManager.formattedTtmlWarningDescription"),
+          type: "warning",
+        });
+        if (!proceed) return;
+      }
+    }
     let result = await window.api.lyrics.setManaged(track, lyric);
     if (result.status === "conflict") {
       const overwrite = await dialog.confirm({
