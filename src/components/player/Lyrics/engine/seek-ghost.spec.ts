@@ -126,7 +126,7 @@ describe("歌词引擎 seek 后布局", () => {
     };
     renderer.setCurrentTime(3500);
     runToSettle(renderer);
-    expect(engine.positionSprings[0].getCurrentPosition()).toBeCloseTo(800 * 0.15 - 20, 0);
+    expect(engine.positionSprings[0].getCurrentPosition()).toBeCloseTo(220, 0);
     renderer.setConfig({ raiseAlignPositionOnOverlap: false });
     runToSettle(renderer);
     expect(engine.positionSprings[0].getCurrentPosition()).toBeCloseTo(800 * 0.35 - 20, 0);

@@ -5,6 +5,7 @@ import { SPlayerLyricPlayer as CoreLyricPlayer } from "./amll-player";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { getCurrentTime } from "@/services/playback";
+import { getOverlapAlignPosition } from "@/utils/lyric/overlapAlign";
 import {
   canPromoteLinePronunciation,
   collapseToLineLyric,
@@ -144,9 +145,19 @@ const syncAlignPosition = (): void => {
   const activeMainLineCount = props.raiseAlignPositionOnOverlap
     ? player.getBufferedMainLineCount()
     : 0;
+  const overlap = props.raiseAlignPositionOnOverlap
+    ? player.getBufferedMainLineMetrics()
+    : null;
   const alignPosition =
-    props.raiseAlignPositionOnOverlap && props.alignPosition > 0.15 && activeMainLineCount > 1
-      ? 0.15
+    props.raiseAlignPositionOnOverlap && activeMainLineCount > 1 && overlap
+      ? getOverlapAlignPosition(
+          props.alignPosition,
+          wrapperRef.value?.clientHeight ?? 0,
+          overlap.firstHeight,
+          overlap.secondHeight,
+          overlap.gap,
+          overlap.overlapDuration,
+        )
       : props.alignPosition;
   if (lastAlignPosition === alignPosition) return;
   lastAlignPosition = alignPosition;

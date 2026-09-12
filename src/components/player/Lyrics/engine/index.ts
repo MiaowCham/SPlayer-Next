@@ -1,5 +1,6 @@
 import { Spring, type SpringParams } from "./spring";
 import type { LyricLine } from "@shared/types/lyrics";
+import { getOverlapAlignPosition } from "@/utils/lyric/overlapAlign";
 import { setMin } from "../utils/math";
 import { DEFAULTS } from "./constants";
 import {
@@ -723,9 +724,26 @@ export class LyricRenderer {
     const activeMainLineCount = [...this.activeLineSet].filter(
       (index) => !lines[index]?.isBG,
     ).length;
+    const activeMainLines = [...this.activeLineSet]
+      .filter((index) => !lines[index]?.isBG)
+      .slice(0, 2);
+    const firstOverlapLine = activeMainLines[0];
+    const secondOverlapLine = activeMainLines[1];
+    const overlapDuration =
+      firstOverlapLine != null && secondOverlapLine != null
+        ? Math.min(lines[firstOverlapLine].endTime, lines[secondOverlapLine].endTime) -
+          Math.max(lines[firstOverlapLine].startTime, lines[secondOverlapLine].startTime)
+        : 0;
     const effectiveAlignPosition =
-      this.raiseAlignPositionOnOverlap && this.alignPosition > 0.15 && activeMainLineCount > 1
-        ? 0.15
+      this.raiseAlignPositionOnOverlap && activeMainLineCount > 1
+        ? getOverlapAlignPosition(
+            this.alignPosition,
+            viewHeight,
+            this.lineHeights[firstOverlapLine ?? targetIdx] || 40,
+            this.lineHeights[secondOverlapLine ?? targetIdx] || 40,
+            0,
+            overlapDuration,
+          )
         : this.alignPosition;
     position += viewHeight * effectiveAlignPosition - (this.lineHeights[targetIdx] || 40) / 2;
     // 激活主行带置顶背景行时，主行会被背景行下推，整体上移以保持主行居中
