@@ -194,9 +194,14 @@ export const promotePronunciation = (line: LyricLine, mode: "line" | "word"): Ly
   if (!originalText) return line;
 
   if (mode === "word" && hasWordRomanization(line)) {
+    // 只检查本句内的发音分隔；句首、句尾的排版留白不代表音节经过人工分词。
+    const romanWords = line.words.map((word) => word.romanWord ?? "").filter((word) => word.trim());
     const preserveSpacing =
-      line.preserveRomanizationSpacing ||
-      line.words.some((word) => /^\s|\s$/u.test(word.romanWord ?? ""));
+      line.preserveRomanizationSpacing ??
+      romanWords.some(
+        (word, index) =>
+          (index > 0 && /^\s/u.test(word)) || (index < romanWords.length - 1 && /\s$/u.test(word)),
+      );
     const promoted: AmlLyricLine = {
       ...line,
       language: "und-Latn",
@@ -205,18 +210,24 @@ export const promotePronunciation = (line: LyricLine, mode: "line" | "word"): Ly
       words: line.words.map((word, index) => {
         const pronunciation = word.romanWord;
         if (preserveSpacing && !word.word.trim() && !pronunciation?.trim()) {
+          // TTML 可能把原文词间空格存成独立词元；前词复用原文时也须保留其分隔。
+          const previous = line.words[index - 1];
+          if (previous && isSameSyllable(previous.word, previous.romanWord ?? "")) {
+            return { ...word };
+          }
           return { ...word, word: "" };
         }
         if (!pronunciation?.trim()) return { ...word };
         const { ruby: _ruby, ...plainWord } = word;
-        if (preserveSpacing) {
-          return { ...plainWord, word: pronunciation, romanWord: word.word };
-        }
+        // 等价音节始终复用原文，不能被本句其他音节的手工空格覆盖。
         if (isSameSyllable(word.word, pronunciation)) {
           return {
             ...plainWord,
             romanWord: word.word,
           };
+        }
+        if (preserveSpacing) {
+          return { ...plainWord, word: pronunciation, romanWord: word.word };
         }
         const displayedPronunciation = appendMissingPunctuation(
           word.word,

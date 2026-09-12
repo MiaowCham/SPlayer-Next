@@ -1,7 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { bestExternalIndex, detectFormat, parseLyric } from "./parse";
+import { promoteDefaultPronunciation } from "@/components/player/Lyrics/romanization";
 
 describe("lyric parse", () => {
+  it("LRCN 同文件中只有本句内部空格会标记为手工发音", () => {
+    const lines = parseLyric(
+      {
+        content:
+          "[Lyrics Next]\n[0.000,2.000,,L1]<0.000,1.000>你<1.000,2.000>好\n[2.000,4.000,,L2]<2.000,3.000>虜<3.000,4.000>に",
+        romaji:
+          "[transliteration: format@LNT]\n[L1]<0.000,1.000>ni  <1.000,2.000>hao\n[L2]<2.000,3.000>toriko<3.000,4.000>ni ",
+        romajiFormat: "lnt",
+      },
+      "lrcn",
+    );
+    expect(lines.map((line) => line.preserveRomanizationSpacing)).toEqual([true, false]);
+    expect(
+      promoteDefaultPronunciation(lines, false).map((line) => line.words.map((word) => word.word)),
+    ).toEqual([
+      ["ni  ", "hao"],
+      ["toriko ", "ni"],
+    ]);
+  });
+
   it("根据内容识别常见歌词格式", () => {
     expect(detectFormat("[00:01.00]歌词")).toBe("lrc");
     expect(detectFormat("1\n00:00:01,000 --> 00:00:02,000\n歌词")).toBe("srt");

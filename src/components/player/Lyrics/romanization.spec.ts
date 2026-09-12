@@ -28,6 +28,63 @@ const createLine = (romanLyric: string, romanWords: Array<string | undefined>): 
 });
 
 describe("歌词音译渲染准备", () => {
+  it("等价英文复用原文时保留 TTML 独立空格词元", () => {
+    const line = createLine("", ["wake ", undefined, "up"]);
+    line.words[0].word = "Wake";
+    line.words[1].word = " ";
+    line.words[2].word = "up,";
+    expect(
+      promotePronunciation(line, "word")
+        .words.map((word) => word.word)
+        .join(""),
+    ).toBe("Wake up,");
+  });
+  it("等价英文优先使用原文，不被同句手工空格覆盖", () => {
+    const line = createLine("", ["wake ", "up ", "wake ", "up ", "babe ", "saa ", "i ", "ma"]);
+    const originals = ["Wake ", "up, ", "wake ", "up, ", "babe ", "さ", "あ", "いま"];
+    line.words.forEach((word, index) => {
+      word.word = originals[index];
+    });
+    for (const explicit of [undefined, true]) {
+      line.preserveRomanizationSpacing = explicit;
+      expect(promotePronunciation(line, "word").words.map((word) => word.word)).toEqual([
+        "Wake ",
+        "up, ",
+        "wake ",
+        "up, ",
+        "babe ",
+        "saa ",
+        "i ",
+        "ma",
+      ]);
+    }
+  });
+
+  it("逐句判断手工空格，句首句尾留白不妨碍其他句自动分隔", () => {
+    const edited = createLine("", ["ni  ", "hao", "ma"]);
+    const automatic = createLine("", [" toriko", "ni", "natteita "]);
+    automatic.words.forEach((word, index) => {
+      word.word = ["虜", "に", "なっていた"][index];
+    });
+    for (const lines of [
+      [edited, automatic],
+      [automatic, edited],
+    ]) {
+      const results = promoteDefaultPronunciation(lines, false);
+      expect(results[lines.indexOf(edited)].words.map((word) => word.word)).toEqual([
+        "ni  ",
+        "hao",
+        "ma",
+      ]);
+      expect(results[lines.indexOf(automatic)].words.map((word) => word.word)).toEqual([
+        "toriko ",
+        "ni ",
+        "natteita",
+      ]);
+    }
+    expect(automatic.words[0].romanWord).toBe(" toriko");
+  });
+
   it("手工发音空格覆盖 CJK 自动分隔，并保留连续空格", () => {
     const line = createLine("", ["ni  ", "hao", "ma"]);
     const result = promotePronunciation(line, "word");

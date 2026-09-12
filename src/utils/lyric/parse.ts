@@ -305,7 +305,13 @@ const pairLNT = (
     if (field === "romanLyric" && trans.hasTimedWords) {
       completeLntWordTimes(trans.words, target, offset, trans.startTime);
       alignLntRomanWords(target.words, trans.words, offset);
-      target.preserveRomanizationSpacing = trans.words.some((word) => /\s/u.test(word.word));
+      // 每句独立检查句内空格，不能把文件其他句或行末留白当成手工分词依据。
+      target.preserveRomanizationSpacing = /\s/u.test(
+        trans.words
+          .map((word) => word.word)
+          .join("")
+          .trim(),
+      );
     }
   }
 };
