@@ -138,6 +138,35 @@ describe("歌词引擎 seek 后布局", () => {
     container.remove();
   });
 
+  it("第三行原地高亮，首行退出后才按新两行滚动", () => {
+    const container = createContainer();
+    const renderer = new LyricRenderer(container, {
+      playing: true,
+      alignPosition: 0.35,
+      raiseAlignPositionOnOverlap: true,
+    });
+    const lines = makeLines(3);
+    lines[0].endTime = 8000;
+    lines[1].endTime = 8500;
+    renderer.setLyrics(lines);
+    const engine = renderer as unknown as { positionSprings: { getCurrentPosition(): number }[] };
+    renderer.setCurrentTime(3500);
+    runToSettle(renderer);
+    expect(engine.positionSprings[0].getCurrentPosition()).toBeCloseTo(220, 0);
+    renderer.setCurrentTime(5000);
+    renderer.setCurrentTime(6500);
+    runToSettle(renderer);
+    expect(engine.positionSprings[0].getCurrentPosition()).toBeCloseTo(220, 0);
+    renderer.setCurrentTime(8100);
+    runToSettle(renderer);
+    expect(engine.positionSprings[1].getCurrentPosition()).toBeCloseTo(220, 0);
+    renderer.setCurrentTime(8600);
+    runToSettle(renderer);
+    expect(engine.positionSprings[2].getCurrentPosition()).toBeCloseTo(260, 0);
+    renderer.dispose();
+    container.remove();
+  });
+
   it("背景行同亮不触发抬高", () => {
     const container = createContainer();
     const renderer = new LyricRenderer(container, {
@@ -154,6 +183,32 @@ describe("歌词引擎 seek 后布局", () => {
       positionSprings: { getCurrentPosition(): number }[];
     };
     expect(engine.positionSprings[0].getCurrentPosition()).toBeCloseTo(800 * 0.35 - 20, 0);
+    renderer.dispose();
+    container.remove();
+  });
+
+  it("间奏圆点居中对齐，正常播放与 seek 使用同一位置", () => {
+    const container = createContainer();
+    const renderer = new LyricRenderer(container, { playing: true, alignPosition: 0.35 });
+    const lines = makeLines(2);
+    lines[0].endTime = 1000;
+    lines[0].words = [{ word: "前句", startTime: 0, endTime: 1000 }];
+    lines[1].startTime = 10000;
+    lines[1].endTime = 14000;
+    lines[1].words = [{ word: "后句", startTime: 10000, endTime: 14000 }];
+    renderer.setLyrics(lines);
+    const engine = renderer as unknown as {
+      dotsContainerHeight: number;
+      interludeState: { y: number };
+    };
+    engine.dotsContainerHeight = 20;
+    renderer.setCurrentTime(500);
+    renderer.setCurrentTime(1500);
+    runToSettle(renderer);
+    expect(engine.interludeState.y).toBeCloseTo(270, 0);
+    renderer.setCurrentTime(8000);
+    runToSettle(renderer);
+    expect(engine.interludeState.y).toBeCloseTo(270, 0);
     renderer.dispose();
     container.remove();
   });

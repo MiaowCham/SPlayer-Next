@@ -1388,6 +1388,10 @@
       "label": "显示逐词发音",
       "description": "在逐字歌词中，显示每个字词的发音文本"
     },
+    "forceSyllableSpacing": {
+      "label": "强制所有音节分隔",
+      "description": "发音作为主文字时，忽略已有分隔并统一在 CJK 音节间添加空格；与原文一致的发音及非 CJK 发音仍沿用原文空格"
+    },
     "independentWordRomanizationProgress": {
       "label": "独立计算逐词发音滚动进度",
       "description": "让逐词发音按照自身文字独立计算滚动遮罩，包括发音作为主歌词时；不包含排版空白"

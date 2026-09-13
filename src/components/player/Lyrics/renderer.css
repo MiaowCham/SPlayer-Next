@@ -31,7 +31,8 @@
   font-weight: inherit;
   transform-origin: left;
   opacity: 1;
-  contain: content;
+  contain: layout style;
+  overflow: visible;
   pointer-events: none;
   --ba: 0.2;
   --da: 0.2;

@@ -180,6 +180,8 @@ export interface LyricSettings {
   amllShowLineRomanization: boolean;
   /** AMLL 是否显示逐词音译 */
   amllShowWordRomanization: boolean;
+  /** CJK 发音音节间统一补空格，忽略作者的音节分隔 */
+  forceSyllableSpacing: boolean;
   /** AMLL 是否独立计算逐词发音遮罩进度 */
   independentWordRomanizationProgress: boolean;
   /** 是否将康熙部首/CJK 兼容表意文字等非标准汉字还原为标准汉字 */

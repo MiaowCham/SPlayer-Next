@@ -1412,6 +1412,10 @@
       "label": "Show Word Pronunciation",
       "description": "Display pronunciation for each word in word-by-word lyrics"
     },
+    "forceSyllableSpacing": {
+      "label": "Force Syllable Spacing",
+      "description": "When pronunciation is the main text, separate CJK syllables with spaces regardless of existing spacing. Equivalent text and non-CJK pronunciation retain the original lyric spacing."
+    },
     "independentWordRomanizationProgress": {
       "label": "Independent Word Pronunciation Progress",
       "description": "Calculate each word-pronunciation mask from its own text, including when pronunciation is the main lyric; excludes layout whitespace"

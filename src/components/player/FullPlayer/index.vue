@@ -192,6 +192,7 @@ watch(
 watch(
   [
     () => settings.lyric.largerLyricText,
+    () => settings.lyric.forceSyllableSpacing,
     () => settings.lyric.forceLinePronunciationAsMain,
     () => settings.lyric.independentWordRomanizationProgress,
   ],
@@ -478,6 +479,7 @@ const showComments = (): void => {
                 "
                 :swap-translation-pronunciation="settings.lyric.swapTranslationPronunciation"
                 :larger-lyric-text="settings.lyric.largerLyricText"
+                :force-syllable-spacing="settings.lyric.forceSyllableSpacing"
                 :force-line-pronunciation-as-main="settings.lyric.forceLinePronunciationAsMain"
                 :independent-word-romanization-progress="
                   settings.lyric.independentWordRomanizationProgress
@@ -513,6 +515,7 @@ const showComments = (): void => {
                 :show-romanization="settings.lyric.showRomanization"
                 :swap-translation-pronunciation="settings.lyric.swapTranslationPronunciation"
                 :larger-lyric-text="settings.lyric.largerLyricText"
+                :force-syllable-spacing="settings.lyric.forceSyllableSpacing"
                 :force-line-pronunciation-as-main="settings.lyric.forceLinePronunciationAsMain"
                 @seek="handleLyricSeek"
               >

@@ -1,6 +1,8 @@
 import type { LyricLine } from "@shared/types/lyrics";
 
 type AmlLyricLine = LyricLine & { __amllSkipWhitespaceSplit?: true };
+const cjkSyllablePattern =
+  /[\p{Unified_Ideograph}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 
 /** 默认渲染器优先使用逐行音译，缺失时才由逐字发音拼接。 */
 export const resolveDefaultRomanization = (line: LyricLine): string => {
@@ -54,6 +56,7 @@ export const collapseToLineLyric = (line: LyricLine): LyricLine => {
 export const promoteDefaultPronunciation = (
   lines: LyricLine[],
   forceLinePronunciation: boolean,
+  forceSyllableSpacing = false,
 ): LyricLine[] => {
   if (shouldForceLinePronunciationMode(lines, forceLinePronunciation)) {
     return lines.map((line) =>
@@ -64,7 +67,7 @@ export const promoteDefaultPronunciation = (
   }
   return lines.map((line) => {
     if (!hasWordTiming(line)) return promotePronunciation(line, "line");
-    if (hasWordRomanization(line)) return promotePronunciation(line, "word");
+    if (hasWordRomanization(line)) return promotePronunciation(line, "word", forceSyllableSpacing);
     return line;
   });
 };
@@ -80,10 +83,7 @@ const adaptPronunciationSpacing = (
   nextOriginal: string | undefined,
 ): string => {
   const pronunciation = value.trim();
-  const isCjkSyllable =
-    /[\p{Unified_Ideograph}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(
-      original,
-    );
+  const isCjkSyllable = cjkSyllablePattern.test(original);
   if (isCjkSyllable) {
     return nextOriginal?.trim() ? `${pronunciation} ` : pronunciation;
   }
@@ -187,9 +187,14 @@ const appendMissingPunctuation = (
  * 将发音提升为主歌词，返回独立副本，避免修改播放器持有的解析结果。
  * @param line - 原歌词行
  * @param mode - 逐行或逐字提升方式
+ * @param forceSyllableSpacing - 忽略发音手工分隔，CJK 音节间统一补空格
  * @returns 无可用发音时返回原对象，否则返回转换后的副本
  */
-export const promotePronunciation = (line: LyricLine, mode: "line" | "word"): LyricLine => {
+export const promotePronunciation = (
+  line: LyricLine,
+  mode: "line" | "word",
+  forceSyllableSpacing = false,
+): LyricLine => {
   const originalText = line.words.map((word) => word.word).join("");
   if (!originalText) return line;
 
@@ -197,11 +202,13 @@ export const promotePronunciation = (line: LyricLine, mode: "line" | "word"): Ly
     // 只检查本句内的发音分隔；句首、句尾的排版留白不代表音节经过人工分词。
     const romanWords = line.words.map((word) => word.romanWord ?? "").filter((word) => word.trim());
     const preserveSpacing =
-      line.preserveRomanizationSpacing ??
-      romanWords.some(
-        (word, index) =>
-          (index > 0 && /^\s/u.test(word)) || (index < romanWords.length - 1 && /\s$/u.test(word)),
-      );
+      !forceSyllableSpacing &&
+      (line.preserveRomanizationSpacing ??
+        romanWords.some(
+          (word, index) =>
+            (index > 0 && /^\s/u.test(word)) ||
+            (index < romanWords.length - 1 && /\s$/u.test(word)),
+        ));
     const promoted: AmlLyricLine = {
       ...line,
       language: "und-Latn",
@@ -209,10 +216,18 @@ export const promotePronunciation = (line: LyricLine, mode: "line" | "word"): Ly
       __amllSkipWhitespaceSplit: true,
       words: line.words.map((word, index) => {
         const pronunciation = word.romanWord;
-        if (preserveSpacing && !word.word.trim() && !pronunciation?.trim()) {
+        if (
+          (preserveSpacing || forceSyllableSpacing) &&
+          !word.word.trim() &&
+          !pronunciation?.trim()
+        ) {
           // TTML 可能把原文词间空格存成独立词元；前词复用原文时也须保留其分隔。
           const previous = line.words[index - 1];
-          if (previous && isSameSyllable(previous.word, previous.romanWord ?? "")) {
+          if (
+            previous &&
+            (isSameSyllable(previous.word, previous.romanWord ?? "") ||
+              (forceSyllableSpacing && !cjkSyllablePattern.test(previous.word)))
+          ) {
             return { ...word };
           }
           return { ...word, word: "" };
@@ -239,7 +254,9 @@ export const promotePronunciation = (line: LyricLine, mode: "line" | "word"): Ly
           word: adaptPronunciationSpacing(
             displayedPronunciation,
             word.word,
-            line.words[index + 1]?.word,
+            forceSyllableSpacing
+              ? line.words.slice(index + 1).find((next) => next.word.trim())?.word
+              : line.words[index + 1]?.word,
           ),
           romanWord: word.word,
         };

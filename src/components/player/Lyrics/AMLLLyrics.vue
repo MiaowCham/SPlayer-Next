@@ -69,6 +69,7 @@ const props = withDefaults(
     showLineRomanization?: boolean;
     /** 是否显示逐词音译 */
     showWordRomanization?: boolean;
+    forceSyllableSpacing?: boolean;
     /** 是否将发音显示在翻译上方 */
     swapTranslationPronunciation?: boolean;
     /** 歌词与发音同时显示时的大字体内容 */
@@ -95,6 +96,7 @@ const props = withDefaults(
     showTranslation: true,
     showLineRomanization: true,
     showWordRomanization: true,
+    forceSyllableSpacing: false,
     swapTranslationPronunciation: false,
     largerLyricText: "lyrics",
     forceLinePronunciationAsMain: false,
@@ -126,6 +128,7 @@ const isFrozen = ref(false);
 // 冻结期间缓存的待应用歌词
 let pendingLyrics: LyricLine[] | null = null;
 let lastAlignPosition: number | undefined;
+let lastAlignAnchor: "center" | "top" | undefined;
 // 页面隐藏状态的响应式跟踪
 const isPageHidden = ref(false);
 // 之前隐藏的标记，用于检测从隐藏恢复的时刻
@@ -142,12 +145,11 @@ const nextFrame = (): Promise<void> =>
 const syncAlignPosition = (): void => {
   const player = playerRef.value;
   if (!player) return;
+  if (props.raiseAlignPositionOnOverlap) player.advanceOverlapAnchor();
   const activeMainLineCount = props.raiseAlignPositionOnOverlap
     ? player.getBufferedMainLineCount()
     : 0;
-  const overlap = props.raiseAlignPositionOnOverlap
-    ? player.getBufferedMainLineMetrics()
-    : null;
+  const overlap = props.raiseAlignPositionOnOverlap ? player.getBufferedMainLineMetrics() : null;
   const alignPosition =
     props.raiseAlignPositionOnOverlap && activeMainLineCount > 1 && overlap
       ? getOverlapAlignPosition(
@@ -159,10 +161,12 @@ const syncAlignPosition = (): void => {
           overlap.overlapDuration,
         )
       : props.alignPosition;
-  if (lastAlignPosition === alignPosition) return;
+  const alignAnchor = props.alignPosition > 0.4 ? "center" : "top";
+  if (lastAlignPosition === alignPosition && lastAlignAnchor === alignAnchor) return;
   lastAlignPosition = alignPosition;
+  lastAlignAnchor = alignAnchor;
   player.setAlignPosition(alignPosition);
-  player.setAlignAnchor(alignPosition > 0.4 ? "center" : "top");
+  player.setAlignAnchor(alignAnchor);
   void player.calcLayout();
 };
 
@@ -191,7 +195,7 @@ const processedLyrics = computed(() => {
         : forceLineMode
           ? collapseToLineLyric(line)
           : props.largerLyricText === "pronunciation" && wordPronunciationVisible
-            ? promotePronunciation(line, "word")
+            ? promotePronunciation(line, "word", props.forceSyllableSpacing)
             : props.largerLyricText === "pronunciation" && linePronunciationCanBePromoted
               ? promotePronunciation(line, "line")
               : line;
@@ -544,9 +548,11 @@ defineExpose({
   opacity: 1;
 }
 
-/* 允许歌词行字符不被 contain 的 paint 裁剪截断，同时保持布局隔离不变 */
+/* auto 隐含 paint containment；视口附近的构建仍由 core 的可见性检测控制。 */
 :deep(.FmKaba_lyricLine) {
   contain: layout style;
+  content-visibility: visible;
+  overflow: visible;
 }
 
 :deep(.amll-lyric-player) {

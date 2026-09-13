@@ -696,13 +696,18 @@ export class LyricRenderer {
     const viewHeight = this.containerHeight;
     const viewWidth = this.containerWidth;
     const currentTime = this.lastProcessedTime;
-    const targetIdx = this.activeLineIndex;
     const lines = this.lines;
     const lineCount = this.positionSprings.length;
     if (lineCount === 0) return;
 
     // 间奏检测
-    const interlude = detectInterlude(currentTime, targetIdx, lines, this.minInterludeGap);
+    const interlude = detectInterlude(
+      currentTime,
+      this.activeLineIndex,
+      lines,
+      this.minInterludeGap,
+    );
+    const targetIdx = interlude ? interlude[2] + 1 : this.activeLineIndex;
     const dotsGap = 10;
     if (interlude) {
       this.interludeState.startTime = interlude[0];
@@ -745,7 +750,9 @@ export class LyricRenderer {
             overlapDuration,
           )
         : this.alignPosition;
-    position += viewHeight * effectiveAlignPosition - (this.lineHeights[targetIdx] || 40) / 2;
+    position += interlude
+      ? viewHeight * this.alignPosition - this.dotsContainerHeight / 2 - dotsGap
+      : viewHeight * effectiveAlignPosition - (this.lineHeights[targetIdx] || 40) / 2;
     // 激活主行带置顶背景行时，主行会被背景行下推，整体上移以保持主行居中
     if (this.isBgAbove[targetIdx + 1] && this.activeLineSet.has(targetIdx + 1)) {
       position -= this.lineHeights[targetIdx + 1] || 40;

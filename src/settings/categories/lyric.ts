@@ -318,6 +318,13 @@ const lyricCategory: SettingCategory = {
           visible: () => lyricEngine() === "amll",
         },
         {
+          key: "forceSyllableSpacing",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.forceSyllableSpacing" },
+          defaultValue: false,
+          disabled: () => !useSettingsStore().lyric.showRomanization,
+        },
+        {
           key: "hideChinesePronunciation",
           type: "switch",
           binding: { store: "settings", path: "lyric.hideChinesePronunciation" },

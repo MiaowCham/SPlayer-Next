@@ -98,6 +98,7 @@ const props = withDefaults(
     swapTranslationPronunciation?: boolean;
     /** 歌词与发音同时显示时的大字体内容 */
     largerLyricText?: LargerLyricText;
+    forceSyllableSpacing?: boolean;
     /** 是否强制将逐字歌词的逐行发音提升为逐句主歌词 */
     forceLinePronunciationAsMain?: boolean;
     /** 挂载时的初始播放时间（毫秒）@default 0 */
@@ -124,6 +125,7 @@ const props = withDefaults(
     showRomanization: true,
     swapTranslationPronunciation: false,
     largerLyricText: "lyrics",
+    forceSyllableSpacing: false,
     forceLinePronunciationAsMain: false,
     initialTime: 0,
   },
@@ -221,7 +223,11 @@ const prepareLyrics = (): LyricLine[] => {
   if (props.largerLyricText !== "pronunciation" || !props.showRomanization) {
     return lines;
   }
-  return promoteDefaultPronunciation(lines, props.forceLinePronunciationAsMain);
+  return promoteDefaultPronunciation(
+    lines,
+    props.forceLinePronunciationAsMain,
+    props.forceSyllableSpacing,
+  );
 };
 
 watch(() => props.lyricLines, rebuildLyrics);
@@ -349,7 +355,14 @@ watch(
   },
 );
 
-watch([() => props.largerLyricText, () => props.forceLinePronunciationAsMain], rebuildLyrics);
+watch(
+  [
+    () => props.largerLyricText,
+    () => props.forceLinePronunciationAsMain,
+    () => props.forceSyllableSpacing,
+  ],
+  rebuildLyrics,
+);
 </script>
 
 <template>

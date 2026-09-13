@@ -28,6 +28,48 @@ const createLine = (romanLyric: string, romanWords: Array<string | undefined>): 
 });
 
 describe("歌词音译渲染准备", () => {
+  it("强制分隔覆盖 CJK 手工空格，但保留音节内部文字与时间", () => {
+    const line = createLine("", ["ko", "ko ro  ", "ni"]);
+    line.preserveRomanizationSpacing = true;
+    const result = promotePronunciation(line, "word", true);
+    expect(result.words.map((word) => word.word)).toEqual(["ko ", "ko ro ", "ni"]);
+    expect(result.words.map(({ startTime, endTime }) => [startTime, endTime])).toEqual(
+      line.words.map(({ startTime, endTime }) => [startTime, endTime]),
+    );
+    expect(promotePronunciation(line, "word").words.map((word) => word.word)).toEqual([
+      "ko",
+      "ko ro  ",
+      "ni",
+    ]);
+    expect(promoteDefaultPronunciation([line], false, true)[0]).toEqual(result);
+  });
+
+  it("强制分隔仍优先复用等价原文，非 CJK 发音只复制原文边界", () => {
+    const line = createLine("", ["wake  ", "up", "ha ", "lo ", "ni", "hao"]);
+    ["Wake ", "up, ", "he", "llo ", "你", "好"].forEach((word, index) => {
+      line.words[index].word = word;
+    });
+    line.preserveRomanizationSpacing = true;
+    expect(promotePronunciation(line, "word", true).words.map((word) => word.word)).toEqual([
+      "Wake ",
+      "up, ",
+      "ha",
+      "lo ",
+      "ni ",
+      "hao",
+    ]);
+  });
+
+  it("强制分隔不重复添加 TTML 的独立空白词元", () => {
+    const line = createLine("", ["ni", undefined, "hao"]);
+    line.words[1].word = " ";
+    expect(promotePronunciation(line, "word", true).words.map((word) => word.word)).toEqual([
+      "ni ",
+      "",
+      "hao",
+    ]);
+  });
+
   it("等价英文复用原文时保留 TTML 独立空格词元", () => {
     const line = createLine("", ["wake ", undefined, "up"]);
     line.words[0].word = "Wake";

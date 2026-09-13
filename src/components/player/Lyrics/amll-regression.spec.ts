@@ -6,6 +6,8 @@ import { LyricPlayer } from "@applemusic-like-lyrics/core";
 import type { LyricLine } from "@shared/types/lyrics";
 import AMLLLyrics from "./AMLLLyrics.vue";
 import { promotePronunciation } from "./romanization";
+import { SPlayerLyricPlayer } from "./amll-player";
+import { getOverlapAlignPosition } from "@/utils/lyric/overlapAlign";
 
 vi.mock("@/stores/settings", () => ({
   useSettingsStore: () => ({
@@ -105,6 +107,28 @@ afterEach(() => {
 });
 
 describe("AMLL 独立发音遮罩", () => {
+  it("遮罩绘制留白不计入正文与发音的推进宽度", () => {
+    vi.spyOn(CSSStyleDeclaration.prototype, "paddingLeft", "get").mockReturnValue("8px");
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(56);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(56);
+    player = new LyricPlayer();
+    player.setOptimizeOptions({ normalizeSpaces: false, resetLineTimestamps: false });
+    const hookedLine = { ...makeLine(), __amllIndependentMainWordMask: true };
+    player.setLyricLines([hookedLine]);
+    const line = player.currentLyricGroups[0].mainLine;
+    line.show();
+    animations = [];
+    line.updateMaskImageSync();
+    const masks = animations.filter(({ options }) => options.id?.startsWith("fade-word"));
+    expect(masks).toHaveLength(4);
+    // 40px 文字、两侧各 8px 留白、20px 渐变；留白不能被当成下一词的推进距离。
+    for (const mask of [masks[0], masks[2]]) {
+      expect(mask.frames[0].maskPosition).toBe("-76px 0");
+      expect(mask.frames.at(-1)?.maskPosition).toBe("0px 0");
+      expect(mask.options.duration).toBe(4000);
+    }
+  });
+
   it("ESM 与 CommonJS 的 hook 实现保持一致", () => {
     const cjsPath = createRequire(import.meta.url).resolve("@applemusic-like-lyrics/core");
     const cjs = readFileSync(cjsPath, "utf8");
@@ -113,6 +137,7 @@ describe("AMLL 独立发音遮罩", () => {
     for (const [start, end] of [
       ["\tcreateWord(", "\n\tbuildWord("],
       ["\tupdateMaskImageSync(", "\n\tgetElement("],
+      ["\tasync calcLayout(", "\n\tsetLinePosXSpringParams("],
       ["function normalizeSpaces(", "function resetLineTimestamps("],
       ["function chunkAndSplitLyricWords(", "//#endregion"],
     ]) {
@@ -230,6 +255,27 @@ describe("AMLL 独立发音遮罩", () => {
 });
 
 describe("AMLL 发音空格 hook", () => {
+  it("暂停时切换强制分隔会从原歌词重建，关闭后恢复手工空格", async () => {
+    const source = makeLine();
+    source.words[0].romanWord = "ni  ";
+    source.words[1].romanWord = "hao";
+    source.words.push({ word: "吗", romanWord: "ma", startTime: 3000, endTime: 4000 });
+    const setLines = vi.spyOn(LyricPlayer.prototype, "setLyricLines");
+    wrapper = mount(AMLLLyrics, {
+      props: { lyricLines: [source], playing: false, largerLyricText: "pronunciation" },
+    });
+    await vi.waitFor(() =>
+      expect(wrapper!.find(".amll-lyrics-container").classes()).toContain("is-visible"),
+    );
+    const words = () => setLines.mock.calls.at(-1)?.[0][0].words.map((word) => word.word);
+    expect(words()).toEqual(["ni  ", "hao", "ma"]);
+    await wrapper.setProps({ forceSyllableSpacing: true });
+    await vi.waitFor(() => expect(words()).toEqual(["ni ", "hao ", "ma"]));
+    await wrapper.setProps({ forceSyllableSpacing: false });
+    await vi.waitFor(() => expect(words()).toEqual(["ni  ", "hao", "ma"]));
+    expect(source.words[0].romanWord).toBe("ni  ");
+  });
+
   it("开启上游空格标准化后仍保留作者分隔与音节完整时间", () => {
     player = new LyricPlayer();
     const source = makeLine();
@@ -257,6 +303,109 @@ describe("AMLL 发音空格 hook", () => {
 });
 
 describe("AMLL 多行同亮抬高", () => {
+  it.each(["top", "center", "bottom"] as const)(
+    "呼吸点按 %s 锚点对齐，正常播放与 seek 一致",
+    async (anchor) => {
+      player = new LyricPlayer();
+      player.setOptimizeOptions({ normalizeSpaces: false, resetLineTimestamps: false });
+      player.setLyricLines([makeLine(0, 1000), makeLine(10000, 14000)]);
+      player.size[1] = 800;
+      player.setAlignPosition(0.35);
+      player.setAlignAnchor(anchor);
+      player.currentLyricGroups.forEach((group, index) =>
+        player!.lyricGroupSize.set(group, [600, index ? 240 : 120]),
+      );
+      const internal = player as unknown as {
+        layoutState: { interludeDotsSize: [number, number] };
+        interludeDots: { setTransform(x: number, y: number): void };
+      };
+      internal.layoutState.interludeDotsSize = [80, 26];
+      const dots = vi.spyOn(internal.interludeDots, "setTransform");
+      player.setCurrentTime(500, true);
+      player.setCurrentTime(1500);
+      await player.calcLayout();
+      const expected = 280 - (anchor === "center" ? 13 : anchor === "bottom" ? 26 : 0);
+      expect(dots.mock.calls.at(-1)?.[1]).toBeCloseTo(expected);
+      player.setCurrentTime(1500, true);
+      await player.calcLayout();
+      expect(dots.mock.calls.at(-1)?.[1]).toBeCloseTo(expected);
+      player.setCurrentTime(10500);
+      const count = dots.mock.calls.length;
+      await player.calcLayout();
+      expect(dots).toHaveBeenCalledTimes(count);
+    },
+  );
+
+  it("抬高跨过 0.4 时保持用户的居中锚点", async () => {
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(800);
+    vi.spyOn(SPlayerLyricPlayer.prototype, "getBufferedMainLineCount").mockReturnValue(3);
+    vi.spyOn(SPlayerLyricPlayer.prototype, "getBufferedMainLineMetrics").mockReturnValue({
+      firstHeight: 80,
+      secondHeight: 80,
+      gap: 80,
+      overlapDuration: 2000,
+    });
+    const align = vi.spyOn(LyricPlayer.prototype, "setAlignPosition");
+    const anchor = vi.spyOn(LyricPlayer.prototype, "setAlignAnchor");
+    wrapper = mount(AMLLLyrics, {
+      props: {
+        lyricLines: [makeLine()],
+        playing: false,
+        alignPosition: 0.45,
+        raiseAlignPositionOnOverlap: true,
+      },
+    });
+    await vi.waitFor(() =>
+      expect(wrapper!.find(".amll-lyrics-container").classes()).toContain("is-visible"),
+    );
+    expect(align).toHaveBeenLastCalledWith(0.25);
+    expect(anchor).toHaveBeenLastCalledWith("center");
+    await wrapper.setProps({ raiseAlignPositionOnOverlap: false });
+    expect(align).toHaveBeenLastCalledWith(0.45);
+    expect(anchor).toHaveBeenLastCalledWith("center");
+  });
+
+  it.each([60, 1600])("第三行高度为 %i 时原地亮起，首行结束后才换用新的两行", (thirdHeight) => {
+    const instance = new SPlayerLyricPlayer();
+    player = instance;
+    instance.setOptimizeOptions({ normalizeSpaces: false, resetLineTimestamps: false });
+    instance.setLyricLines([makeLine(0, 8000), makeLine(2000, 9000), makeLine(4000, 10000)]);
+    instance.currentLyricGroups.forEach((group, i) => {
+      instance.lyricGroupSize.set(group, [600, [80, 120, thirdHeight][i]]);
+    });
+    instance.setCurrentTime(2500, true);
+    const two = instance.getBufferedMainLineMetrics()!;
+    expect(two).toMatchObject({ firstHeight: 80, secondHeight: 120, gap: 0 });
+    instance.setCurrentTime(4500);
+    instance.advanceOverlapAnchor();
+    const three = instance.getBufferedMainLineMetrics()!;
+    expect(three).toEqual(two);
+    const align = (metrics: typeof three) =>
+      getOverlapAlignPosition(
+        0.35,
+        800,
+        metrics.firstHeight,
+        metrics.secondHeight,
+        metrics.gap,
+        metrics.overlapDuration,
+      );
+    expect(align(three)).toBe(align(two));
+    instance.setCurrentTime(8500);
+    instance.advanceOverlapAnchor();
+    expect(instance.getBufferedMainLineCount()).toBe(2);
+    expect(instance.getBufferedMainLineMetrics()).toMatchObject({
+      firstHeight: 120,
+      secondHeight: thirdHeight,
+      gap: 0,
+    });
+    expect(
+      (instance as unknown as { timelineState: { scrollToIndex: number } }).timelineState
+        .scrollToIndex,
+    ).toBe(1);
+    instance.setCurrentTime(9500, true);
+    expect(instance.getBufferedMainLineMetrics()).toBeNull();
+  });
+
   it("暂停时切换立即布局，并随重叠开始和结束恢复对齐点", async () => {
     const align = vi.spyOn(LyricPlayer.prototype, "setAlignPosition");
     const layout = vi.spyOn(LyricPlayer.prototype, "calcLayout");

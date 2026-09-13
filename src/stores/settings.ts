@@ -192,6 +192,7 @@ export const useSettingsStore = defineStore(
       hideChinesePronunciation: false,
       amllShowLineRomanization: true,
       amllShowWordRomanization: true,
+      forceSyllableSpacing: false,
       independentWordRomanizationProgress: false,
       normalizeNonStandardHan: true,
       enableWordHighlight: true,
@@ -411,6 +412,9 @@ export const useSettingsStore = defineStore(
         }
         if (!(["lyrics", "pronunciation"] as const).includes(lyric.largerLyricText)) {
           lyric.largerLyricText = "lyrics";
+        }
+        if (typeof lyric.forceSyllableSpacing !== "boolean") {
+          lyric.forceSyllableSpacing = false;
         }
         if (typeof lyric.forceLinePronunciationAsMain !== "boolean") {
           lyric.forceLinePronunciationAsMain = false;
