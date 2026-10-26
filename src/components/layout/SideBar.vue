@@ -11,6 +11,7 @@ import { usePlaylistStore } from "@/stores/playlist";
 import { useUserStore } from "@/stores/user";
 import { useDownloadStore } from "@/stores/download";
 import { useHeartMode } from "@/composables/useHeartMode";
+import { useResponsiveLayout } from "@/composables/useResponsiveLayout";
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import * as player from "@/core/player";
 import IconLucideListMusic from "~icons/lucide/list-music";
@@ -31,6 +32,7 @@ const playlistStore = usePlaylistStore();
 const userStore = useUserStore();
 const downloadStore = useDownloadStore();
 const { enterHeartMode } = useHeartMode();
+const { sidebarCollapsed } = useResponsiveLayout();
 const settingsDialog = useSettingsDialog();
 
 /** 心动模式 */
@@ -185,7 +187,6 @@ const navItems = computed<SMenuItem[]>(() => {
       if (!entry) continue;
       if (key === "/download" && !systemSettings.download.enabled) continue;
       if (key === "/streaming" && !systemSettings.streaming.enabled) continue;
-      if (key === "/stats" && !appearance.showStatsInSidebar) continue;
       const item: SMenuItem = { key, label: t(entry.labelKey), icon: markRaw(entry.icon) };
       if (key === "/liked") item.trailing = renderHeartModeTrailing;
       if (key === "/download" && downloadStore.activeCount > 0)
@@ -347,21 +348,19 @@ onMounted(() => {
 
 <template>
   <div class="flex flex-col h-full">
-    <SideBarLogo :collapsed="appearance.sidebarCollapsed" />
+    <SideBarLogo :collapsed="sidebarCollapsed" />
     <SContextMenu :items="contextMenuItems" @select="onContextMenuSelect">
       <div
         class="flex-1 min-h-0 pb-3 overflow-y-auto transition-[padding] duration-300"
         :class="
-          appearance.sidebarCollapsed
-            ? 'px-2 [&::-webkit-scrollbar]:hidden'
-            : 'px-3 [scrollbar-gutter:stable]'
+          sidebarCollapsed ? 'px-2 [&::-webkit-scrollbar]:hidden' : 'px-3 [scrollbar-gutter:stable]'
         "
         @contextmenu.capture="onMenuContextMenu"
       >
         <SMenu
           :items="menuItems"
           :model-value="activeKey"
-          :collapsed="appearance.sidebarCollapsed"
+          :collapsed="sidebarCollapsed"
           @select="onSelect"
         />
       </div>

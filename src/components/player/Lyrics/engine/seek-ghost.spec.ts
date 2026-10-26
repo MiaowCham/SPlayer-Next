@@ -4,7 +4,7 @@
  * 模拟快速长距离拖动进度条，检验所有行最终是否严格顺序排布（无重叠 / 残留伪影）
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LyricRenderer } from "./index";
+import { LyricRenderer } from "lyric-dom";
 import type { LyricLine } from "@shared/types/lyrics";
 
 /** 手动步进的 rAF 队列 */
@@ -113,6 +113,7 @@ describe("歌词引擎 seek 后布局", () => {
   it("多行同亮时抬高，退出重叠或关闭设置后恢复", () => {
     const container = createContainer();
     const renderer = new LyricRenderer(container, {
+      enableFloatAnimation: false,
       playing: true,
       alignPosition: 0.35,
       raiseAlignPositionOnOverlap: true,
@@ -141,6 +142,7 @@ describe("歌词引擎 seek 后布局", () => {
   it("第三行原地高亮，首行退出后才按新两行滚动", () => {
     const container = createContainer();
     const renderer = new LyricRenderer(container, {
+      enableFloatAnimation: false,
       playing: true,
       alignPosition: 0.35,
       raiseAlignPositionOnOverlap: true,
@@ -170,6 +172,7 @@ describe("歌词引擎 seek 后布局", () => {
   it("背景行同亮不触发抬高", () => {
     const container = createContainer();
     const renderer = new LyricRenderer(container, {
+      enableFloatAnimation: false,
       playing: true,
       alignPosition: 0.35,
       raiseAlignPositionOnOverlap: true,
@@ -189,7 +192,11 @@ describe("歌词引擎 seek 后布局", () => {
 
   it("间奏圆点居中对齐，正常播放与 seek 使用同一位置", () => {
     const container = createContainer();
-    const renderer = new LyricRenderer(container, { playing: true, alignPosition: 0.35 });
+    const renderer = new LyricRenderer(container, {
+      enableFloatAnimation: false,
+      playing: true,
+      alignPosition: 0.35,
+    });
     const lines = makeLines(2);
     lines[0].endTime = 1000;
     lines[0].words = [{ word: "前句", startTime: 0, endTime: 1000 }];
@@ -215,7 +222,7 @@ describe("歌词引擎 seek 后布局", () => {
 
   it("快速长距离前进拖动后无重叠", () => {
     const container = createContainer();
-    const renderer = new LyricRenderer(container, { playing: true });
+    const renderer = new LyricRenderer(container, { enableFloatAnimation: false, playing: true });
     renderer.setLyrics(makeLines(400));
 
     // 正常播放一段时间，让入场动画与首行激活完成
@@ -240,7 +247,7 @@ describe("歌词引擎 seek 后布局", () => {
 
   it("快速长距离回退拖动后无重叠", () => {
     const container = createContainer();
-    const renderer = new LyricRenderer(container, { playing: true });
+    const renderer = new LyricRenderer(container, { enableFloatAnimation: false, playing: true });
     renderer.setLyrics(makeLines(400));
 
     let time = 1200000;
@@ -263,7 +270,7 @@ describe("歌词引擎 seek 后布局", () => {
 
   it("慢速拖动（未触发 seek 阈值）后无重叠", () => {
     const container = createContainer();
-    const renderer = new LyricRenderer(container, { playing: true });
+    const renderer = new LyricRenderer(container, { enableFloatAnimation: false, playing: true });
     renderer.setLyrics(makeLines(400));
 
     let time = 0;

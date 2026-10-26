@@ -1,0 +1,26 @@
+diff --git a/dist/index.d.cts b/dist/index.d.cts
+index cc899cd833a771e357928d35526c452af113f444..3b693876abf4205f2728969b0eeb651d5648d528 100644
+--- a/dist/index.d.cts
++++ b/dist/index.d.cts
+@@ -2,7 +2,7 @@
+ /** 歌词格式 */
+ type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "krc" | "lrc" | "srt" | "ass";
+ /** 歌词行语言；und-Latn 表示语言未知的拉丁文字 */
+-type LyricLanguage = "ja" | "ko" | "zh-CN" | "und-Latn";
++type LyricLanguage = "ja" | "ko" | "zh-CN" | "yue" | "und-Hani" | "und-Latn";
+ /** 歌词时间片段 */
+ interface LyricSpan {
+   /** 起始时间（毫秒） */
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index f46f278e945b7f56bc9b8499a8d12faa83fa2269..fb6ea73a9be891cd0e25eb484971ffa42b5c222f 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -2,7 +2,7 @@
+ /** 歌词格式 */
+ type LyricFormat = "ttml" | "lys" | "yrc" | "qrc" | "krc" | "lrc" | "srt" | "ass";
+ /** 歌词行语言；und-Latn 表示语言未知的拉丁文字 */
+-type LyricLanguage = "ja" | "ko" | "zh-CN" | "und-Latn";
++type LyricLanguage = "ja" | "ko" | "zh-CN" | "yue" | "und-Hani" | "und-Latn";
+ /** 歌词时间片段 */
+ interface LyricSpan {
+   /** 起始时间（毫秒） */

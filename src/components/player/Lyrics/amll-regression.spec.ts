@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { mount, type VueWrapper } from "@vue/test-utils";
-import { LyricPlayer } from "@applemusic-like-lyrics/core";
+import { LayoutAlignAnchor, LayoutReason, LyricPlayer } from "@applemusic-like-lyrics/core";
 import type { LyricLine } from "@shared/types/lyrics";
 import AMLLLyrics from "./AMLLLyrics.vue";
 import { promotePronunciation } from "./romanization";
@@ -45,12 +45,24 @@ type RecordedAnimation = {
   animation: Animation;
 };
 let animations: RecordedAnimation[] = [];
+let maskPadding = "0px";
 let player: LyricPlayer | undefined;
 let wrapper: VueWrapper | undefined;
 
 beforeEach(() => {
   animations = [];
-  vi.spyOn(CSSStyleDeclaration.prototype, "paddingLeft", "get").mockReturnValue("0px");
+  maskPadding = "0px";
+  const computedStyle = window.getComputedStyle.bind(window);
+  vi.spyOn(window, "getComputedStyle").mockImplementation(
+    (element) =>
+      new Proxy(computedStyle(element), {
+        get(target, property) {
+          if (property === "paddingLeft") return maskPadding;
+          const value = Reflect.get(target, property, target);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }),
+  );
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(CSS, "supports").mockReturnValue(true);
   vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (
@@ -108,7 +120,7 @@ afterEach(() => {
 
 describe("AMLL 独立发音遮罩", () => {
   it("遮罩绘制留白不计入正文与发音的推进宽度", () => {
-    vi.spyOn(CSSStyleDeclaration.prototype, "paddingLeft", "get").mockReturnValue("8px");
+    maskPadding = "8px";
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(56);
     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(56);
     player = new LyricPlayer();
@@ -137,7 +149,7 @@ describe("AMLL 独立发音遮罩", () => {
     for (const [start, end] of [
       ["\tcreateWord(", "\n\tbuildWord("],
       ["\tupdateMaskImageSync(", "\n\tgetElement("],
-      ["\tasync calcLayout(", "\n\tsetLinePosXSpringParams("],
+      ["\tcalcLayout(", "\n\tresolveIsActive("],
       ["function normalizeSpaces(", "function resetLineTimestamps("],
       ["function chunkAndSplitLyricWords(", "//#endregion"],
     ]) {
@@ -311,9 +323,14 @@ describe("AMLL 多行同亮抬高", () => {
       player.setLyricLines([makeLine(0, 1000), makeLine(10000, 14000)]);
       player.size[1] = 800;
       player.setAlignPosition(0.35);
-      player.setAlignAnchor(anchor);
-      player.currentLyricGroups.forEach((group, index) =>
-        player!.lyricGroupSize.set(group, [600, index ? 240 : 120]),
+      player.setAlignAnchor(anchor as LayoutAlignAnchor);
+      const calculator = (
+        player as unknown as {
+          layoutCalculator: { setLineHeight(index: number, height: number): void };
+        }
+      ).layoutCalculator;
+      player.currentLyricGroups.forEach((_group, index) =>
+        calculator.setLineHeight(index, index ? 240 : 120),
       );
       const internal = player as unknown as {
         layoutState: { interludeDotsSize: [number, number] };
@@ -323,15 +340,15 @@ describe("AMLL 多行同亮抬高", () => {
       const dots = vi.spyOn(internal.interludeDots, "setTransform");
       player.setCurrentTime(500, true);
       player.setCurrentTime(1500);
-      await player.calcLayout();
+      player.calcLayout(LayoutReason.ConfigChange);
       const expected = 280 - (anchor === "center" ? 13 : anchor === "bottom" ? 26 : 0);
       expect(dots.mock.calls.at(-1)?.[1]).toBeCloseTo(expected);
       player.setCurrentTime(1500, true);
-      await player.calcLayout();
+      player.calcLayout(LayoutReason.ConfigChange);
       expect(dots.mock.calls.at(-1)?.[1]).toBeCloseTo(expected);
       player.setCurrentTime(10500);
       const count = dots.mock.calls.length;
-      await player.calcLayout();
+      player.calcLayout(LayoutReason.ConfigChange);
       expect(dots).toHaveBeenCalledTimes(count);
     },
   );
@@ -370,9 +387,14 @@ describe("AMLL 多行同亮抬高", () => {
     player = instance;
     instance.setOptimizeOptions({ normalizeSpaces: false, resetLineTimestamps: false });
     instance.setLyricLines([makeLine(0, 8000), makeLine(2000, 9000), makeLine(4000, 10000)]);
-    instance.currentLyricGroups.forEach((group, i) => {
-      instance.lyricGroupSize.set(group, [600, [80, 120, thirdHeight][i]]);
-    });
+    const calculator = (
+      instance as unknown as {
+        layoutCalculator: { setLineHeight(index: number, height: number): void };
+      }
+    ).layoutCalculator;
+    instance.currentLyricGroups.forEach((_group, i) =>
+      calculator.setLineHeight(i, [80, 120, thirdHeight][i]),
+    );
     instance.setCurrentTime(2500, true);
     const two = instance.getBufferedMainLineMetrics()!;
     expect(two).toMatchObject({ firstHeight: 80, secondHeight: 120, gap: 0 });
@@ -399,8 +421,9 @@ describe("AMLL 多行同亮抬高", () => {
       gap: 0,
     });
     expect(
-      (instance as unknown as { timelineState: { scrollToIndex: number } }).timelineState
-        .scrollToIndex,
+      (
+        instance as unknown as { timelineController: { getSnapshot(): { scrollToIndex: number } } }
+      ).timelineController.getSnapshot().scrollToIndex,
     ).toBe(1);
     instance.setCurrentTime(9500, true);
     expect(instance.getBufferedMainLineMetrics()).toBeNull();
@@ -434,5 +457,41 @@ describe("AMLL 多行同亮抬高", () => {
     expect(align).toHaveBeenLastCalledWith(0.35);
     await wrapper.setProps({ raiseAlignPositionOnOverlap: false });
     expect(align).toHaveBeenLastCalledWith(0.35);
+  });
+});
+
+describe("AMLL 效果设置 hook", () => {
+  it.each(["ESM", "CommonJS"])("%s 的禁用设置与上浮强度实际生效", (entry) => {
+    const Player =
+      entry === "ESM"
+        ? LyricPlayer
+        : (
+            createRequire(import.meta.url)(
+              "@applemusic-like-lyrics/core",
+            ) as typeof import("@applemusic-like-lyrics/core")
+          ).LyricPlayer;
+    player = new Player();
+    player.setOptimizeOptions({ normalizeSpaces: false, resetLineTimestamps: false });
+    const disabled = {
+      ...makeLine(),
+      __amllDisableWordHighlight: true,
+      __amllDisableEmphasize: true,
+      __amllFloatAnimationIntensity: "extreme",
+    };
+    player.setLyricLines([disabled]);
+    player.currentLyricGroups[0].mainLine.show();
+    expect(animations.filter(({ options }) => options.id?.startsWith("fade-word"))).toHaveLength(0);
+    expect(animations.filter(({ options }) => options.id?.startsWith("emphasize"))).toHaveLength(0);
+    const floating = animations.filter(({ options }) => options.id === "float-word");
+    expect(floating).toHaveLength(2);
+    expect(floating.every(({ frames }) => frames.at(-1)?.transform === "translateY(-0.15em)")).toBe(
+      true,
+    );
+    const cjkDisabled = { ...makeLine(), __amllDisableCjkEmphasis: true };
+    player.setLyricLines([cjkDisabled]);
+    animations = [];
+    player.currentLyricGroups[0].mainLine.show();
+    expect(animations.some(({ options }) => options.id?.startsWith("fade-word"))).toBe(true);
+    expect(animations.some(({ options }) => options.id?.startsWith("emphasize"))).toBe(false);
   });
 });

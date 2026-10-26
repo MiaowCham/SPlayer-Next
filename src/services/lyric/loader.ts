@@ -95,10 +95,7 @@ const commit = (token: number, source: LyricData, input: LyricInput | null): voi
   const desc = source
     ? `${source.source}:${source.format}:${source.platform ?? source.provider ?? ""}`
     : "null";
-  logLyric(
-    "info",
-    `commit → ${desc}, parsedLines=${media.parsedLyric.length}, token=${token}`,
-  );
+  logLyric("info", `commit → ${desc}, parsedLines=${media.parsedLyric.length}, token=${token}`);
 };
 
 /** 提交本地歌词 */
@@ -129,43 +126,108 @@ const commitResolvedAndHasParsed = (token: number, resolved: ResolvedLyric): boo
   commitAndHasParsed(token, resolved.source, resolved.input);
 
 /**
- * 提交在线歌词；解析后为空时优先回退本地，本地也无再按需 TTML 升级
+ * 尝试以更优格式提交歌词候选
+ * 仅当候选格式优于当前展示格式（或当前无歌词）时写入，避免低优先级结果覆盖优质歌词；
+ * 若写入后有效行为空但此前已有歌词，则自动恢复此前歌词
+ * @param token - 竞态 token
+ * @param source - 候选歌词源
+ * @param input - 候选歌词内容
+ * @returns 是否成功提交且有效展示
  */
-const applyOnline = async (
+const commitIfBetter = (
+  token: number,
+  source: NonNullable<LyricData>,
+  input: LyricInput,
+): boolean => {
+  if (token !== currentToken) return false;
+  const media = useMediaStore();
+  const currentFormat = media.activeLyric?.format ?? null;
+  if (currentFormat && !isBetterFormat(source.format, currentFormat)) {
+    return false;
+  }
+
+  const prevSource = media.activeLyric;
+  const prevInput = media.lyricContent;
+  const prevParsed = media.parsedLyric;
+
+  commit(token, source, input);
+
+  if (media.activeLyric && media.lyricContent) {
+    return true;
+  }
+
+  // 失败回滚
+  if (prevSource && prevParsed.length > 0) {
+    media.setLyric(prevSource, prevInput);
+  }
+  return false;
+};
+
+/** 当前 token 是否已触发过 TTML 拉取 */
+let ttmlTriggeredToken = -1;
+
+/**
+ * 异步静默触发 TTML 覆盖并尝试升级
+ * 非阻塞执行，不阻塞基础歌词展示与其它来源抢占
+ * @param token - 竞态 token
+ * @param track - 歌曲信息
+ * @param online - 在线歌词基础结果
+ */
+const tryApplyTTMLOverlay = (
+  token: number,
+  track: Track,
+  online: OnlineResult,
+  preferredPlatform?: "netease" | "qqmusic",
+  forceQuery = false,
+): void => {
+  if (token !== currentToken || ttmlTriggeredToken === token) return;
+  ttmlTriggeredToken = token;
+  resolveTTMLOverlay(track, online, preferredPlatform, forceQuery)
+    .then((ttml) => {
+      if (token !== currentToken || !ttml) return;
+      commitIfBetter(token, ttml.source, ttml.input);
+    })
+    .catch((err) => {
+      console.warn("[lyricLoader] tryApplyTTMLOverlay failed:", err);
+    });
+};
+
+/**
+ * 提交在线歌词
+ * 若成功则在后台异步触发 TTML 升级，解析后为空时优先回退本地
+ * @param token - 竞态 token
+ * @param track - 歌曲信息
+ * @param online - 在线歌词结果
+ * @param fallbackLocal - 本地回退歌词
+ */
+const applyOnline = (
   token: number,
   track: Track,
   online: OnlineResult,
   fallbackLocal: LocalLyric | null,
   ttmlPreference?: "netease" | "qqmusic" | false,
   forceQuery = false,
-): Promise<void> => {
+): void => {
+  if (token !== currentToken) return;
   const media = useMediaStore();
   const current = media.activeLyric;
-  // 跳过同源同格式
+  const explicit =
+    useSettingsStore().lyric.lyricSourcePreference !== "auto" ||
+    ttmlPreference === false ||
+    !!ttmlPreference;
   const alreadyCommitted =
     current?.source === "online" &&
     current.platform === online.source.platform &&
     current.format === online.source.format;
   if (!alreadyCommitted) {
-    if (!commitAndHasParsed(token, online.source, online.input) && fallbackLocal) {
-      commitLocal(token, fallbackLocal);
+    if (!explicit && current && !isBetterFormat(online.source.format, current.format)) return;
+    if (!commitAndHasParsed(token, online.source, online.input)) {
+      if (fallbackLocal && !media.activeLyric) commitLocal(token, fallbackLocal);
       return;
     }
-    if (token !== currentToken) return;
-  } else if (media.parsedLyric.length === 0 && fallbackLocal) {
-    commitLocal(token, fallbackLocal);
-    return;
   }
-  if (ttmlPreference === false) return;
-  const ttml = await resolveTTMLOverlay(track, online, ttmlPreference, forceQuery);
-  if (token !== currentToken) return;
-  if (ttml) {
-    // TTML 覆盖也必须解析出有效行，否则保留当前在线歌词，避免被无效 TTML 清成 NO-LRC
-    if (!commitResolvedAndHasParsed(token, ttml)) {
-      commit(token, online.source, online.input);
-      logLyric("warn", "applyOnline: TTML 覆盖解析为空，回退到在线歌词");
-    }
-  }
+  if (ttmlPreference !== false)
+    tryApplyTTMLOverlay(token, track, online, ttmlPreference, forceQuery);
 };
 
 /**
@@ -218,7 +280,6 @@ const tryManaged = async (
  * @returns 是否已提交有效歌词
  */
 const tryPluginFallback = async (token: number, track: Track): Promise<boolean> => {
-  // 插件优选时不处理
   if (isPluginLyricPreferred()) return false;
   const resolved = await resolvePluginLyric(track);
   if (token !== currentToken) return false;
@@ -254,10 +315,7 @@ const scheduleAppleMusicUpgrade = (token: number, track: Track, force = false): 
       }
       const media = useMediaStore();
       const replace = force || shouldReplaceWithAppleMusic(media.activeLyric);
-      logLyric(
-        "info",
-        `AM 升级: current=${describeActive()}, force=${force}, replace=${replace}`,
-      );
+      logLyric("info", `AM 升级: current=${describeActive()}, force=${force}, replace=${replace}`);
       if (replace) {
         // 先记录当前有效歌词，避免无效 AM 结果把已有歌词清成 NO-LRC
         const previous =
@@ -310,7 +368,7 @@ const isAppleMusicFirst = (choice: TrackLyricPreference): boolean => {
 
 /**
  * 插件优先加载
- * 插件请求与正常流程并发发出，正常流程先展示，插件返回更优格式时替换
+ * 插件请求与正常流程并发发出，任意一方就绪且更优时立即抢占展示
  * @param token - 竞态 token
  * @param track - 歌曲信息
  * @param run - 正常加载流程
@@ -324,14 +382,13 @@ const withPluginPrefer = async (
     await run();
     return;
   }
-  const pluginTask = resolvePluginLyric(track);
+  const pluginTask = resolvePluginLyric(track).then((plugin) => {
+    if (plugin && token === currentToken) {
+      commitIfBetter(token, plugin.source, plugin.input);
+    }
+  });
   await run();
-  const plugin = await pluginTask;
-  if (!plugin || token !== currentToken) return;
-  const currentFormat = useMediaStore().activeLyric?.format ?? null;
-  if (isBetterFormat(plugin.source.format, currentFormat)) {
-    commitResolvedAndHasParsed(token, plugin);
-  }
+  await pluginTask;
 };
 
 /**
@@ -354,12 +411,20 @@ const loadStreamingLyric = (
     );
     if (token !== currentToken) return;
     const embeddedFallback = embeddedLyricFromDetail(detail);
-    if (resolved && commitResolvedAndHasParsed(token, resolved)) return;
+    if (resolved && commitIfBetter(token, resolved.source, resolved.input)) {
+      if (resolved.source.source === "online") {
+        tryApplyTTMLOverlay(token, track, {
+          source: resolved.source as OnlineResult["source"],
+          input: resolved.input,
+        });
+      }
+      return;
+    }
     if (token !== currentToken) return;
     if (await tryPluginFallback(token, track)) return;
     if (embeddedFallback) {
-      commit(token, embeddedFallback.source, { content: embeddedFallback.content });
-    } else {
+      commitIfBetter(token, embeddedFallback.source, { content: embeddedFallback.content });
+    } else if (useMediaStore().parsedLyric.length === 0) {
       commit(token, null, null);
     }
   });
@@ -380,6 +445,17 @@ const loadPlatformLyric = (
       hasLocal: false,
       localFormat: null,
       preference: basePreference(choice),
+      onCandidate: (result) => {
+        if (commitIfBetter(token, result.source, result.input) && choice.source !== "platform") {
+          tryApplyTTMLOverlay(
+            token,
+            track,
+            result,
+            choice.source === "amll" ? choice.platform : undefined,
+            forceQuery,
+          );
+        }
+      },
       shouldContinue: () => token === currentToken,
       forceQuery,
     });
@@ -394,12 +470,17 @@ const loadPlatformLyric = (
         track,
         online,
         null,
-        choice.source === "platform" ? false : choice.source === "amll" ? choice.platform : undefined,
+        choice.source === "platform"
+          ? false
+          : choice.source === "amll"
+            ? choice.platform
+            : undefined,
         forceQuery,
       );
     } else if (
       !(await tryLocalRepo(token, track, choice, true, forceQuery)) &&
-      !(await tryPluginFallback(token, track))
+      !(await tryPluginFallback(token, track)) &&
+      !useMediaStore().activeLyric
     ) {
       logLyric("warn", `loadPlatformLyric: 无在线/本地/插件歌词 → commit null`);
       commit(token, null, null);
@@ -465,6 +546,13 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
     // 本地 TTML 歌词库最高优先
     if (await tryLocalRepo(token, searchTrack, choice, false, search.forceQuery)) return;
     if (token !== currentToken) return;
+    if (track.source === "plugin") {
+      const plugin = await resolvePluginLyric(track);
+      if (token !== currentToken) return;
+      if (plugin) commitIfBetter(token, plugin.source, plugin.input);
+      else if (media.parsedLyric.length === 0) commit(token, null, null);
+      return;
+    }
     // 在线歌曲（任一在线平台）
     if (isPlatform(track.source)) {
       await loadPlatformLyric(token, searchTrack, choice, search.forceQuery);
@@ -489,7 +577,9 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
         hasLocal: hasUsableLocal,
         localFormat,
         preference: basePreference(choice),
-        onCandidate: (result) => commit(token, result.source, result.input),
+        onCandidate: (result) => {
+          commitIfBetter(token, result.source, result.input);
+        },
         shouldContinue: () => token === currentToken,
         forceQuery: search.forceQuery,
       });
@@ -510,7 +600,7 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
               : undefined,
           search.forceQuery,
         );
-      } else if (!hasUsableLocal) {
+      } else if (!hasUsableLocal && !useMediaStore().activeLyric) {
         if (!(await tryPluginFallback(token, track))) {
           commit(token, null, null);
         }
@@ -553,6 +643,13 @@ const refreshPreference = async (): Promise<void> => {
   // 本地 TTML 歌词库最高优先
   if (await tryLocalRepo(token, searchTrack, choice, false, search.forceQuery)) return;
   if (token !== currentToken) return;
+  if (track.source === "plugin") {
+    const plugin = await resolvePluginLyric(track);
+    if (token !== currentToken) return;
+    if (plugin) commitIfBetter(token, plugin.source, plugin.input);
+    else commit(token, null, null);
+    return;
+  }
   if (track.source === "streaming") {
     await loadStreamingLyric(token, searchTrack, media.detail, choice);
     return;
@@ -574,7 +671,9 @@ const refreshPreference = async (): Promise<void> => {
       hasLocal: !!local,
       localFormat,
       preference: basePreference(choice),
-      onCandidate: (result) => commit(token, result.source, result.input),
+      onCandidate: (result) => {
+        commitIfBetter(token, result.source, result.input);
+      },
       shouldContinue: () => token === currentToken,
       forceQuery: search.forceQuery,
     });
@@ -585,7 +684,11 @@ const refreshPreference = async (): Promise<void> => {
         searchTrack,
         online,
         local,
-        choice.source === "platform" ? false : choice.source === "amll" ? choice.platform : undefined,
+        choice.source === "platform"
+          ? false
+          : choice.source === "amll"
+            ? choice.platform
+            : undefined,
         search.forceQuery,
       );
       return;

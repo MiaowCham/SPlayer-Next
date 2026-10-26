@@ -9,7 +9,9 @@ vi.mock("@main/apis/netease", () => ({
   callNetease: vi.fn(async () => ({ status: 200, body: { songs: [] } })),
 }));
 vi.mock("@main/database/managedLyrics", () => ({ setManagedLyric: runtime.save }));
-vi.mock("@main/services/localLyricRepo", () => ({ extractTtmlMeta: () => ({ ncmId: "123" }) }));
+vi.mock("@main/services/localLyricRepo", () => ({
+  extractTtmlMeta: () => ({ ncmIds: ["123"], qqIds: [] }),
+}));
 vi.mock("@main/utils/logger", () => ({ coreLog: { warn: vi.fn() } }));
 import { importNeteaseTtmlDirectory } from "./managedLyricImport";
 

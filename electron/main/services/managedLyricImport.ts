@@ -99,14 +99,14 @@ export const importNeteaseTtmlDirectory = async (
     try {
       const content = await readFile(file, "utf8");
       const meta = extractTtmlMeta(content);
-      if (!meta.ncmId) {
+      if (!meta.ncmIds[0]) {
         result.skipped++;
         continue;
       }
       pending.push({
         content,
         file,
-        id: meta.ncmId,
+        id: meta.ncmIds[0],
         missingExplicitSpaces: normalizeTtml(content).missingExplicitSpaces,
       });
     } catch {

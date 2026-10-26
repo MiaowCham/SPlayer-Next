@@ -1,4 +1,5 @@
 import type { LyricLine } from "@shared/types/lyrics";
+
 import type { DesktopLyricAlign, DesktopLyricSettings } from "@shared/types/settings";
 
 /** 待渲染行的数据载体 */

@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import {
+  LayoutAlignAnchor,
+  LayoutReason,
+  type LyricLineMouseEvent,
+} from "@applemusic-like-lyrics/core";
 import type { LyricLine } from "@shared/types/lyrics";
 import type { LargerLyricText, LyricFloatAnimationIntensity } from "@/types/settings";
 import { SPlayerLyricPlayer as CoreLyricPlayer } from "./amll-player";
@@ -15,7 +20,6 @@ import {
   shouldForceAmlLinePronunciationMode,
 } from "./romanization";
 import "@applemusic-like-lyrics/core/style.css";
-import "./renderer.css";
 
 /**
  * SPlayer 与 AMLL 补丁之间的私有行协议，不属于上游公开 API。
@@ -65,8 +69,10 @@ const props = withDefaults(
     minimizeSpringParams?: boolean;
     /** 是否显示翻译歌词 */
     showTranslation?: boolean;
+    /** 是否显示词内注音 */
+    showRuby?: boolean;
     /** 是否显示逐行音译 */
-    showLineRomanization?: boolean;
+    showRomanization?: boolean;
     /** 是否显示逐词音译 */
     showWordRomanization?: boolean;
     forceSyllableSpacing?: boolean;
@@ -78,6 +84,8 @@ const props = withDefaults(
     forceLinePronunciationAsMain?: boolean;
     /** 是否独立计算逐词发音遮罩进度 */
     independentWordRomanizationProgress?: boolean;
+    /** 是否始终将背景行置于主行下方 */
+    bgAlwaysBelow?: boolean;
     /** 挂载时的初始播放时间（毫秒） */
     initialTime?: number;
   }>(),
@@ -94,13 +102,15 @@ const props = withDefaults(
     raiseAlignPositionOnOverlap: false,
     minimizeSpringParams: false,
     showTranslation: true,
-    showLineRomanization: true,
+    showRuby: true,
+    showRomanization: true,
     showWordRomanization: true,
     forceSyllableSpacing: false,
     swapTranslationPronunciation: false,
     largerLyricText: "lyrics",
     forceLinePronunciationAsMain: false,
     independentWordRomanizationProgress: false,
+    bgAlwaysBelow: false,
     initialTime: 0,
   },
 );
@@ -108,6 +118,8 @@ const props = withDefaults(
 interface Emits {
   /** 点击歌词行进行播放进度跳转 */
   (e: "seek", timeMs: number): void;
+  /** 首次布局完成 */
+  (e: "ready"): void;
 }
 
 const emit = defineEmits<Emits>();
@@ -119,7 +131,7 @@ const wrapperRef = ref<HTMLDivElement | null>(null);
 // Core 实例必须保留原始身份：挂载时用它判定异步等待后实例是否已被卸载或替换。
 const playerRef = shallowRef<CoreLyricPlayer>();
 const bottomLineEl = ref<HTMLElement>();
-const clockInitialized = ref(false);
+
 // 播放器是否已初始化完成
 const initialized = ref(false);
 const contentVisible = ref(false);
@@ -128,7 +140,7 @@ const isFrozen = ref(false);
 // 冻结期间缓存的待应用歌词
 let pendingLyrics: LyricLine[] | null = null;
 let lastAlignPosition: number | undefined;
-let lastAlignAnchor: "center" | "top" | undefined;
+let lastAlignAnchor: LayoutAlignAnchor | undefined;
 // 页面隐藏状态的响应式跟踪
 const isPageHidden = ref(false);
 // 之前隐藏的标记，用于检测从隐藏恢复的时刻
@@ -137,15 +149,11 @@ const isPreviousHidden = ref(false);
 const nextFrame = (): Promise<void> =>
   new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
-/**
- * 将重叠高亮状态接入 AMLL 的对齐配置与布局刷新。
- * 0.5.2 的两个 setter 仅写入 layoutState，切换时必须显式调用 calcLayout。
- * 缓存最终对齐点，避免每次播放进度推送都触发布局；升级时复核 setter 的刷新语义。
- */
+/** 根据时间线快照同步重叠对齐，缓存最终配置以免重复布局 */
 const syncAlignPosition = (): void => {
   const player = playerRef.value;
   if (!player) return;
-  if (props.raiseAlignPositionOnOverlap) player.advanceOverlapAnchor();
+  player.advanceOverlapAnchor(props.raiseAlignPositionOnOverlap);
   const activeMainLineCount = props.raiseAlignPositionOnOverlap
     ? player.getBufferedMainLineCount()
     : 0;
@@ -161,13 +169,13 @@ const syncAlignPosition = (): void => {
           overlap.overlapDuration,
         )
       : props.alignPosition;
-  const alignAnchor = props.alignPosition > 0.4 ? "center" : "top";
+  const alignAnchor = props.alignPosition > 0.4 ? LayoutAlignAnchor.Center : LayoutAlignAnchor.Top;
   if (lastAlignPosition === alignPosition && lastAlignAnchor === alignAnchor) return;
   lastAlignPosition = alignPosition;
   lastAlignAnchor = alignAnchor;
   player.setAlignPosition(alignPosition);
   player.setAlignAnchor(alignAnchor);
-  void player.calcLayout();
+  player.calcLayout(LayoutReason.ConfigChange);
 };
 
 /** 同步时间后更新重叠段布局，确保新对齐点立即生效。 */
@@ -181,12 +189,12 @@ const processedLyrics = computed(() => {
   if (!props.lyricLines) return [];
   const forceLineMode =
     props.largerLyricText === "pronunciation" &&
-    props.showLineRomanization &&
+    props.showRomanization &&
     shouldForceAmlLinePronunciationMode(props.lyricLines, props.forceLinePronunciationAsMain);
   const result = props.lyricLines.map((line) => {
     const wordPronunciationVisible = props.showWordRomanization && hasWordRomanization(line);
     const linePronunciationVisible =
-      props.showLineRomanization && !hasWordRomanization(line) && !!line.romanLyric.trim();
+      props.showRomanization && !hasWordRomanization(line) && !!line.romanLyric.trim();
     const linePronunciationCanBePromoted =
       linePronunciationVisible && canPromoteLinePronunciation(line, false);
     const displayLine =
@@ -200,7 +208,7 @@ const processedLyrics = computed(() => {
               ? promotePronunciation(line, "line")
               : line;
     const translation = props.showTranslation ? displayLine.translatedLyric : "";
-    const pronunciation = resolveAmlLineRomanization(displayLine, props.showLineRomanization);
+    const pronunciation = resolveAmlLineRomanization(displayLine, props.showRomanization);
     const newLine: AmlLyricLine = {
       ...displayLine,
       translatedLyric: props.swapTranslationPronunciation ? pronunciation : translation,
@@ -230,6 +238,9 @@ const processedLyrics = computed(() => {
         if (!props.showWordRomanization) {
           delete newWord.romanWord;
         }
+        if (!props.showRuby) {
+          delete newWord.ruby;
+        }
         return newWord;
       });
     }
@@ -239,8 +250,8 @@ const processedLyrics = computed(() => {
 });
 
 // 行点击事件回调
-const handleLineClick = (e: Event) => {
-  const amllEvent = e as Event & { line?: { getLine: () => { startTime?: number } } };
+const handleLineClick = (event: Event) => {
+  const amllEvent = event as LyricLineMouseEvent;
   const lineData = amllEvent.line?.getLine();
   if (lineData && typeof lineData.startTime === "number") {
     emit("seek", lineData.startTime);
@@ -282,6 +293,7 @@ const syncPlayerOptions = (player = playerRef.value): void => {
   const useSpring = settings.lyric.useAMSpring;
   player.setEnableSpring(useSpring);
   player.setEnableScale(useSpring);
+  player.setAlwaysPostpositionBackground(props.bgAlwaysBelow ?? false);
   player.setLinePosYSpringParams(
     props.minimizeSpringParams
       ? { mass: 0.1, damping: 0, stiffness: 1, soft: false }
@@ -320,11 +332,10 @@ const handleVisibility = () => {
     playerRef.value?.pause();
     isPreviousHidden.value = true;
   } else if (isPreviousHidden.value && !isFrozen.value && playerRef.value) {
-    // 从隐藏恢复：校准 Core 内部时钟到当前播放位置，避免逐词效果从头开始
+    // 从隐藏恢复
     const currentTime = getCurrentTime() + status.lyricOffsetMs;
     syncCurrentTime(currentTime, true);
     isPreviousHidden.value = false;
-    // 恢复后根据当前状态决定 resume/pause（由 watchEffect 处理，这里只需确保 state sync）
   }
 };
 
@@ -349,7 +360,6 @@ onMounted(async () => {
   player.setOptimizeOptions({
     cleanUnintentionalOverlaps: settings.lyric.amllCleanUnintentionalOverlaps,
     tryAdvanceStartTime: settings.lyric.amllTryAdvanceStartTime,
-    convertExcessiveBackgroundLines: settings.lyric.amllConvertExcessiveBackgroundLines,
     syncMainAndBackgroundLines: settings.lyric.amllSyncMainAndBackgroundLines,
     normalizeSpaces: settings.lyric.amllNormalizeSpaces,
     resetLineTimestamps: settings.lyric.amllResetLineTimestamps,
@@ -359,29 +369,22 @@ onMounted(async () => {
 
   await nextTick();
   await nextFrame();
-  if (playerRef.value !== player) return;
-
-  if (processedLyrics.value.length > 0) {
-    player.setLyricLines(processedLyrics.value, props.initialTime);
-    syncCurrentTime(props.initialTime, true);
-    processLyricLanguage(player);
-  } else if (Number.isFinite(props.initialTime) && props.initialTime >= 0) {
-    syncCurrentTime(props.initialTime, true);
-  }
-
+  // RAF 回调先于 ResizeObserver，再等一帧让 Core 获得容器尺寸
   await nextFrame();
   if (playerRef.value !== player) return;
-  if (pendingLyrics) {
-    player.setLyricLines(pendingLyrics, getCurrentTime() + status.lyricOffsetMs);
-    pendingLyrics = null;
-    processLyricLanguage(player);
-    await nextFrame();
-    if (playerRef.value !== player) return;
-  }
-  syncCurrentTime(getCurrentTime() + status.lyricOffsetMs, true);
+
+  const currentTime = Math.round(props.initialTime);
+  if (props.playing) player.resume();
+  else player.pause();
+  // 等待期间可能更新歌词，使用此时的最新数据避免再次重建视图
+  pendingLyrics = null;
+  player.setLyricLines(processedLyrics.value, currentTime);
+  syncCurrentTime(currentTime, true);
   player.update(0);
+  processLyricLanguage(player);
   initialized.value = true;
   contentVisible.value = true;
+  emit("ready");
 });
 
 onUnmounted(() => {
@@ -401,12 +404,6 @@ onUnmounted(() => {
 watchEffect(() => {
   const player = playerRef.value;
   if (!player || !initialized.value) return;
-
-  // 首次运行时校准一次（避免重复）
-  if (!clockInitialized.value) {
-    player.update(0);
-    clockInitialized.value = true;
-  }
 
   const playing = props.playing;
   const frozen = isFrozen.value;
@@ -434,6 +431,7 @@ watch(
     props.hidePassedLines,
     props.enableBlur,
     props.minimizeSpringParams,
+    props.bgAlwaysBelow,
     settings.lyric.useAMSpring,
     settings.lyric.amllVerticalSpringMass,
     settings.lyric.amllVerticalSpringDamping,
@@ -465,7 +463,6 @@ watch(
   () => ({
     cleanUnintentionalOverlaps: settings.lyric.amllCleanUnintentionalOverlaps,
     tryAdvanceStartTime: settings.lyric.amllTryAdvanceStartTime,
-    convertExcessiveBackgroundLines: settings.lyric.amllConvertExcessiveBackgroundLines,
     syncMainAndBackgroundLines: settings.lyric.amllSyncMainAndBackgroundLines,
     normalizeSpaces: settings.lyric.amllNormalizeSpaces,
     resetLineTimestamps: settings.lyric.amllResetLineTimestamps,
@@ -529,7 +526,9 @@ defineExpose({
 <template>
   <div ref="wrapperRef" class="amll-lyrics-container" :class="contentVisible ? 'is-visible' : ''" />
   <Teleport v-if="bottomLineEl" :to="bottomLineEl">
-    <slot name="bottom" />
+    <slot name="bottom">
+      <LyricCredit />
+    </slot>
   </Teleport>
 </template>
 
@@ -560,6 +559,11 @@ defineExpose({
   --amll-lp-color: var(--lp-color, #fff);
   width: 100%;
   height: 100%;
+}
+
+/* AMLL core 将副行字号硬编码为 max(.5em, 10px)，此处改用应用侧配置 */
+:deep([class*="lyricSubLine"]) {
+  font-size: var(--lp-sub-font-size, max(0.5em, 10px));
 }
 
 :deep(:lang(zh)),

@@ -1,14 +1,8 @@
+import { parseLRC, parseQRC, parseYRC, parseKRC, parseLyS, parseSRT, parseASS } from "lyric-kit";
 import type { LyricFormat, LyricInput, LyricLine } from "@shared/types/lyrics";
 import { DEFAULT_LYRIC_FORMAT_ORDER } from "@shared/types/lyrics";
-import { parseLRC } from "./parseLRC";
-import { parseQRC } from "./parseQRC";
-import { parseYRC } from "./parseYRC";
-import { parseKRC } from "./parseKRC";
 import { parseTTML } from "./parseTTML";
-import { parseLyS } from "./parseLyS";
 import { parseLQEInput } from "./parseLQE";
-import { parseSRT } from "./parseSRT";
-import { parseASS } from "./parseASS";
 import { parseLNT, parseLRCN } from "./parseLRCN";
 import { normalizeKangxi } from "./kangxi";
 import { pickTranslationIndex } from "./translationLanguage";
@@ -103,25 +97,25 @@ const parseContent = (
     case "ttmlLine":
       return parseTTML(text, preferredLang, options.fallbackTranslation);
     case "qrc":
-      return parseQRC(text, detectBackground);
+      return parseQRC(text, { detectBackground }).lines;
     case "krc":
-      return parseKRC(text, detectBackground);
+      return parseKRC(text, { detectBackground }).lines;
     case "yrc":
-      return parseYRC(text, detectBackground);
+      return parseYRC(text, { detectBackground }).lines;
     case "lrc":
-      return parseLRC(text, detectBackground);
+      return parseLRC(text, { detectBackground }).lines;
     case "lrcn":
       return parseLRCN(text, options.platform).lines;
     case "lnt":
       return [];
     case "lys":
-      return parseLyS(text);
+      return parseLyS(text).lines;
     case "lqe":
       return [];
     case "srt":
-      return parseSRT(text);
+      return parseSRT(text).lines;
     case "ass":
-      return parseASS(text);
+      return parseASS(text).lines;
   }
 };
 

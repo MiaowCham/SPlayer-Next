@@ -19,6 +19,7 @@ import {
 import type { SystemConfig, LocaleCode } from "@shared/types/settings";
 import { defaultSystemConfig } from "@shared/defaults/settings";
 import { setByPath } from "@shared/utils/path";
+import { DEFAULT_SKIP_TRACK_KEYWORDS } from "@/utils/preset/skipKeywords";
 
 /**
  * 对账有序集合：保留存档中仍有效的项（顺序不变），
@@ -105,7 +106,10 @@ export const useSettingsStore = defineStore(
     /** 外观 */
     const appearance = reactive<AppearanceSettings>({
       layoutMode: "default",
+      songListStyle: "comfortable",
       routeTransition: "fade",
+      seamlessTransition: false,
+      reduceMotion: false,
       sidebarCollapsed: false,
       sidebarShortcutToggle: false,
       sidebarPlaylistCover: false,
@@ -117,7 +121,6 @@ export const useSettingsStore = defineStore(
       sidebarKeepEmptyDivider: false,
       sidebarNameWithDivider: false,
       sidebarPlaylistOrder: { myLocal: [], myOnline: [], subscribed: [] },
-      showStatsInSidebar: true,
       showQualitySwitch: false,
       closeAction: "hide",
       rememberCloseChoice: false,
@@ -125,9 +128,15 @@ export const useSettingsStore = defineStore(
       showPerformanceMonitor: false,
     });
 
+    const systemMotion = usePreferredReducedMotion();
+    const reducedMotion = computed(
+      () => appearance.reduceMotion || systemMotion.value === "reduce",
+    );
+
     /** 播放器 */
     const player = reactive<PlayerSettings>({
       playerBgType: "blur",
+      playerBgRenderer: "mesh",
       playerBgFps: 30,
       playerBgFlowSpeed: 4,
       playerBgRenderScale: 0.5,
@@ -141,6 +150,7 @@ export const useSettingsStore = defineStore(
       autoImmersive: true,
       outputDevice: null,
       pauseOnDeviceSwitch: false,
+      rememberDeviceVolume: false,
       enableSpectrum: false,
       spectrumBarWidth: 4,
       reverseSpectrum: false,
@@ -153,13 +163,16 @@ export const useSettingsStore = defineStore(
       followLyricOnProgressDrag: false,
       showLyricInBar: true,
       preloadNextTrack: false,
+      transitionMode: "none",
+      transitionPreference: "standard",
       searchPlayBehavior: "current",
+      songListPlayBehavior: "current",
     });
 
     /** 强迫症设置 */
     const preset = reactive<PresetSettings>({
-      fuckDjMode: false,
-      uncensorProfanity: false,
+      skipKeywordsSongs: false,
+      skipTrackKeywords: [...DEFAULT_SKIP_TRACK_KEYWORDS],
       hideVipTag: false,
       hideQualityTag: false,
       showSubtitle: true,
@@ -176,6 +189,8 @@ export const useSettingsStore = defineStore(
       chineseScriptPreference: "default",
       adaptiveFontSize: true,
       fontSize: 48,
+      translationFontSizeFollowMain: true,
+      translationFontSize: 24,
       fontWeight: 700,
       lyricBlendMode: "normal",
       swapTranslationPronunciation: false,
@@ -190,11 +205,13 @@ export const useSettingsStore = defineStore(
       fallbackTranslation: true,
       showRomanization: true,
       hideChinesePronunciation: false,
-      amllShowLineRomanization: true,
-      amllShowWordRomanization: true,
       forceSyllableSpacing: false,
       independentWordRomanizationProgress: false,
       normalizeNonStandardHan: true,
+      showRuby: true,
+      showWordRomanization: true,
+      enableScale: true,
+      bgAlwaysBelow: false,
       enableWordHighlight: true,
       floatAnimationIntensity: "medium",
       enableEmphasizeEffect: false,
@@ -208,6 +225,7 @@ export const useSettingsStore = defineStore(
       springDamping: 15,
       springStiffness: 90,
       alignPosition: 0.35,
+      alignment: "auto",
       wordFadeWidth: 0.5,
       inactiveAlpha: 0.2,
       enableExcludeLyrics: true,
@@ -225,7 +243,6 @@ export const useSettingsStore = defineStore(
       amllScaleSpringSoft: false,
       amllCleanUnintentionalOverlaps: true,
       amllTryAdvanceStartTime: true,
-      amllConvertExcessiveBackgroundLines: true,
       amllSyncMainAndBackgroundLines: true,
       amllNormalizeSpaces: true,
       amllResetLineTimestamps: true,
@@ -356,6 +373,7 @@ export const useSettingsStore = defineStore(
     return {
       locale,
       appearance,
+      reducedMotion,
       player,
       preset,
       lyric,
@@ -373,11 +391,27 @@ export const useSettingsStore = defineStore(
       storage: localStorage,
       omit: ["system"],
       afterHydrate: ({ store }) => {
-        const { lyric, appearance } = store as unknown as {
+        const { lyric, appearance, preset, player } = store as unknown as {
           lyric: LyricSettings;
           appearance: AppearanceSettings;
+          preset: PresetSettings;
+          player: PlayerSettings;
         };
-        const legacyLyric = lyric as LyricSettings & { cjkTransform?: string };
+        const legacyLyric = lyric as LyricSettings & {
+          cjkTransform?: string;
+          amllShowLineRomanization?: boolean;
+          amllShowWordRomanization?: boolean;
+        };
+        // 旧总开关与 AMLL 分项合并为上游独立开关，避免不可见的旧字段继续阻止显示
+        if (typeof legacyLyric.amllShowWordRomanization === "boolean") {
+          lyric.showWordRomanization =
+            lyric.showRomanization && legacyLyric.amllShowWordRomanization;
+          delete legacyLyric.amllShowWordRomanization;
+        }
+        if (typeof legacyLyric.amllShowLineRomanization === "boolean") {
+          lyric.showRomanization = lyric.showRomanization && legacyLyric.amllShowLineRomanization;
+          delete legacyLyric.amllShowLineRomanization;
+        }
         const legacyPreferenceMap: Record<string, ChineseScriptPreference> = {
           none: "default",
           t2s: "simplified",
@@ -401,8 +435,18 @@ export const useSettingsStore = defineStore(
         ) {
           lyric.chineseScriptPreference = "default";
         }
+        if (player.transitionMode !== "crossfade") player.transitionMode = "none";
+        if (
+          player.transitionPreference !== "conservative" &&
+          player.transitionPreference !== "eager"
+        ) {
+          player.transitionPreference = "standard";
+        }
         if (typeof lyric.detectBackgroundLyrics !== "boolean") {
           lyric.detectBackgroundLyrics = true;
+        }
+        if (!Array.isArray(preset.skipTrackKeywords)) {
+          preset.skipTrackKeywords = [...DEFAULT_SKIP_TRACK_KEYWORDS];
         }
         if (typeof lyric.fallbackTranslation !== "boolean") {
           lyric.fallbackTranslation = true;

@@ -1,5 +1,7 @@
 import type { Track, TrackDetail } from "@shared/types/player";
-import type { LyricData, LyricFormat, LyricInput, LyricMatchResult } from "@shared/types/lyrics";
+import type { LyricFormat, LyricInput } from "@shared/types/lyrics";
+import type { LyricData, LyricMatchResult } from "@shared/types/lyrics";
+
 import type { Platform } from "@shared/types/platform";
 import { isPlatform } from "@shared/types/platform";
 import { detectFormat } from "@/utils/lyric/parse";
@@ -154,14 +156,16 @@ interface OnlinePreferenceOptions {
 }
 
 /**
- * 按当前歌词来源偏好获取在线歌词
+ * 按歌词来源偏好获取在线歌词
  * @param track - 歌曲信息
- * @param options - 本地歌词与竞态选项
+ * @param options - 本地歌词状态与请求有效性选项
+ * @returns 符合偏好的在线歌词，无可用结果时为 null
  */
 export const resolveOnlineByPreference = async (
   track: Track,
   options: OnlinePreferenceOptions,
 ): Promise<OnlineResult | null> => {
+  if (track.source === "plugin") return null;
   const settings = useSettingsStore();
   let preference = options.preference ?? settings.lyric.lyricSourcePreference;
   const isCurrent = options.shouldContinue ?? (() => true);
@@ -217,10 +221,7 @@ export const resolveOnlineByPreference = async (
           logLyric("info", `  ${platform}: miss`);
           return;
         }
-        logLyric(
-          "info",
-          `  ${platform}: hit ${result.source.format} rank=${rankOf(result)}`,
-        );
+        logLyric("info", `  ${platform}: hit ${result.source.format} rank=${rankOf(result)}`);
         if (isBetter(result, best)) {
           best = result;
           options.onCandidate?.(result);
@@ -228,7 +229,10 @@ export const resolveOnlineByPreference = async (
       }),
     );
     const chosen = best as OnlineResult | null;
-    logLyric("info", `  best=${chosen ? `${chosen.source.platform}:${chosen.source.format}` : "null"}`);
+    logLyric(
+      "info",
+      `  best=${chosen ? `${chosen.source.platform}:${chosen.source.format}` : "null"}`,
+    );
     return isCurrent() ? best : null;
   }
 
@@ -269,9 +273,10 @@ const shouldTryTTMLByFormat = (mainFormat: LyricFormat): boolean => {
 };
 
 /**
- * 拉取在线歌词对应的 TTML 覆盖版本
+ * 获取在线歌词对应的 TTML 覆盖版本
  * @param track - 歌曲信息
- * @param online - 在线歌词结果
+ * @param online - 已有在线歌词结果
+ * @returns 可用的 TTML 歌词，无覆盖版本时为 null
  */
 export const resolveTTMLOverlay = async (
   track: Track,
@@ -279,6 +284,7 @@ export const resolveTTMLOverlay = async (
   preferredPlatform?: "netease" | "qqmusic",
   forceQuery = false,
 ): Promise<ResolvedLyric | null> => {
+  if (track.source === "plugin") return null;
   if (!preferredPlatform && !shouldTryTTMLByFormat(online.source.format)) return null;
   const candidates = await Promise.all(
     TTML_PLATFORMS.filter((platform) => !preferredPlatform || platform === preferredPlatform).map(
@@ -327,9 +333,7 @@ export const resolveStreamingByPreference = async (
   });
   if (!shouldContinue()) return null;
   if (online) {
-    const ttml = await resolveTTMLOverlay(track, online);
-    if (!shouldContinue()) return null;
-    return ttml ?? { source: online.source, input: online.input };
+    return { source: online.source, input: online.input };
   }
   if (serverLyric || preference === "auto") return serverLyric;
 
@@ -380,13 +384,23 @@ export const resolvePluginLyric = async (track: Track): Promise<ResolvedLyric | 
   const plugins = usePluginsStore();
   for (const info of plugins.list) {
     if (!info.enabled || info.status.state !== "ready") continue;
+    if (track.source === "plugin" && info.manifest.id !== track.plugin?.pluginId) continue;
     for (const [source, cap] of Object.entries(info.status.sources)) {
+      if (track.source === "plugin" && source !== track.plugin?.source) continue;
       if (!cap.actions.includes("musicLyric")) continue;
       const resp = await window.api.plugins.matchLyric({
         pluginId: info.manifest.id,
         source,
         track,
       });
+      const current = plugins.list.find((plugin) => plugin.manifest.id === info.manifest.id);
+      if (
+        !current?.enabled ||
+        current.status.state !== "ready" ||
+        !current.status.sources[source]?.actions.includes("musicLyric")
+      ) {
+        continue;
+      }
       if (!resp.ok || !resp.data) continue;
       const content = resp.data.awlyric ?? resp.data.lyric;
       if (!content?.trim()) continue;
@@ -445,6 +459,11 @@ export const resolveLyricForPreload = async (
     const localRepo = await resolveLocalRepoLyric(track);
     if (!shouldContinue()) return null;
     if (localRepo) return localRepo;
+  }
+
+  if (track.source === "plugin") {
+    const plugin = await resolvePluginLyric(track);
+    return shouldContinue() ? plugin : null;
   }
 
   // 插件优选：请求先行发出，与下方正常解析并发

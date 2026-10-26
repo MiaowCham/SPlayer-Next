@@ -1,10 +1,15 @@
 import type { LyricFormat } from "@shared/types/lyrics";
+
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
+import type { TransitionPreference } from "@shared/types/player";
 import type { QualityLevel } from "@/utils/quality";
+import type { LyricAlignment } from "lyric-dom";
 
 /** 播放器背景类型 */
 export type PlayerBgType = "blur" | "solid" | "animation" | "apple-music" | "apple-music-classic";
+/** 流体背景渲染引擎 */
+export type PlayerBgRenderer = "mesh" | "isolation" | "pixi";
 export type CoverLayout = "default" | "fullscreen";
 
 /**
@@ -16,11 +21,11 @@ export type CoverLayout = "default" | "fullscreen";
 export type TimeFormat = "current-total" | "remaining-total" | "current-remaining";
 
 /**
- * 搜索页播放行为
+ * 列表点击播放的行为
  * - current: 仅播放当前
  * - all: 播放全部
  */
-export type SearchPlayBehavior = "current" | "all";
+export type PlayBehavior = "current" | "all";
 
 /**
  * 歌词来源偏好
@@ -33,6 +38,9 @@ export type LyricSourcePreference = Platform | "auto" | "local" | "self";
 
 /** 布局模式 */
 export type LayoutMode = "default" | "sidebar-full" | "floating";
+
+/** 歌曲列表样式 */
+export type SongListStyle = "comfortable" | "compact";
 
 /** 路由切换动效 */
 export type RouteTransition = "none" | "fade" | "slide" | "zoom";
@@ -146,8 +154,12 @@ export interface LyricSettings {
   chineseScriptPreference: ChineseScriptPreference;
   /** 字号自适应窗口大小 */
   adaptiveFontSize: boolean;
-  /** 歌词字号（px，自适应关闭时生效） */
+  /** 歌词主行字号（px） */
   fontSize: number;
+  /** 副行字号跟随主行 */
+  translationFontSizeFollowMain: boolean;
+  /** 翻译/音译独立字号（px） */
+  translationFontSize: number;
   /** 歌词字重（100~900） */
   fontWeight: number;
   /** 歌词混合模式 */
@@ -176,16 +188,20 @@ export interface LyricSettings {
   showRomanization: boolean;
   /** 隐藏可确认的汉语拼音，不隐藏粤拼及其他类型发音 */
   hideChinesePronunciation: boolean;
-  /** AMLL 是否显示逐行音译 */
-  amllShowLineRomanization: boolean;
-  /** AMLL 是否显示逐词音译 */
-  amllShowWordRomanization: boolean;
   /** CJK 发音音节间统一补空格，忽略作者的音节分隔 */
   forceSyllableSpacing: boolean;
   /** AMLL 是否独立计算逐词发音遮罩进度 */
   independentWordRomanizationProgress: boolean;
   /** 是否将康熙部首/CJK 兼容表意文字等非标准汉字还原为标准汉字 */
   normalizeNonStandardHan: boolean;
+  /** 是否显示词内注音 */
+  showRuby: boolean;
+  /** 是否显示逐词音译 */
+  showWordRomanization: boolean;
+  /** 是否启用歌词缩放效果 */
+  enableScale: boolean;
+  /** 是否始终将背景行置于主行下方 */
+  bgAlwaysBelow: boolean;
   /** 逐字高亮效果 */
   enableWordHighlight: boolean;
   /** 逐字上浮动画强度 */
@@ -212,6 +228,8 @@ export interface LyricSettings {
   springStiffness: number;
   /** 激活行对齐位置（0~1） */
   alignPosition: number;
+  /** 歌词水平对齐方式 */
+  alignment: LyricAlignment;
   /** 逐字掩码渐变宽度 */
   wordFadeWidth: number;
   /** 非激活行透明度 */
@@ -239,7 +257,6 @@ export interface LyricSettings {
   /** AMLL 歌词优化 */
   amllCleanUnintentionalOverlaps: boolean;
   amllTryAdvanceStartTime: boolean;
-  amllConvertExcessiveBackgroundLines: boolean;
   amllSyncMainAndBackgroundLines: boolean;
   amllNormalizeSpaces: boolean;
   amllResetLineTimestamps: boolean;
@@ -249,6 +266,8 @@ export interface LyricSettings {
 export interface PlayerSettings {
   /** 播放器背景类型 */
   playerBgType: PlayerBgType;
+  /** 流体背景渲染引擎 */
+  playerBgRenderer: PlayerBgRenderer;
   /** 流体背景帧率（fps） */
   playerBgFps: number;
   /** 流体背景流动速度 */
@@ -275,6 +294,8 @@ export interface PlayerSettings {
   outputDevice: string | null;
   /** 切换输出设备时暂停播放 */
   pauseOnDeviceSwitch: boolean;
+  /** 是否为不同输出设备独立记忆音量 */
+  rememberDeviceVolume: boolean;
   /** 是否启用音乐频谱可视化 */
   enableSpectrum: boolean;
   /** 频谱单条宽度（px） */
@@ -299,16 +320,28 @@ export interface PlayerSettings {
   showLyricInBar: boolean;
   /** 播放时提前获取下一首的播放数据 */
   preloadNextTrack: boolean;
+  /** 相邻曲目的播放过渡方式 */
+  transitionMode: "none" | "crossfade";
+  /** 曲尾交接时机与淡化时长偏好 */
+  transitionPreference: TransitionPreference;
   /** 搜索页播放行为 */
-  searchPlayBehavior: SearchPlayBehavior;
+  searchPlayBehavior: PlayBehavior;
+  /** 歌曲列表行首播放按钮的行为 */
+  songListPlayBehavior: PlayBehavior;
 }
 
 /** 外观设置 */
 export interface AppearanceSettings {
   /** 布局模式 */
   layoutMode: LayoutMode;
+  /** 歌曲列表样式 */
+  songListStyle: SongListStyle;
   /** 路由切换动效 */
   routeTransition: RouteTransition;
+  /** 页面之间的共享元素过渡 */
+  seamlessTransition: boolean;
+  /** 减弱界面动画 */
+  reduceMotion: boolean;
   /** 侧边栏折叠 */
   sidebarCollapsed: boolean;
   /** 侧边栏 Logo 快捷切换折叠状态 */
@@ -325,8 +358,6 @@ export interface AppearanceSettings {
   sidebarNameWithDivider: boolean;
   /** 侧边栏歌单显示顺序 */
   sidebarPlaylistOrder: SidebarPlaylistOrder;
-  /** 侧边栏显示播放统计入口 */
-  showStatsInSidebar: boolean;
   /** 播放栏显示快捷音质切换 */
   showQualitySwitch: boolean;
   /** 点击关闭按钮的行为 */
@@ -341,10 +372,10 @@ export interface AppearanceSettings {
 
 /** 强迫症设置 */
 export interface PresetSettings {
-  /** Fuck DJ Mode */
-  fuckDjMode: boolean;
-  /** Fuck ** Mode */
-  uncensorProfanity: boolean;
+  /** 跳过指定关键词歌曲 */
+  skipKeywordsSongs: boolean;
+  /** 跳过指定关键词列表 */
+  skipTrackKeywords: string[];
   /** 隐藏歌曲列表的 VIP 标签 */
   hideVipTag: boolean;
   /** 隐藏歌曲列表的音质标签 */

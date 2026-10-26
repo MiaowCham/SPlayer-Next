@@ -15,7 +15,6 @@ import { neteaseCall } from "@/apis/netease";
 import { useUserStore } from "@/stores/user";
 import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
 import { normalizeLyricLines } from "@/utils/lyric/normalize";
-import { applyProfanityUncensor } from "@/utils/preset/profanity";
 import { getValidArtists } from "@shared/utils/track";
 import { applyLyricCjkTransform } from "@/utils/lyric/cjkTransform";
 import { hideChinesePronunciation } from "@/utils/lyric/hideChinesePronunciation";
@@ -203,7 +202,6 @@ export const useMediaStore = defineStore("media", () => {
     () => [
       useSettingsStore().lyric.chineseScriptPreference,
       useSettingsStore().lyric.hideChinesePronunciation,
-      useSettingsStore().preset.uncensorProfanity,
     ],
     () => {
       if (activeLyric.value && lyricContent.value) {
@@ -233,9 +231,6 @@ export const useMediaStore = defineStore("media", () => {
         nextLines = applyLyricExclude(lines, track.value);
         normalizeLyricLines(nextLines);
         // Fuck Mode
-        if (settings.preset.uncensorProfanity) {
-          applyProfanityUncensor(nextLines);
-        }
         applyLyricLanguages(nextLines);
       } catch (e) {
         console.error("[media] parse lyric failed:", e);

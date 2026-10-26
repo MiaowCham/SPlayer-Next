@@ -1,0 +1,338 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index d2debfe5dbc5c9a9e212e385d466b32c5cfe3305..4cfbef4243d6cf334afb4047c8bba716db8cfd5b 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -1,6 +1,6 @@
+ //#region src/types.d.ts
+ /** 歌词行语言；und-Latn 表示语言未知的拉丁文字 */
+-type LyricLanguage = "ja" | "ko" | "zh-CN" | "und-Latn";
++type LyricLanguage = "ja" | "ko" | "zh-CN" | "yue" | "und-Hani" | "und-Latn";
+ /** 歌词行水平对齐方式 */
+ type LyricAlignment = "auto" | "left" | "center" | "right";
+ /** 歌词时间片段 */
+@@ -31,6 +31,8 @@ interface LyricWord extends LyricSpan {
+ }
+ /** 一行歌词 */
+ interface LyricLine {
++  preserveWordSpacing?: boolean;
++  isLineLyric?: boolean;
+   /** 行唯一标识符，如 "L1", "L2" */
+   id?: string;
+   /** 主歌词语言，用于字形选择与 HTML lang 属性 */
+@@ -110,6 +112,14 @@ interface ScrollPrerollOptions {
+ type LineClickCallback = (timeMs: number) => void;
+ /** 渲染器配置选项 */
+ interface RendererConfig {
++  /** 发音和译文交换位置 */
++  swapTranslationPronunciation: boolean;
++  /** 逐字上浮强度 */
++  floatAnimationIntensity: "low" | "medium" | "high" | "very-high" | "extreme";
++  /** 禁用 CJK 强调 */
++  disableCjkEmphasis: boolean;
++  /** 重叠主行动态抬高 */
++  raiseAlignPositionOnOverlap: boolean;
+   /**
+    * 激活行在视口中的垂直居中锚定比例（0~1）
+    * @default 0.35
+@@ -448,6 +458,7 @@ declare class LyricRenderer {
+    * 推送当前播放时间
+    * @param timeMs - 当前播放时间
+    */
++  scrollToTime: (timeMs: number) => void;
+   setCurrentTime: (timeMs: number) => void;
+   /**
+    * 设置播放/暂停状态
+diff --git a/dist/index.mjs b/dist/index.mjs
+index f5bf8dc5306a382564d87e43708b4f6aad6176b2..5399d816a8696fa81a66c62b4d8bca1a462e9752 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -153,7 +153,12 @@ const DEFAULTS = {
+ 	/** 是否启用逐字高亮效果 */
+ 	enableWordHighlight: true,
+ 	/** 是否启用逐字上浮动画 */
+-	enableFloatAnimation: false,
++	enableFloatAnimation: true,
++	floatAnimationIntensity: "medium",
++	disableCjkEmphasis: false,
++	raiseAlignPositionOnOverlap: false,
++	swapTranslationPronunciation: false,
++
+ 	/** 是否启用长音节强调辉光 */
+ 	enableEmphasizeEffect: false,
+ 	/** 触发强调辉光的最小音节时长（毫秒） */
+@@ -459,7 +464,8 @@ const scaleMatrix3d = (scale) => `matrix3d(${scale},0,0,0,0,${scale},0,0,0,0,${s
+ * @param minDuration - 触发强调动画所需的最短持续时间，单位为毫秒
+ * @returns 该片段是否满足强调条件
+ */
+-const shouldEmphasize = (word, minDuration = 1e3) => {
++const shouldEmphasize = (word, minDuration = 1e3, disableCjk = false) => {
++	if (disableCjk && /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(word.word)) return false;
+ 	if (word.endTime - word.startTime < minDuration) return false;
+ 	const text = word.word.trim();
+ 	return isCJK(text) || text.length > 1 && text.length <= 7;
+@@ -474,15 +480,15 @@ const shouldEmphasize = (word, minDuration = 1e3) => {
+ * @param minDuration - 触发强调动画所需的最短持续时间，单位为毫秒
+ * @returns 该词组是否满足强调条件
+ */
+-const shouldChunkEmphasize = (words, minDuration = 1e3) => {
+-	if (words.some((word) => shouldEmphasize(word, minDuration))) return true;
++const shouldChunkEmphasize = (words, minDuration = 1e3, disableCjk = false) => {
++	if (words.some((word) => shouldEmphasize(word, minDuration, disableCjk))) return true;
+ 	if (words.length < 2) return false;
+ 	const merged = {
+ 		word: words.map((word) => word.word).join(""),
+ 		startTime: Math.min(...words.map((word) => word.startTime)),
+ 		endTime: Math.max(...words.map((word) => word.endTime))
+ 	};
+-	return !isCJK(merged.word) && shouldEmphasize(merged, minDuration);
++	return !isCJK(merged.word) && shouldEmphasize(merged, minDuration, disableCjk);
+ };
+ /**
+ * 为强调词组的字符节点创建缩放、辉光与正弦上浮动画
+@@ -574,8 +580,8 @@ const createEmphasizeAnimations = (characterElements, duration, delay, isLastWor
+ * @param isBG - 是否为背景行
+ * @returns 动画实例
+ */
+-const createFloatAnimation = (wordEl, delay, duration, isBG) => {
+-	let up = .05;
++const createFloatAnimation = (wordEl, delay, duration, isBG, intensity = "medium") => {
++	let up = ({ low: .025, medium: .05, high: .075, "very-high": .1, extreme: .15 })[intensity];
+ 	if (isBG) up *= 2;
+ 	const dur = Math.max(1e3, duration);
+ 	const del = Math.max(0, delay);
+@@ -640,7 +646,7 @@ var LineAnimationController = class {
+ 		const relativeTime = Math.max(0, currentTime - line.startTime);
+ 		const anims = [];
+ 		for (const target of targets) {
+-			if (options.float) anims.push(createFloatAnimation(target.element, target.word.startTime - line.startTime, target.word.endTime - target.word.startTime, line.isBG));
++			if (options.float) anims.push(createFloatAnimation(target.element, target.word.startTime - line.startTime, target.word.endTime - target.word.startTime, line.isBG, options.floatIntensity));
+ 			if (options.emphasize && target.isEmphasize && target.charElements?.length) anims.push(...createEmphasizeAnimations(target.charElements, target.word.endTime - target.word.startTime, target.word.startTime - line.startTime, target.isLastWord ?? false, line.isBG));
+ 		}
+ 		for (const anim of anims) {
+@@ -727,6 +733,23 @@ var LineAnimationController = class {
+ */
+ const buildWordSpans = (words, mainDiv, options) => {
+ 	const { enableEmphasizeEffect: enableEmphasize, emphasizeMinDuration, showRuby, showWordRoman = false } = options;
++	// 提升后的音节保留内部空格与完整时间，边界空白只参与排版
++	if (options.preserveWordSpacing) {
++		const measurements = [];
++		const animTargets = [];
++		for (const original of words) {
++			const leading = original.word.match(/^\s+/)?.[0] ?? "";
++			const trailing = original.word.trim() ? original.word.match(/\s+$/)?.[0] ?? "" : "";
++			if (leading) mainDiv.appendChild(document.createTextNode(leading));
++			const word = { ...original, word: original.word.trim() };
++			if (word.word) {
++				if (enableEmphasize && shouldChunkEmphasize([word], emphasizeMinDuration, options.disableCjkEmphasis)) buildEmphasizedChunk([word], mainDiv, measurements, animTargets, original === words.at(-1), showWordRoman);
++				else appendWordSpan(word, mainDiv, measurements, animTargets, showRuby, showWordRoman);
++			}
++			if (trailing) mainDiv.appendChild(document.createTextNode(trailing));
++		}
++		return { measurements, animTargets };
++	}
+ 	const chunks = chunkAndSplitLyricWords(words);
+ 	const measurements = [];
+ 	const animTargets = [];
+@@ -740,7 +763,7 @@ const buildWordSpans = (words, mainDiv, options) => {
+ 		let previousText = "";
+ 		for (const chunk of chunks) {
+ 			const atoms = Array.isArray(chunk) ? chunk : [chunk];
+-			const isEmp = enableEmphasize && atoms.length > 0 && shouldChunkEmphasize(atoms, emphasizeMinDuration);
++			const isEmp = enableEmphasize && atoms.length > 0 && shouldChunkEmphasize(atoms, emphasizeMinDuration, options.disableCjkEmphasis);
+ 			const isLast = chunk === lastChunk;
+ 			const firstText = atoms[0]?.word.trim();
+ 			if (firstText && needsSpaceBetween(previousText, firstText)) mainDiv.appendChild(document.createTextNode(" "));
+@@ -760,7 +783,7 @@ const buildWordSpans = (words, mainDiv, options) => {
+ 	let previousText = "";
+ 	for (const chunk of chunks) if (Array.isArray(chunk)) {
+ 		const mergedText = chunk.map((word) => word.word).join("");
+-		const isEmp = enableEmphasize && shouldChunkEmphasize(chunk, emphasizeMinDuration);
++		const isEmp = enableEmphasize && shouldChunkEmphasize(chunk, emphasizeMinDuration, options.disableCjkEmphasis);
+ 		const isLast = chunk === lastChunk;
+ 		if (mergedText.trimStart() !== mergedText) mainDiv.appendChild(document.createTextNode(" "));
+ 		else if (needsSpaceBetween(previousText, mergedText)) mainDiv.appendChild(document.createTextNode(" "));
+@@ -778,7 +801,7 @@ const buildWordSpans = (words, mainDiv, options) => {
+ 		previousText = "";
+ 	} else {
+ 		const text = chunk.word;
+-		const isEmp = enableEmphasize && shouldChunkEmphasize([chunk], emphasizeMinDuration);
++		const isEmp = enableEmphasize && shouldChunkEmphasize([chunk], emphasizeMinDuration, options.disableCjkEmphasis);
+ 		const isLast = chunk === lastChunk;
+ 		if (text.trimStart() !== text) mainDiv.appendChild(document.createTextNode(" "));
+ 		else if (needsSpaceBetween(previousText, text)) mainDiv.appendChild(document.createTextNode(" "));
+@@ -1001,7 +1024,9 @@ const buildMainLayer = (line, mainDiv, options, isStatic, showWordRoman) => {
+ 		enableEmphasizeEffect: options.enableEmphasizeEffect,
+ 		emphasizeMinDuration: options.emphasizeMinDuration,
+ 		showRuby: options.showRuby,
+-		showWordRoman
++		showWordRoman,
++		disableCjkEmphasis: options.disableCjkEmphasis,
++		preserveWordSpacing: line.preserveWordSpacing
+ 	});
+ 	return {
+ 		measurements: result.measurements,
+@@ -1010,18 +1035,21 @@ const buildMainLayer = (line, mainDiv, options, isStatic, showWordRoman) => {
+ };
+ /** 追加 `.lp-sub` 副文本（翻译 / 音译） */
+ const appendSubs = (container, line, options, showLineRoman) => {
++	const subs = [];
+ 	if (options.showTranslation && line.translatedLyric) {
+ 		const subDiv = document.createElement("div");
+ 		subDiv.className = "lp-sub";
+ 		subDiv.textContent = line.translatedLyric;
+-		container.appendChild(subDiv);
++		subs.push(subDiv);
+ 	}
+ 	if (showLineRoman) {
+ 		const subDiv = document.createElement("div");
+ 		subDiv.className = "lp-sub";
+ 		subDiv.textContent = line.romanLyric;
+-		container.appendChild(subDiv);
++		subs.push(subDiv);
+ 	}
++	if (options.swapTranslationPronunciation) subs.reverse();
++	container.append(...subs);
+ };
+ /**
+ * 构建全部歌词行的 DOM 元素与关联元数据
+@@ -1052,7 +1080,7 @@ const buildLineElements = (lines, options) => {
+ 		const hasWordRoman = line.words.some((w) => Boolean(w.romanWord?.trim()));
+ 		const showWordRomanForLine = options.showWordRomanization && hasWordRoman;
+ 		const showLineRomanForLine = options.showRomanization && Boolean(line.romanLyric) && !showWordRomanForLine;
+-		const isStatic = (line.words.length === 0 || line.words.length === 1 && !hasMultiWordLine) && !showWordRomanForLine && !(options.showRuby && line.words[0]?.ruby?.length);
++		const isStatic = line.isLineLyric || (line.words.length === 0 || line.words.length === 1 && !hasMultiWordLine) && !showWordRomanForLine && !(options.showRuby && line.words[0]?.ruby?.length);
+ 		if (!line.isBG || !hostingMain) {
+ 			const lineEl = document.createElement("div");
+ 			lineEl.className = `lp-line${line.isDuet ? " duet" : ""}`;
+@@ -1446,6 +1474,10 @@ var LyricRenderer = class {
+ 	enableWordHighlight = DEFAULTS.enableWordHighlight;
+ 	/** 是否启用逐字上浮动画 */
+ 	enableFloatAnimation = DEFAULTS.enableFloatAnimation;
++	floatAnimationIntensity = DEFAULTS.floatAnimationIntensity;
++	disableCjkEmphasis = DEFAULTS.disableCjkEmphasis;
++	raiseAlignPositionOnOverlap = DEFAULTS.raiseAlignPositionOnOverlap;
++	swapTranslationPronunciation = DEFAULTS.swapTranslationPronunciation;
+ 	/** 是否启用长音节强调辉光 */
+ 	enableEmphasizeEffect = DEFAULTS.enableEmphasizeEffect;
+ 	/** 是否启用歌词缩放效果 */
+@@ -1631,6 +1663,8 @@ var LyricRenderer = class {
+ 		this.entranceComplete = false;
+ 		const built = buildLineElements(this.lines, {
+ 			enableEmphasizeEffect: this.enableEmphasizeEffect,
++			disableCjkEmphasis: this.disableCjkEmphasis,
++			swapTranslationPronunciation: this.swapTranslationPronunciation,
+ 			emphasizeMinDuration: this.emphasizeMinDuration,
+ 			showTranslation: this.showTranslation,
+ 			showRomanization: this.showRomanization,
+@@ -1676,6 +1710,16 @@ var LyricRenderer = class {
+ 	setCurrentTime = (timeMs) => {
+ 		this.pendingPlayTime = timeMs;
+ 	};
++	/** 强制恢复跟随并定位到指定播放时间 */
++	scrollToTime = (timeMs) => {
++		clearTimeout(this.scrollResetTimerId);
++		this.isUserScrolling = false;
++		this.userScrollOffset = 0;
++		this.pendingPlayTime = timeMs;
++		this.lastProcessedTime = timeMs;
++		this.handleSeek(timeMs, true);
++		this.needsFullSync = true;
++	};
+ 	/**
+ 	* 设置播放/暂停状态
+ 	* @param playing - 是否正在播放
+@@ -1736,6 +1780,22 @@ var LyricRenderer = class {
+ 		if (config.enableBlur != null) this.enableBlur = config.enableBlur;
+ 		let domRebuildNeeded = false;
+ 		let needPrerollUpdate = false;
++		if (config.swapTranslationPronunciation != null && config.swapTranslationPronunciation !== this.swapTranslationPronunciation) {
++			this.swapTranslationPronunciation = config.swapTranslationPronunciation;
++			domRebuildNeeded = true;
++		}
++		if (config.floatAnimationIntensity != null && config.floatAnimationIntensity !== this.floatAnimationIntensity) {
++			this.floatAnimationIntensity = config.floatAnimationIntensity;
++			animationOptionsChanged = true;
++		}
++		if (config.disableCjkEmphasis != null && config.disableCjkEmphasis !== this.disableCjkEmphasis) {
++			this.disableCjkEmphasis = config.disableCjkEmphasis;
++			domRebuildNeeded = true;
++		}
++		if (config.raiseAlignPositionOnOverlap != null && config.raiseAlignPositionOnOverlap !== this.raiseAlignPositionOnOverlap) {
++			this.raiseAlignPositionOnOverlap = config.raiseAlignPositionOnOverlap;
++			layoutDirty = true;
++		}
+ 		if (config.enableWordHighlight != null) this.enableWordHighlight = config.enableWordHighlight;
+ 		if (config.enableFloatAnimation != null && config.enableFloatAnimation !== this.enableFloatAnimation) {
+ 			this.enableFloatAnimation = config.enableFloatAnimation;
+@@ -1814,6 +1874,7 @@ var LyricRenderer = class {
+ 			this.lineAnimations.activate(lineIdx, line, this.lineAnimTargets[lineIdx], Math.max(line.startTime, this.lastProcessedTime), {
+ 				playing: this.isPlaying,
+ 				float: this.enableFloatAnimation,
++				floatIntensity: this.floatAnimationIntensity,
+ 				emphasize: this.enableEmphasizeEffect
+ 			});
+ 		}
+@@ -1825,6 +1886,8 @@ var LyricRenderer = class {
+ 		for (const element of this.lineElements) element.remove();
+ 		const built = buildLineElements(this.lines, {
+ 			enableEmphasizeEffect: this.enableEmphasizeEffect,
++			disableCjkEmphasis: this.disableCjkEmphasis,
++			swapTranslationPronunciation: this.swapTranslationPronunciation,
+ 			emphasizeMinDuration: this.emphasizeMinDuration,
+ 			showTranslation: this.showTranslation,
+ 			showRomanization: this.showRomanization,
+@@ -2045,11 +2108,12 @@ var LyricRenderer = class {
+ 		const viewHeight = this.containerHeight;
+ 		const viewWidth = this.containerWidth;
+ 		const currentTime = this.lastProcessedTime;
+-		const targetIdx = this.activeLineIndex;
++		let targetIdx = this.activeLineIndex;
+ 		const lines = this.lines;
+ 		const lineCount = this.positionSprings.length;
+ 		if (lineCount === 0) return;
+ 		const interlude = detectInterlude(currentTime, targetIdx, lines, this.minInterludeGap);
++		if (interlude) targetIdx = interlude[2] + 1;
+ 		const dotsGap = 10;
+ 		if (interlude) {
+ 			this.interludeState.startTime = interlude[0];
+@@ -2065,7 +2129,20 @@ var LyricRenderer = class {
+ 			if (lines[i + 1]?.isBG && this.activeLineSet.has(i + 1)) heightAccum += this.lineHeights[i + 1] || 40;
+ 		}
+ 		position -= heightAccum;
+-		position += viewHeight * this.alignPosition - (this.lineHeights[targetIdx] || 40) / 2;
++		let effectiveAlign = this.alignPosition;
++		const mainIndices = [...this.activeLineSet].filter((index) => !lines[index]?.isBG).sort((a, b) => a - b).slice(0, 2);
++		if (this.raiseAlignPositionOnOverlap && mainIndices.length === 2 && viewHeight > 0) {
++			const [first, second] = mainIndices;
++			const overlap = Math.min(lines[first].endTime, lines[second].endTime) - Math.max(lines[first].startTime, lines[second].startTime);
++			const firstHeight = this.lineHeights[first] || 40;
++			const secondHeight = this.lineHeights[second] || 40;
++			if (overlap >= 500) {
++				const separation = (firstHeight + secondHeight) / 2;
++				const desired = this.alignPosition * viewHeight - separation;
++				effectiveAlign = Math.min(Math.max(desired, firstHeight / 2), viewHeight - secondHeight / 2 - separation) / viewHeight;
++			}
++		}
++		position += interlude ? viewHeight * this.alignPosition - this.dotsContainerHeight / 2 - dotsGap : viewHeight * effectiveAlign - (this.lineHeights[targetIdx] || 40) / 2;
+ 		let cascadeDelay = 0;
+ 		let baseDelay = syncImmediate || noCascade ? 0 : 50;
+ 		let dotsInserted = false;
+@@ -2315,6 +2392,7 @@ var LyricRenderer = class {
+ 		this.lineAnimations.activate(lineIndex, this.lines[lineIndex], this.lineAnimTargets[lineIndex], currentTime, {
+ 			playing: this.isPlaying,
+ 			float: this.enableFloatAnimation,
++				floatIntensity: this.floatAnimationIntensity,
+ 			emphasize: this.enableEmphasizeEffect
+ 		});
+ 	};
+diff --git a/dist/style.css b/dist/style.css
+index 4352faae655bc45a85dc76a82b6566fb43f245d0..5ecc2a6a5b94f084ac3d1f979392caf0014294ef 100644
+--- a/dist/style.css
++++ b/dist/style.css
+@@ -302,3 +302,6 @@
+     }
+   }
+ }
++
++/* 保留发音音节中的作者空格 */
++.lp-main { white-space: pre-wrap; }

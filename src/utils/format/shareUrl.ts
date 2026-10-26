@@ -41,20 +41,36 @@ export const getLyricSourceUrl = (
   switch (origin) {
     case "netease": {
       const id = extra?.id ?? (track?.source === origin ? track.id : undefined);
-      return id ? `https://music.163.com/#/song?id=${id}` : query ? `https://music.163.com/#/search/m/?s=${query}` : null;
+      return id
+        ? `https://music.163.com/#/song?id=${id}`
+        : query
+          ? `https://music.163.com/#/search/m/?s=${query}`
+          : null;
     }
     case "qqmusic": {
       // QQ 详情页支持数字 id 或 mid
       const id = extra?.id ?? extra?.mid ?? (track?.source === origin ? track.id : undefined);
-      return id ? `https://y.qq.com/n/ryqq_v2/songDetail/${id}` : query ? `https://y.qq.com/n/ryqq/search?w=${query}&t=song&remoteplace=txt.yqq.center` : null;
+      return id
+        ? `https://y.qq.com/n/ryqq_v2/songDetail/${id}`
+        : query
+          ? `https://y.qq.com/n/ryqq/search?w=${query}&t=song&remoteplace=txt.yqq.center`
+          : null;
     }
     case "kugou": {
       const id = extra?.hash ?? (track?.source === origin ? track.id : undefined);
-      return id ? `https://www.kugou.com/mixsong/${id}.html` : query ? `https://www.kugou.com/yy/html/search.html#searchType=song&searchKeyWord=${query}` : null;
+      return id
+        ? `https://www.kugou.com/mixsong/${id}.html`
+        : query
+          ? `https://www.kugou.com/yy/html/search.html#searchType=song&searchKeyWord=${query}`
+          : null;
     }
     case "appleMusic": {
       const id = extra?.id;
-      return id ? `https://music.apple.com/song/${id}` : query ? `https://music.apple.com/cn/search?term=${query}` : null;
+      return id
+        ? `https://music.apple.com/song/${id}`
+        : query
+          ? `https://music.apple.com/cn/search?term=${query}`
+          : null;
     }
     case "amll":
       // AMLL 与平台绑定，退回平台搜索
@@ -65,12 +81,11 @@ export const getLyricSourceUrl = (
 };
 
 /**
- * 取在线平台的歌曲合集分享链接
- * @param collection - 当前歌曲合集，本地/流媒体/不支持平台返回 null
+ * 获取在线平台歌曲合集的分享地址
+ * @param collection - 待分享的歌曲合集
+ * @returns 分享地址，不支持的来源返回 null
  */
-export const getCollectionShareUrl = (
-  collection: Collection | null | undefined,
-): string | null => {
+export const getCollectionShareUrl = (collection: Collection | null | undefined): string | null => {
   if (!collection?.id) return null;
   const urls: Record<CollectionType, Record<TrackSource, string | null>> = {
     album: {
@@ -78,6 +93,7 @@ export const getCollectionShareUrl = (
       qqmusic: `https://y.qq.com/n/ryqq_v2/albumDetail/${collection.id}`,
       kugou: `https://www.kugou.com/album/info/${collection.id}/`,
       streaming: null,
+      plugin: null,
       local: null,
     },
     playlist: {
@@ -85,6 +101,7 @@ export const getCollectionShareUrl = (
       qqmusic: `https://y.qq.com/n/ryqq_v2/playlist/${collection.id}`,
       kugou: `https://www.kugou.com/songlist/${collection.id}/`,
       streaming: null,
+      plugin: null,
       local: null,
     },
     radio: {
@@ -92,6 +109,7 @@ export const getCollectionShareUrl = (
       qqmusic: `https://y.qq.com/n/ryqq_v2/player_radio#id=${collection.id}`,
       kugou: `https://www.kugou.com/song/#fm_id=${collection.id}`,
       streaming: null,
+      plugin: null,
       local: null,
     },
     cloud: {
@@ -99,6 +117,7 @@ export const getCollectionShareUrl = (
       qqmusic: null,
       kugou: null,
       streaming: null,
+      plugin: null,
       local: null,
     },
   };

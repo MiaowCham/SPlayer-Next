@@ -1,0 +1,431 @@
+diff --git a/dist/amll-core.cjs b/dist/amll-core.cjs
+index fbd090aa45196ed1ba08ac4be703e227fae547f2..2fe51945657fd772fd819259089e5c2c43391f9e 100644
+--- a/dist/amll-core.cjs
++++ b/dist/amll-core.cjs
+@@ -39,7 +39,7 @@ let _pixi_filter_bulge_pinch = require("@pixi/filter-bulge-pinch");
+ let _pixi_filter_color_matrix = require("@pixi/filter-color-matrix");
+ let _pixi_sprite = require("@pixi/sprite");
+ let _ungap_structured_clone = require("@ungap/structured-clone");
+-_ungap_structured_clone = __toESM(_ungap_structured_clone, 1);
++// 依赖的 CommonJS 入口已导出 default，重复包装会使其变成模块对象
+ let bezier_easing = require("bezier-easing");
+ bezier_easing = __toESM(bezier_easing, 1);
+ //#region src/bg-render/base.ts
+@@ -3303,7 +3303,10 @@ const DEFAULT_OPTIMIZE_OPTIONS = {
+ * 规范化歌词中的空格，将多个连续空格替换为一个空格
+ */
+ function normalizeSpaces(lines) {
+-	for (const line of lines) for (const word of line.words) word.word = word.word.replace(/\s+/g, " ");
++	for (const line of lines) {
++		if (line.__amllSkipWhitespaceSplit === true) continue;
++		for (const word of line.words) word.word = word.word.replace(/\s+/g, " ");
++	}
+ }
+ /**
+ * 将行级时间戳强行设为字级时间戳
+@@ -4509,6 +4512,14 @@ var TimelineController = class {
+ 		else this.performPlayback(time);
+ 		if (activeInterlude && this.playingGroupsSet.size === 0) this.flushAllHighlighted();
+ 		if (isPastLastLine) this.flushAllHighlighted();
++		if (this.__amllAdvanceOverlapAnchor && this.playingGroupsSet.size > 0 && !this.playingGroupsSet.has(this.snapshot.scrollToIndex)) {
++			for (const id of this.highlightedGroupsSet) {
++				if (this.playingGroupsSet.has(id)) continue;
++				this.highlightedGroupsSet.delete(id);
++				this.removedHighlightedIds.push(id);
++			}
++			this.snapshot.scrollToIndex = Math.min(...this.playingGroupsSet);
++		}
+ 		this.updateInterludeFocus(activeInterlude);
+ 		const isInterludeChanged = prevInterlude !== activeInterlude;
+ 		const isFocusChanged = prevFocusOnInterlude !== this.snapshot.isFocusOnInterlude;
+@@ -5338,7 +5349,7 @@ var LyricPlayerBase = class extends EventTarget {
+ 		if (result.hasInterlude && canDisplayInterlude && interlude) {
+ 			const nextLineIndex = interlude.anchorLineIndex + 1;
+ 			const targetX = this.currentLyricGroups[nextLineIndex]?.mainLine.getLine().isDuet ?? false ? this.size[0] - this.layoutState.interludeDotsSize[0] : 0;
+-			this.interludeDots.setTransform(targetX, result.interludeY + dotMargin, strategy.snapPosY || !this.getEnableSpring());
++			this.interludeDots.setTransform(targetX, result.interludeY + (this.layoutConfig.alignAnchor === LayoutAlignAnchor.Top ? 0 : this.layoutConfig.alignAnchor === LayoutAlignAnchor.Bottom ? dotMargin * 2 : dotMargin), strategy.snapPosY || !this.getEnableSpring());
+ 		}
+ 		const visual = this.visualFrame;
+ 		visual.latestIndex = snapshot.latestHighlightedIndex ?? snapshot.scrollToIndex;
+@@ -6778,7 +6789,7 @@ const WHITESPACE_RE = /\s/g;
+ * @param words 输入的单词数组
+ * @returns 重新分组后的单词数组
+ */
+-function chunkAndSplitLyricWords(words) {
++function chunkAndSplitLyricWords(words, skipWhitespaceSplit = false) {
+ 	const result = [];
+ 	let currentGroup = [];
+ 	const flushGroup = () => {
+@@ -6810,6 +6821,12 @@ function chunkAndSplitLyricWords(words) {
+ 			});
+ 			continue;
+ 		}
++		if (skipWhitespaceSplit) {
++			const trailingWhitespace = w.word.match(/\s+$/)?.[0] ?? "";
++			processAtom({ ...w, word: w.word.slice(0, w.word.length - trailingWhitespace.length) });
++			if (trailingWhitespace) processAtom({ ...w, word: trailingWhitespace, romanWord: "", ruby: undefined, startTime: w.endTime, endTime: w.endTime });
++			continue;
++		}
+ 		if (hasRuby) {
+ 			const leadingSpaceMatch = w.word.match(/^\s+/);
+ 			const trailingSpaceMatch = w.word.match(/\s+$/);
+@@ -7075,7 +7092,7 @@ function createFloatAnimation(wordEl, options) {
+ 	const { word, lineStartTime, isBG } = options;
+ 	const delay = word.startTime - lineStartTime;
+ 	const duration = Math.max(1e3, word.endTime - word.startTime);
+-	let up = .05;
++	let up = ({ low: .025, medium: .05, high: .075, "very-high": .1, extreme: .15 })[options.intensity] ?? .05;
+ 	if (isBG) up *= 2;
+ 	const a = wordEl.animate([{ transform: "translateY(0px)" }, { transform: `translateY(${-up}em)` }], {
+ 		duration: Number.isFinite(duration) ? duration : 0,
+@@ -7471,7 +7488,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 			this.setSubLinesText(trans, roman);
+ 			return;
+ 		}
+-		const chunkedWords = chunkAndSplitLyricWords(this.lyricLine.words);
++		const chunkedWords = chunkAndSplitLyricWords(this.lyricLine.words, this.lyricLine.__amllSkipWhitespaceSplit === true);
+ 		main.innerHTML = "";
+ 		for (const chunk of chunkedWords) this.buildWord(chunk, main);
+ 		this.setSubLinesText(trans, roman);
+@@ -7491,7 +7508,14 @@ var LyricLineEl = class extends LyricLineBase {
+ 		const mainWordEl = document.createElement("span");
+ 		const subElements = [];
+ 		const romanWord = word.romanWord?.trim() ?? "";
+-		const wordContainer = this.lineHasRubyWords ? document.createElement("span") : mainWordEl;
++		// 独立模式使用兄弟遮罩，词容器仍负责布局、上浮和强调
++		const separateMasks = this.lyricLine.__amllIndependentMainWordMask === true || this.lyricLine.__amllIndependentRomanWordMask === true;
++		const mainMaskElement = separateMasks ? document.createElement("span") : mainWordEl;
++		if (separateMasks) {
++			mainMaskElement.classList.add("amll-main-mask");
++			mainWordEl.appendChild(mainMaskElement);
++		}
++		const wordContainer = this.lineHasRubyWords ? document.createElement("span") : mainMaskElement;
+ 		const wordTextContainer = this.lineHasRubyWords ? document.createElement("span") : wordContainer;
+ 		if (this.lineHasRubyWords) {
+ 			const rubyWordEl = document.createElement("span");
+@@ -7508,8 +7532,8 @@ var LyricLineEl = class extends LyricLineBase {
+ 			wordContainer.classList.add(lyric_player_module_default.wordBody);
+ 			wordTextContainer.classList.add(lyric_player_module_default.rubyBaseWord);
+ 			wordContainer.appendChild(wordTextContainer);
+-			mainWordEl.appendChild(rubyWordEl);
+-			mainWordEl.appendChild(wordContainer);
++			mainMaskElement.appendChild(rubyWordEl);
++			mainMaskElement.appendChild(wordContainer);
+ 		}
+ 		const displayWord = word.word;
+ 		if (shouldEmphasize) {
+@@ -7532,20 +7556,29 @@ var LyricLineEl = class extends LyricLineBase {
+ 			wordEl.textContent = displayWord.trim();
+ 			wordTextContainer.appendChild(wordEl);
+ 		} else if (romanWord.length === 0) wordTextContainer.textContent = displayWord.trim();
++		let romanMaskElement;
+ 		if (this.lineHasRomanWords) {
+ 			const romanWordEl = document.createElement("span");
+-			romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
++			if (separateMasks) {
++				romanMaskElement = document.createElement("span");
++				romanMaskElement.classList.add("amll-roman-mask");
++				romanMaskElement.textContent = romanWord.length > 0 ? romanWord : "\xA0";
++				romanWordEl.appendChild(romanMaskElement);
++			} else romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
+ 			romanWordEl.classList.add(lyric_player_module_default.romanWord);
+-			wordContainer.appendChild(romanWordEl);
++			(separateMasks ? mainWordEl : wordContainer).appendChild(romanWordEl);
+ 		}
+ 		return {
+ 			...word,
+ 			mainElement: mainWordEl,
++			mainMaskElement,
++			romanMaskElement,
+ 			subElements,
+ 			elementAnimations: [createFloatAnimation(mainWordEl, {
+ 				word,
+ 				lineStartTime: this.lyricLine.startTime,
+-				isBG: this.lyricLine.isBG
++				isBG: this.lyricLine.isBG,
++				intensity: this.lyricLine.__amllFloatAnimationIntensity
+ 			})],
+ 			width: 0,
+ 			height: 0,
+@@ -7576,6 +7609,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 		});
+ 		let emp = chunk.some((word) => LyricLineBase.shouldEmphasize(word));
+ 		if (!isCJK(merged.word)) emp = emp || LyricLineBase.shouldEmphasize(merged);
++		if (this.lyricLine.__amllDisableEmphasize || (this.lyricLine.__amllDisableCjkEmphasis && /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(merged.word))) emp = false;
+ 		const wrapperWordEl = document.createElement("span");
+ 		wrapperWordEl.classList.add(lyric_player_module_default.emphasizeWrapper);
+ 		const characterElements = [];
+@@ -7624,13 +7658,33 @@ var LyricLineEl = class extends LyricLineBase {
+ 		}
+ 		if (this.balancer && LyricLineBase.wordSegmenter) this.balancer.balanceLineBreaks(this.lyricPlayer._getIsNonDynamic(), this.splittedWords.length > 0, LyricLineBase.wordSegmenter);
+ 		this.maskAnimator?.dispose();
++		this.maskAnimator = undefined;
++		if (this.lyricLine.__amllDisableWordHighlight) return;
+ 		const maxEndTime = Math.max(0, ...this.splittedWords.map((w) => w.endTime), this.lyricLine.endTime);
+-		this.maskAnimator = createLineMaskAnimator(this.splittedWords, {
++		const maskContext = {
+ 			lineStartTime: this.lyricLine.startTime,
+ 			lineEndTime: maxEndTime,
+ 			wordFadeWidth: this.lyricPlayer.getWordFadeWidth(),
+ 			supportMaskImage: this.lyricPlayer.supportMaskImage
+-		});
++		};
++		if (this.lyricLine.__amllIndependentMainWordMask || this.lyricLine.__amllIndependentRomanWordMask) {
++			// 两层各自测量和推进，动画生命周期统一交给本行 animator
++			const animators = ["mainMaskElement", "romanMaskElement"].map((key) => {
++				const words = this.splittedWords.map((word) => {
++					const el = word[key];
++					const padding = el ? Number.parseFloat(getComputedStyle(el).paddingLeft) || 0 : 0;
++					return { ...word, mainElement: el, padding, width: el ? el.clientWidth - padding * 2 : 0, height: el ? el.clientHeight - padding * 2 : 0 };
++				});
++				return createLineMaskAnimator(words, maskContext);
++			});
++			this.maskAnimator = {
++				apply: () => animators.forEach((animator) => animator.apply()),
++				setCurrentTime: (time, playing) => animators.forEach((animator) => animator.setCurrentTime(time, playing)),
++				pause: () => animators.forEach((animator) => animator.pause()),
++				resume: () => animators.forEach((animator) => animator.resume()),
++				dispose: () => animators.forEach((animator) => animator.dispose())
++			};
++		} else this.maskAnimator = createLineMaskAnimator(this.splittedWords, maskContext);
+ 		this.maskAnimator.apply();
+ 		if (this.isEnabled) {
+ 			const isPlayerRunning = this.lyricPlayer.getIsPlaying?.() ?? true;
+diff --git a/dist/amll-core.d.cts b/dist/amll-core.d.cts
+index 9139f86d814e64e9189173f347be722cce5c48f6..0315305980e97986a5aadac2822399c2091c1823 100644
+--- a/dist/amll-core.d.cts
++++ b/dist/amll-core.d.cts
+@@ -1713,6 +1713,8 @@ interface TimelineDiff {
+   readonly isEndOfSongChanged: boolean;
+ }
+ declare class TimelineController {
++  /** SPlayer 重叠抬高时提前交接滚动锚点 */
++  __amllAdvanceOverlapAnchor?: boolean;
+   private lyricBounds;
+   /**
+    * 全部歌词行中最晚的结束时间，用于判定歌曲是否播放完毕
+diff --git a/dist/amll-core.d.mts b/dist/amll-core.d.mts
+index ae6a1fe5bef2a9c19e79f880cf264cfbb52d36ee..743b51c79034df5b57561c3304a8c4e2c8aed2af 100644
+--- a/dist/amll-core.d.mts
++++ b/dist/amll-core.d.mts
+@@ -1712,6 +1712,8 @@ interface TimelineDiff {
+   readonly isEndOfSongChanged: boolean;
+ }
+ declare class TimelineController {
++  /** SPlayer 重叠抬高时提前交接滚动锚点 */
++  __amllAdvanceOverlapAnchor?: boolean;
+   private lyricBounds;
+   /**
+    * 全部歌词行中最晚的结束时间，用于判定歌曲是否播放完毕
+diff --git a/dist/amll-core.mjs b/dist/amll-core.mjs
+index b38e570ef34f599d6bbd2e3bdd5191bcc51d5f34..b532457520bb740244ec0483d52b848e7c26d7c2 100644
+--- a/dist/amll-core.mjs
++++ b/dist/amll-core.mjs
+@@ -3270,7 +3270,10 @@ const DEFAULT_OPTIMIZE_OPTIONS = {
+ * 规范化歌词中的空格，将多个连续空格替换为一个空格
+ */
+ function normalizeSpaces(lines) {
+-	for (const line of lines) for (const word of line.words) word.word = word.word.replace(/\s+/g, " ");
++	for (const line of lines) {
++		if (line.__amllSkipWhitespaceSplit === true) continue;
++		for (const word of line.words) word.word = word.word.replace(/\s+/g, " ");
++	}
+ }
+ /**
+ * 将行级时间戳强行设为字级时间戳
+@@ -4476,6 +4479,14 @@ var TimelineController = class {
+ 		else this.performPlayback(time);
+ 		if (activeInterlude && this.playingGroupsSet.size === 0) this.flushAllHighlighted();
+ 		if (isPastLastLine) this.flushAllHighlighted();
++		if (this.__amllAdvanceOverlapAnchor && this.playingGroupsSet.size > 0 && !this.playingGroupsSet.has(this.snapshot.scrollToIndex)) {
++			for (const id of this.highlightedGroupsSet) {
++				if (this.playingGroupsSet.has(id)) continue;
++				this.highlightedGroupsSet.delete(id);
++				this.removedHighlightedIds.push(id);
++			}
++			this.snapshot.scrollToIndex = Math.min(...this.playingGroupsSet);
++		}
+ 		this.updateInterludeFocus(activeInterlude);
+ 		const isInterludeChanged = prevInterlude !== activeInterlude;
+ 		const isFocusChanged = prevFocusOnInterlude !== this.snapshot.isFocusOnInterlude;
+@@ -5305,7 +5316,7 @@ var LyricPlayerBase = class extends EventTarget {
+ 		if (result.hasInterlude && canDisplayInterlude && interlude) {
+ 			const nextLineIndex = interlude.anchorLineIndex + 1;
+ 			const targetX = this.currentLyricGroups[nextLineIndex]?.mainLine.getLine().isDuet ?? false ? this.size[0] - this.layoutState.interludeDotsSize[0] : 0;
+-			this.interludeDots.setTransform(targetX, result.interludeY + dotMargin, strategy.snapPosY || !this.getEnableSpring());
++			this.interludeDots.setTransform(targetX, result.interludeY + (this.layoutConfig.alignAnchor === LayoutAlignAnchor.Top ? 0 : this.layoutConfig.alignAnchor === LayoutAlignAnchor.Bottom ? dotMargin * 2 : dotMargin), strategy.snapPosY || !this.getEnableSpring());
+ 		}
+ 		const visual = this.visualFrame;
+ 		visual.latestIndex = snapshot.latestHighlightedIndex ?? snapshot.scrollToIndex;
+@@ -6745,7 +6756,7 @@ const WHITESPACE_RE = /\s/g;
+ * @param words 输入的单词数组
+ * @returns 重新分组后的单词数组
+ */
+-function chunkAndSplitLyricWords(words) {
++function chunkAndSplitLyricWords(words, skipWhitespaceSplit = false) {
+ 	const result = [];
+ 	let currentGroup = [];
+ 	const flushGroup = () => {
+@@ -6777,6 +6788,12 @@ function chunkAndSplitLyricWords(words) {
+ 			});
+ 			continue;
+ 		}
++		if (skipWhitespaceSplit) {
++			const trailingWhitespace = w.word.match(/\s+$/)?.[0] ?? "";
++			processAtom({ ...w, word: w.word.slice(0, w.word.length - trailingWhitespace.length) });
++			if (trailingWhitespace) processAtom({ ...w, word: trailingWhitespace, romanWord: "", ruby: undefined, startTime: w.endTime, endTime: w.endTime });
++			continue;
++		}
+ 		if (hasRuby) {
+ 			const leadingSpaceMatch = w.word.match(/^\s+/);
+ 			const trailingSpaceMatch = w.word.match(/\s+$/);
+@@ -7042,7 +7059,7 @@ function createFloatAnimation(wordEl, options) {
+ 	const { word, lineStartTime, isBG } = options;
+ 	const delay = word.startTime - lineStartTime;
+ 	const duration = Math.max(1e3, word.endTime - word.startTime);
+-	let up = .05;
++	let up = ({ low: .025, medium: .05, high: .075, "very-high": .1, extreme: .15 })[options.intensity] ?? .05;
+ 	if (isBG) up *= 2;
+ 	const a = wordEl.animate([{ transform: "translateY(0px)" }, { transform: `translateY(${-up}em)` }], {
+ 		duration: Number.isFinite(duration) ? duration : 0,
+@@ -7438,7 +7455,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 			this.setSubLinesText(trans, roman);
+ 			return;
+ 		}
+-		const chunkedWords = chunkAndSplitLyricWords(this.lyricLine.words);
++		const chunkedWords = chunkAndSplitLyricWords(this.lyricLine.words, this.lyricLine.__amllSkipWhitespaceSplit === true);
+ 		main.innerHTML = "";
+ 		for (const chunk of chunkedWords) this.buildWord(chunk, main);
+ 		this.setSubLinesText(trans, roman);
+@@ -7458,7 +7475,14 @@ var LyricLineEl = class extends LyricLineBase {
+ 		const mainWordEl = document.createElement("span");
+ 		const subElements = [];
+ 		const romanWord = word.romanWord?.trim() ?? "";
+-		const wordContainer = this.lineHasRubyWords ? document.createElement("span") : mainWordEl;
++		// 独立模式使用兄弟遮罩，词容器仍负责布局、上浮和强调
++		const separateMasks = this.lyricLine.__amllIndependentMainWordMask === true || this.lyricLine.__amllIndependentRomanWordMask === true;
++		const mainMaskElement = separateMasks ? document.createElement("span") : mainWordEl;
++		if (separateMasks) {
++			mainMaskElement.classList.add("amll-main-mask");
++			mainWordEl.appendChild(mainMaskElement);
++		}
++		const wordContainer = this.lineHasRubyWords ? document.createElement("span") : mainMaskElement;
+ 		const wordTextContainer = this.lineHasRubyWords ? document.createElement("span") : wordContainer;
+ 		if (this.lineHasRubyWords) {
+ 			const rubyWordEl = document.createElement("span");
+@@ -7475,8 +7499,8 @@ var LyricLineEl = class extends LyricLineBase {
+ 			wordContainer.classList.add(lyric_player_module_default.wordBody);
+ 			wordTextContainer.classList.add(lyric_player_module_default.rubyBaseWord);
+ 			wordContainer.appendChild(wordTextContainer);
+-			mainWordEl.appendChild(rubyWordEl);
+-			mainWordEl.appendChild(wordContainer);
++			mainMaskElement.appendChild(rubyWordEl);
++			mainMaskElement.appendChild(wordContainer);
+ 		}
+ 		const displayWord = word.word;
+ 		if (shouldEmphasize) {
+@@ -7499,20 +7523,29 @@ var LyricLineEl = class extends LyricLineBase {
+ 			wordEl.textContent = displayWord.trim();
+ 			wordTextContainer.appendChild(wordEl);
+ 		} else if (romanWord.length === 0) wordTextContainer.textContent = displayWord.trim();
++		let romanMaskElement;
+ 		if (this.lineHasRomanWords) {
+ 			const romanWordEl = document.createElement("span");
+-			romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
++			if (separateMasks) {
++				romanMaskElement = document.createElement("span");
++				romanMaskElement.classList.add("amll-roman-mask");
++				romanMaskElement.textContent = romanWord.length > 0 ? romanWord : "\xA0";
++				romanWordEl.appendChild(romanMaskElement);
++			} else romanWordEl.textContent = romanWord.length > 0 ? romanWord : "\xA0";
+ 			romanWordEl.classList.add(lyric_player_module_default.romanWord);
+-			wordContainer.appendChild(romanWordEl);
++			(separateMasks ? mainWordEl : wordContainer).appendChild(romanWordEl);
+ 		}
+ 		return {
+ 			...word,
+ 			mainElement: mainWordEl,
++			mainMaskElement,
++			romanMaskElement,
+ 			subElements,
+ 			elementAnimations: [createFloatAnimation(mainWordEl, {
+ 				word,
+ 				lineStartTime: this.lyricLine.startTime,
+-				isBG: this.lyricLine.isBG
++				isBG: this.lyricLine.isBG,
++				intensity: this.lyricLine.__amllFloatAnimationIntensity
+ 			})],
+ 			width: 0,
+ 			height: 0,
+@@ -7543,6 +7576,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 		});
+ 		let emp = chunk.some((word) => LyricLineBase.shouldEmphasize(word));
+ 		if (!isCJK(merged.word)) emp = emp || LyricLineBase.shouldEmphasize(merged);
++		if (this.lyricLine.__amllDisableEmphasize || (this.lyricLine.__amllDisableCjkEmphasis && /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(merged.word))) emp = false;
+ 		const wrapperWordEl = document.createElement("span");
+ 		wrapperWordEl.classList.add(lyric_player_module_default.emphasizeWrapper);
+ 		const characterElements = [];
+@@ -7591,13 +7625,33 @@ var LyricLineEl = class extends LyricLineBase {
+ 		}
+ 		if (this.balancer && LyricLineBase.wordSegmenter) this.balancer.balanceLineBreaks(this.lyricPlayer._getIsNonDynamic(), this.splittedWords.length > 0, LyricLineBase.wordSegmenter);
+ 		this.maskAnimator?.dispose();
++		this.maskAnimator = undefined;
++		if (this.lyricLine.__amllDisableWordHighlight) return;
+ 		const maxEndTime = Math.max(0, ...this.splittedWords.map((w) => w.endTime), this.lyricLine.endTime);
+-		this.maskAnimator = createLineMaskAnimator(this.splittedWords, {
++		const maskContext = {
+ 			lineStartTime: this.lyricLine.startTime,
+ 			lineEndTime: maxEndTime,
+ 			wordFadeWidth: this.lyricPlayer.getWordFadeWidth(),
+ 			supportMaskImage: this.lyricPlayer.supportMaskImage
+-		});
++		};
++		if (this.lyricLine.__amllIndependentMainWordMask || this.lyricLine.__amllIndependentRomanWordMask) {
++			// 两层各自测量和推进，动画生命周期统一交给本行 animator
++			const animators = ["mainMaskElement", "romanMaskElement"].map((key) => {
++				const words = this.splittedWords.map((word) => {
++					const el = word[key];
++					const padding = el ? Number.parseFloat(getComputedStyle(el).paddingLeft) || 0 : 0;
++					return { ...word, mainElement: el, padding, width: el ? el.clientWidth - padding * 2 : 0, height: el ? el.clientHeight - padding * 2 : 0 };
++				});
++				return createLineMaskAnimator(words, maskContext);
++			});
++			this.maskAnimator = {
++				apply: () => animators.forEach((animator) => animator.apply()),
++				setCurrentTime: (time, playing) => animators.forEach((animator) => animator.setCurrentTime(time, playing)),
++				pause: () => animators.forEach((animator) => animator.pause()),
++				resume: () => animators.forEach((animator) => animator.resume()),
++				dispose: () => animators.forEach((animator) => animator.dispose())
++			};
++		} else this.maskAnimator = createLineMaskAnimator(this.splittedWords, maskContext);
+ 		this.maskAnimator.apply();
+ 		if (this.isEnabled) {
+ 			const isPlayerRunning = this.lyricPlayer.getIsPlaying?.() ?? true;
+diff --git a/dist/style.css b/dist/style.css
+index a3db199dd283f54219ced8c141d32b189ba54b41..194836552d86e35c717235f98f6697305d6d941f 100644
+--- a/dist/style.css
++++ b/dist/style.css
+@@ -70,8 +70,8 @@
+   width: var(--amll-lp-width, 100%);
+   min-width: var(--amll-lp-width, 100%);
+   max-width: var(--amll-lp-width, 100%);
+-  contain: layout style paint;
+-  content-visibility: auto;
++  contain: layout style;
++  content-visibility: visible;
+   contain-intrinsic-size: auto 40px;
+   backface-visibility: hidden;
+   transform-origin: 0;
+@@ -333,3 +333,12 @@
+     }
+   }
+ }
++
++/* 独立遮罩预留强调和字形外伸空间，测量时扣除留白 */
++.amll-lyric-player .amll-main-mask,
++.amll-lyric-player .amll-roman-mask {
++  display: inline-block;
++  padding: 1em;
++  margin: -1em;
++  overflow: visible;
++}

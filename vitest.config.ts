@@ -1,5 +1,6 @@
 import { fileURLToPath, URL } from "node:url";
 import vue from "@vitejs/plugin-vue";
+import Icons from "unplugin-icons/vite";
 import AutoImport from "unplugin-auto-import/vite";
 import { defineConfig } from "vitest/config";
 import pkg from "./package.json" with { type: "json" };
@@ -24,6 +25,7 @@ export default defineConfig({
   },
   plugins: [
     vue(),
+    Icons({ compiler: "vue3" }),
     AutoImport({
       imports: ["vue", "pinia", "vue-router", "@vueuse/core", "vue-i18n"],
     }),
@@ -31,8 +33,8 @@ export default defineConfig({
   test: {
     environment: "happy-dom",
     include: [
-      "src/**/*.spec.ts",
       "electron/**/*.spec.ts",
+      "src/**/*.spec.ts",
       "windows/**/*.spec.ts",
       "docs/**/*.spec.ts",
     ],

@@ -10,7 +10,7 @@
  */
 
 import { callKugou } from "@main/apis/kugou";
-import type { KGSong } from "@main/apis/kugou/core/types";
+import type { KGSong } from "@shared/types/platform/kugou";
 import { getCachedLyric, setCachedLyric } from "@main/database/lyricCache";
 import { buildFingerprint, getMatchedId, setMatchedId } from "@main/database/lyricMatchCache";
 import { coreLog } from "@main/utils/logger";
@@ -72,7 +72,9 @@ const fetchLyric = async (args: {
 
     const main = pickFormatted(body.krc, body.lrc);
     if (!main) {
-      coreLog.info(`[lyric:kugou] fetchLyric(${args.hash}) 无主歌词: krc=${!!body.krc}, lrc=${!!body.lrc}`);
+      coreLog.info(
+        `[lyric:kugou] fetchLyric(${args.hash}) 无主歌词: krc=${!!body.krc}, lrc=${!!body.lrc}`,
+      );
       return null;
     }
 
