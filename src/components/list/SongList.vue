@@ -202,8 +202,20 @@ const filteredItems = computed(() => {
   });
 });
 
+/** 默认顺序下按碟片分组，搜索仍保留原专辑的分碟结构 */
+const discGroups = computed(() => {
+  if (
+    props.collectionType !== "album" ||
+    (props.enableSort && sortField.value !== "none") ||
+    new Set(props.items.map((track) => track.disc ?? "1")).size < 2
+  )
+    return [];
+  return [...Map.groupBy(filteredItems.value, (track) => track.disc ?? "1")];
+});
+
 /** 排序后列表 */
 const sortedItems = computed(() => {
+  if (discGroups.value.length) return discGroups.value.flatMap(([, tracks]) => tracks);
   if (!props.enableSort || sortField.value === "none") return filteredItems.value;
   const result = [...filteredItems.value];
   const field = sortField.value;
@@ -233,6 +245,27 @@ const sortedItems = computed(() => {
   result.sort(compare);
   return result;
 });
+
+/** 标题附在每碟第一首歌上，歌曲索引和播放队列保持一致 */
+const discHeaders = computed(() => {
+  const headers: Record<number, { disc: string; count: number }> = {};
+  let index = 0;
+  for (const [disc, tracks] of discGroups.value) {
+    headers[index] = { disc, count: tracks.length };
+    index += tracks.length;
+  }
+  return headers;
+});
+
+/** 使用完整专辑计算碟内曲序，搜索时保持原编号 */
+const discTrackNumbers = computed(
+  () =>
+    new Map(
+      [...Map.groupBy(props.items, (track) => track.disc ?? "1").values()].flatMap((tracks) =>
+        tracks.map((track, index) => [track.id, index + 1] as const),
+      ),
+    ),
+);
 
 /** 当前播放歌曲在过滤后列表中的索引 */
 const playingIndex = computed(() => {
@@ -421,7 +454,10 @@ defineExpose({
         :item-height="isCompactList ? 56 : 88"
         :padding-bottom="isFloatingPlayerBar ? PLAYER_BAR_GAP : 80"
         :get-item-key="(item: Track) => item.id"
-        item-fixed
+        :item-fixed="!discGroups.length"
+        :get-item-height="
+          (_item: Track, index: number) => (isCompactList ? 56 : 88) + (discHeaders[index] ? 40 : 0)
+        "
         height="100%"
         @scroll="onScroll"
         @reach-bottom="emit('reachBottom')"
@@ -618,6 +654,25 @@ defineExpose({
         </template>
         <!-- 列表项 -->
         <template #default="{ item, index }: { item: Track; index: number }">
+          <div
+            v-if="discHeaders[index]"
+            class="mx-6 h-10 flex items-center gap-3 text-on-surface-variant"
+            :class="!isCompactList && index > 0 ? 'pb-3' : ''"
+          >
+            <IconLucideDisc3
+              class="size-4 translate-y-px shrink-0 text-primary/70"
+              aria-hidden="true"
+            />
+            <h2
+              class="min-w-0 flex-1 truncate text-sm font-semibold"
+              :title="discHeaders[index].disc"
+            >
+              {{ t("collection.disc", { disc: discHeaders[index].disc }) }}
+            </h2>
+            <span class="shrink-0 text-xs tabular-nums text-on-surface-variant/50">
+              {{ t("common.totalSongs", { count: discHeaders[index].count }) }}
+            </span>
+          </div>
           <div :class="isCompactList ? 'px-3' : 'px-3 pb-3'">
             <div
               data-song-item
@@ -654,7 +709,7 @@ defineExpose({
                     class="font-bold tabular-nums group-hover:opacity-0 transition-opacity duration-300"
                     :class="isCompactList ? 'text-xs' : 'text-sm'"
                   >
-                    {{ index + 1 }}
+                    {{ discGroups.length ? discTrackNumbers.get(item.id) : index + 1 }}
                   </span>
                   <IconLucideMusic
                     v-else
