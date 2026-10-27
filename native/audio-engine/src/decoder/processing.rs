@@ -57,35 +57,23 @@ fn process_audio_chunk(
     }
     drop(eq);
 
-    if tempo.is_bypass() {
-        if chunk.stem_samples.is_some() {
-            std::mem::swap(
-                &mut chunk.player_samples,
-                &mut state.stems.as_mut().unwrap().mix,
-            );
-        }
-        // 直通模式下（未启用均衡器、未变速变调且未启用响度归一化），绕过限幅器以保障满幅 1.0 母带原样输出（Bit-perfect）
-        if eq_enabled || normalization_enabled {
-            state.limiter.process(
-                &mut chunk.player_samples,
-                channels,
-                chunk.stem_samples.as_deref_mut(),
-            );
-        }
-        return chunk;
+    let stretched = !tempo.is_bypass();
+    if stretched {
+        state.scratch.clear();
+        chunk.source_sample_count = tempo.process(&chunk.player_samples, &mut state.scratch);
+        std::mem::swap(&mut chunk.player_samples, &mut state.scratch);
     }
-
-    state.scratch.clear();
-    chunk.source_sample_count = tempo.process(&chunk.player_samples, &mut state.scratch);
-    if chunk.stem_samples.is_some() {
-        std::mem::swap(&mut state.scratch, &mut state.stems.as_mut().unwrap().mix);
+    if let Some(stems) = &mut state.stems {
+        std::mem::swap(&mut chunk.player_samples, &mut stems.mix);
     }
-    state.limiter.process(
-        &mut state.scratch,
-        channels,
-        chunk.stem_samples.as_deref_mut(),
-    );
-    std::mem::swap(&mut chunk.player_samples, &mut state.scratch);
+    // 无均衡、变速或响度处理时保留满幅母带，声部重组不额外启用限幅
+    if stretched || eq_enabled || normalization_enabled {
+        state.limiter.process(
+            &mut chunk.player_samples,
+            channels,
+            chunk.stem_samples.as_deref_mut(),
+        );
+    }
     chunk
 }
 
@@ -139,10 +127,11 @@ fn run_dsp_loop(shared: &Shared, equalizer: &Mutex<Equalizer>, tempo: &Mutex<Str
         state.scratch.clear();
         let source_sample_count = tempo.lock().flush_automix(&mut state.scratch);
         if !state.scratch.is_empty() {
-            let mut stem_samples = state.stems.as_mut().map(StemProcessors::flush);
-            if stem_samples.is_some() {
-                std::mem::swap(&mut state.scratch, &mut state.stems.as_mut().unwrap().mix);
-            }
+            let mut stem_samples = state.stems.as_mut().map(|stems| {
+                let samples = stems.flush();
+                std::mem::swap(&mut state.scratch, &mut stems.mix);
+                samples
+            });
             state.limiter.process(
                 &mut state.scratch,
                 shared.channels(),

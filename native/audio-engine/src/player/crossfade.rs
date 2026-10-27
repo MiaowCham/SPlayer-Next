@@ -6,7 +6,7 @@ use anyhow::{ensure, Result};
 use super::preload::PreparedPlayback;
 use super::{InnerPlayer, PlayerState};
 use crate::decoder::buffer::Shared;
-use crate::decoder::transition_source::TransitionPlan;
+use crate::decoder::transition_source::{MixEnvelope, TransitionPlan};
 use crate::dsp::{equalizer::Equalizer, tempo::StretchProcessor};
 use crate::metadata::AudioMetadata;
 use parking_lot::Mutex;
@@ -27,8 +27,7 @@ pub struct AutoMixSettings {
     pub duration: f64,
     pub rate: f32,
     pub level_ratio: f32,
-    pub envelopes: Vec<crate::dsp::transition_filter::MixEnvelope>,
-    pub stem_mix: bool,
+    pub envelopes: Vec<MixEnvelope>,
 }
 
 /// 已交给输出回调、等待音频边界完成的备用槽位
@@ -144,7 +143,7 @@ impl InnerPlayer {
                     && plan.rate.is_finite()
                     && plan.level_ratio.is_finite()
                     && (0.5..=2.0).contains(&plan.level_ratio)
-                    && (0.93..=1.07).contains(&plan.rate)
+                    && (0.92..=1.08).contains(&plan.rate)
                     && (1.0..=18.0).contains(&plan.duration),
                 "无效的 AutoMix 计划"
             );
@@ -187,12 +186,10 @@ impl InnerPlayer {
                 quiet_threshold,
                 quiet_windows_required,
                 auto_start_sample,
-                bass_swap: automix.as_ref().is_some_and(|plan| !plan.stem_mix),
                 level_ratio: automix.as_ref().map(|plan| plan.level_ratio),
                 envelopes: automix
                     .as_ref()
                     .map(|plan| plan.envelopes.as_slice().try_into().unwrap()),
-                stem_mix: automix.as_ref().is_some_and(|plan| plan.stem_mix),
             },
         );
         let signals = match signals {
@@ -223,17 +220,20 @@ impl InnerPlayer {
 
     /// 用户改变速度或音调时撤回自动混音，交叉过渡维持原有行为
     pub(super) fn cancel_automix(&self) {
-        if self.transition_dsp.as_ref().is_some_and(|dsp| dsp.automix) {
-            self.tempo.lock().set_automix_rate(1.0);
-            if let Some(playback) = &self.playback {
-                playback.cancel_transition();
+        self.tempo.lock().set_automix_rate(1.0);
+        if let Some(dsp) = &self.transition_dsp {
+            dsp.tempo.lock().set_automix_rate(1.0);
+            if dsp.automix {
+                if let Some(playback) = &self.playback {
+                    playback.cancel_transition();
+                }
             }
         }
     }
 
     /// 实时回调撤回混音后恢复当前曲的普通播放状态
     pub fn finish_cancelled_transition(&mut self) {
-        self.tempo.lock().set_automix_rate(1.0);
+        self.cancel_automix();
         self.transitioning.store(false, Ordering::Release);
         self.transition_dsp = None;
         if let Some(playback) = &self.playback {

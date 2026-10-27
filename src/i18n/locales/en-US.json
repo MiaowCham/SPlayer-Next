@@ -898,9 +898,13 @@
       "crossfade": "Crossfade",
       "automix": "AutoMix"
     },
+    "automixCrossfadeFallback": {
+      "label": "Crossfade mismatched tracks",
+      "description": "Crossfade tracks whose rhythm cannot be aligned; when off, switch directly"
+    },
     "automixComponents": {
       "label": "AutoMix models",
-      "description": "Beat-match compatible tracks, otherwise use crossfade",
+      "description": "Analyze rhythm and arrange track transitions",
       "configure": "Configure models",
       "download": "Download",
       "ready": "Installed",
@@ -2269,10 +2273,6 @@
       "runtime": {
         "label": "Analysis runtime"
       }
-    },
-    "autoMixEnhanced": {
-      "label": "Stem enhancement",
-      "description": "Hand off drums, bass and vocals separately; requires the stem model"
     }
   },
   "collection": {

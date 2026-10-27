@@ -68,7 +68,7 @@ describe("下一曲真实预载", () => {
     mocks.settings.player.transitionPreference = "standard";
     mocks.settings.system.cache.songCache = { enabled: true, cacheStreaming: true };
     mocks.candidate.track = { id: "next", source: "netease" };
-    mocks.prepare.mockResolvedValue({ ready: true, autoMixReady: true });
+    mocks.prepare.mockResolvedValue({ ready: true, autoMixStartMs: 20_000 });
     mocks.cancel.mockResolvedValue(undefined);
     mocks.componentStatus.mockResolvedValue({ state: "missing", models: [] });
     mocks.componentSubscribe.mockReturnValue(mocks.componentUnsubscribe);
@@ -102,6 +102,7 @@ describe("下一曲真实预载", () => {
       "C:/downloads/next.flac",
       undefined,
       "standard",
+      undefined,
     );
     expect(preloader.consumePreloadedTrack(mocks.candidate.track as Track)?.preparedId).toEqual(
       expect.any(String),
@@ -110,7 +111,7 @@ describe("下一曲真实预载", () => {
 
   it("AutoMix 分析不可用时将 PCM 交给交叉过渡，在途检查不能反复消费和重建槽位", async () => {
     mocks.settings.player.transitionMode = "automix";
-    mocks.prepare.mockResolvedValue({ ready: true, autoMixReady: false });
+    mocks.prepare.mockResolvedValue({ ready: true });
     mocks.resolve.mockResolvedValue({
       source: "C:/cache/next.bin",
       provider: "cache",
@@ -121,7 +122,7 @@ describe("下一曲真实预载", () => {
     await flushPromises();
     const prepared = preloader.beginPreparedTransition(mocks.candidate.track as Track);
     expect(prepared?.preparedId).toBeTruthy();
-    expect(prepared?.autoMixReady).toBe(false);
+    expect(prepared?.autoMixStartMs).toBeUndefined();
     expect(mocks.prepare.mock.calls[0][3]).toBe("standard");
     for (let i = 0; i < 3; i++) {
       expect(preloader.beginPreparedTransition(mocks.candidate.track as Track)).toBeNull();
@@ -135,7 +136,7 @@ describe("下一曲真实预载", () => {
 
   it("AutoMix 提前准备完成时不提前变速，按显示时间在计划前两秒提交", async () => {
     mocks.settings.player.transitionMode = "automix";
-    mocks.prepare.mockResolvedValue({ ready: true, autoMixReady: true, autoMixStartMs: 20_000 });
+    mocks.prepare.mockResolvedValue({ ready: true, autoMixStartMs: 20_000 });
     mocks.resolve.mockResolvedValue({ source: "next.flac", provider: "local", fromCache: false });
     const preloader = await import("./nextTrackPreloader");
     preloader.scheduleNextTrackPreload();
@@ -167,7 +168,7 @@ describe("下一曲真实预载", () => {
     );
   });
 
-  it("未使用分轨增强时，其他模型的下载和进度更新不会作废已就绪 PCM", async () => {
+  it("下载进度不作废 PCM，全部组件就绪后重新准备 AutoMix", async () => {
     mocks.settings.player.transitionMode = "automix";
     mocks.resolve.mockResolvedValue({ source: "next.flac", provider: "local", fromCache: false });
     const service = await import("./automix");
@@ -198,8 +199,8 @@ describe("下一曲真实预载", () => {
       preloader.scheduleNextTrackPreload();
       await flushPromises();
     }
-    expect(mocks.prepare).toHaveBeenCalledOnce();
-    expect(mocks.cancel).not.toHaveBeenCalled();
+    expect(mocks.prepare).toHaveBeenCalledTimes(2);
+    expect(mocks.cancel).toHaveBeenCalledOnce();
   });
 
   it("解析返回空值后允许同一候选重新预载", async () => {
@@ -381,6 +382,7 @@ describe("下一曲真实预载", () => {
       "C:/music/next.flac",
       undefined,
       "standard",
+      undefined,
     );
     expect(preloader.peekPreparedTrack(mocks.candidate.track as Track)?.preparedId).toBeDefined();
   });
@@ -406,6 +408,7 @@ describe("下一曲真实预载", () => {
       "C:/music/album.flac",
       120000,
       "standard",
+      undefined,
     );
     expect(preloader.peekPreparedTrack(mocks.candidate.track as Track)?.preparedId).toBeDefined();
   });
@@ -431,7 +434,13 @@ describe("下一曲真实预载", () => {
     finish("C:/cache/next.bin");
     await flushPromises();
     const id = mocks.prepare.mock.calls[0]![0];
-    expect(mocks.prepare).toHaveBeenCalledWith(id, "C:/cache/next.bin", undefined, "standard");
+    expect(mocks.prepare).toHaveBeenCalledWith(
+      id,
+      "C:/cache/next.bin",
+      undefined,
+      "standard",
+      undefined,
+    );
     const result = preloader.consumePreloadedTrack(mocks.candidate.track as Track);
     expect(result?.preparedId).toBe(id);
     expect(result?.source?.source).toBe("C:/cache/next.bin");

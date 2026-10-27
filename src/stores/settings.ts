@@ -162,7 +162,7 @@ export const useSettingsStore = defineStore(
       preloadNextTrack: false,
       transitionMode: "none",
       transitionPreference: "standard",
-      autoMixEnhanced: false,
+      automixCrossfadeFallback: true,
       searchPlayBehavior: "current",
     });
 
@@ -391,6 +391,8 @@ export const useSettingsStore = defineStore(
         ) {
           player.transitionPreference = "standard";
         }
+        if (typeof player.automixCrossfadeFallback !== "boolean")
+          player.automixCrossfadeFallback = true;
         if (typeof lyric.detectBackgroundLyrics !== "boolean") {
           lyric.detectBackgroundLyrics = true;
         }

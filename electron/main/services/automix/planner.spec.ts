@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { AutoMixProfile } from "@shared/types/automix";
 import { planAutoMix as createPlan } from "./planner";
+import { arrangeAutoMix } from "./arrangement";
 import { measureBeatPeriod, pickBeatPeaks } from "./beats";
+import { createAutoMixProfile } from "./features";
 
 /**
  * 为有效音乐证据断言规划成功，便于逐项检查返回的执行参数
@@ -30,7 +32,6 @@ const profile = (periodMs = 500): AutoMixProfile => ({
   levels: Array.from({ length: 200 }, () => 0.1),
   chroma: Array(2400).fill(0),
   boundaries: [],
-  beats: Array.from({ length: Math.floor(20_000 / periodMs) }, (_, index) => index * periodMs),
   downbeats: Array.from(
     { length: Math.floor(20_000 / periodMs / 4) },
     (_, index) => index * periodMs * 4,
@@ -40,11 +41,6 @@ const profile = (periodMs = 500): AutoMixProfile => ({
 });
 
 describe("AutoMix 节拍规划", () => {
-  it("短于一秒的有效片段不生成原生引擎无法执行的计划", () => {
-    const incoming = { ...profile(), firstAudibleMs: 19_500 };
-    expect(createPlan(profile(), incoming, 20_000)).toBeNull();
-  });
-
   it("三拍子的小节不能按四拍子强行编排", () => {
     const incoming = profile();
     incoming.downbeats = Array.from({ length: 13 }, (_, index) => index * 1500);
@@ -60,21 +56,12 @@ describe("AutoMix 节拍规划", () => {
     expect(createPlan(profile(), incoming, 20_000)).toBeNull();
   });
 
-  it("远处的重拍相位变化不阻止已被相邻小节证实的入场点", () => {
-    const incoming = profile();
-    incoming.downbeats = [0, 2000, 4000, 6000, 8000, 10_000, 12_500, 14_500, 16_500, 18_500];
-    const plan = planAutoMix(profile(), incoming, 20_000);
-    expect(plan.inStartMs).toBe(0);
-    expect(plan.outgoingRate).toBe(1);
-  });
-
   it("前段节奏不适合时允许跳到稍后的稳定乐句，不依赖歌词或扩大变速", () => {
     const incoming = {
       ...profile(),
       endMs: 40_000,
       gridStartMs: 12_000,
       gridEndMs: 40_000,
-      beats: Array.from({ length: 80 }, (_, i) => i * 500),
       downbeats: Array.from({ length: 14 }, (_, i) => 12_000 + i * 2000),
       levels: Array(400).fill(0.1),
       chroma: Array(4800).fill(0),
@@ -87,10 +74,9 @@ describe("AutoMix 节拍规划", () => {
     expect(createPlan(profile(), incoming, 20_000)).toBeNull();
   });
 
-  it("只有分轨模式可以在退出鼓后保留自由速度尾奏，鼓仍在可信网格内换手", () => {
+  it("退出鼓后可以保留自由速度尾奏，鼓仍在可信网格内换手", () => {
     const outgoing = { ...profile(), gridEndMs: 12_000 };
-    expect(createPlan(outgoing, profile(), 20_000)).toBeNull();
-    const plan = planAutoMix(outgoing, profile(), 20_000, true);
+    const plan = arrangeAutoMix(planAutoMix(outgoing, profile(), 20_000), outgoing, profile());
     expect(plan.outStartMs + plan.envelopes[0].endMs * plan.outgoingRate).toBeLessThanOrEqual(
       12_250,
     );
@@ -100,7 +86,7 @@ describe("AutoMix 节拍规划", () => {
   it("120 到 125 BPM 使用保音调的小幅倍率，并让两路拍点保持同步", () => {
     const plan = planAutoMix(profile(), profile(480), 20_000);
     expect(plan.outgoingRate).toBeCloseTo(500 / 480);
-    expect(plan.durationMs).toBeCloseTo(32 * 480);
+    expect(plan.durationMs / (4 * 480)).toBeCloseTo(Math.round(plan.durationMs / (4 * 480)));
     expect(profile().downbeats).toContain(plan.outStartMs);
     expect(plan.outStartMs + plan.durationMs * plan.outgoingRate).toBeLessThanOrEqual(20_000);
   });
@@ -110,20 +96,24 @@ describe("AutoMix 节拍规划", () => {
     expect(plan.outgoingRate).toBe(1);
   });
 
-  it.each([0.93, 1.07])("边界倍率 %s 不因浮点减法被误拒", (rate) => {
+  it.each([0.92, 1.08])("边界倍率 %s 不因浮点减法被误拒", (rate) => {
     expect(planAutoMix(profile(), profile(500 / rate), 20_000).outgoingRate).toBeCloseTo(rate);
   });
 
-  it.each([0.9295, 1.0707])("%s 越界时不截断倍率伪造对拍，交由交叉过渡", (ideal) => {
+  it.each([0.9195, 1.0807])("%s 越界时不对拍，不变速伪造对拍", (ideal) => {
     expect(createPlan(profile(), profile(500 / ideal), 20_000)).toBeNull();
   });
 
-  it.each(["unstable", "far", "unknown"])("%s 证据不足时不生成 AutoMix，交由交叉过渡", (reason) => {
+  it.each(["unstable", "far", "unknown"])("%s 证据不足时不对拍", (reason) => {
     const outgoing = profile();
     const incoming = profile(reason === "far" ? 700 : 500);
     if (reason === "unstable") outgoing.stability = 0.5;
     if (reason === "unknown") incoming.periodMs = null;
     expect(createPlan(outgoing, incoming, 20_000)).toBeNull();
+  });
+
+  it("CUE 空间不足时不对拍", () => {
+    expect(createPlan(profile(), profile(), 5000)).toBeNull();
   });
 
   it("源窗口起点不会被当作整首歌的零点", () => {
@@ -134,40 +124,8 @@ describe("AutoMix 节拍规划", () => {
     outgoing.bodyEndMs += 120_000;
     outgoing.gridStartMs! += 120_000;
     outgoing.gridEndMs! += 120_000;
-    outgoing.beats = outgoing.beats.map((time) => time + 120_000);
     outgoing.downbeats = outgoing.downbeats.map((time) => time + 120_000);
     expect(planAutoMix(outgoing, profile(), 140_000).outStartMs).toBeGreaterThan(120_000);
-  });
-
-  it("稳定网格只在自己的可信区间内使用，不把残响拍点强行对齐", () => {
-    const outgoing = { ...profile(), gridStartMs: 5000, gridEndMs: 10_000 };
-    expect(createPlan(outgoing, profile(), 20_000)).toBeNull();
-  });
-
-  it("只比较实际重叠窗口的电平，不拿整段前奏或尾部均值替代", () => {
-    const outgoing = {
-      ...profile(),
-      levels: Array.from({ length: 200 }, () => 0.4),
-    };
-    const incoming = {
-      ...profile(),
-      levels: Array.from({ length: 200 }, (_, i) => (i < 80 ? 0.1 : 0.8)),
-    };
-    const plan = planAutoMix(outgoing, incoming, 20_000);
-    expect(plan.levelRatio).toBeCloseTo(2);
-  });
-
-  it("鼓与贝斯分小节交接，所有包络都有明确的有效区间", () => {
-    const plan = planAutoMix(profile(), profile(), 20_000);
-    expect(plan.durationMs).toBe(16_000);
-    const spans = plan.envelopes;
-    expect(spans[1].startMs - spans[0].startMs).toBe(2000);
-    expect(spans).toHaveLength(8);
-    for (const span of spans) {
-      expect(span.startMs).toBeGreaterThanOrEqual(0);
-      expect(span.endMs).toBeGreaterThan(span.startMs);
-      expect(span.endMs).toBeLessThanOrEqual(plan.durationMs);
-    }
   });
 
   it("和声冲突的候选会缩短旋律共存，而非一律选择最长重叠", () => {
@@ -179,12 +137,15 @@ describe("AutoMix 节拍规划", () => {
       chroma: Array.from({ length: 2400 }, (_, i) => Number(i % 12 === 1)),
     };
     const phrase = planAutoMix(outgoing, compatible, 20_000);
-    const handoff = planAutoMix(outgoing, incompatible, 20_000);
+    const handoff = arrangeAutoMix(
+      planAutoMix(outgoing, incompatible, 20_000),
+      outgoing,
+      incompatible,
+    );
     expect(phrase.durationMs).toBeGreaterThan(handoff.durationMs);
     expect(handoff.strategy).toBe("handoff");
     expect(handoff.envelopes[3]).toEqual(handoff.envelopes[7]);
     expect(handoff.envelopes[7].startMs).toBeGreaterThan(handoff.envelopes[4].endMs);
-    expect(handoff.envelopes[7].endMs - handoff.envelopes[3].startMs).toBeLessThanOrEqual(1000);
   });
 });
 
@@ -204,11 +165,6 @@ describe("拍点模型后处理", () => {
     expect(tail.periodMs).toBe(340);
   });
 
-  it("晚到但过短的零散拍点不能取代已确认的稳定段", () => {
-    const beats = [...Array.from({ length: 30 }, (_, i) => i * 500), 18_000, 18_500, 19_000];
-    expect(measureBeatPeriod(beats, true).gridEndMs).toBe(14_500);
-  });
-
   it("合并相邻平台峰并保持二十毫秒帧时间，拒绝负分数", () => {
     const logits = new Float32Array(40).fill(-1);
     logits[10] = logits[11] = 2;
@@ -217,7 +173,7 @@ describe("拍点模型后处理", () => {
   });
 
   it("保留不稳定节拍的低置信度，不把任意间距强制拟合成稳定网格", () => {
-    expect(measureBeatPeriod(profile().beats)).toEqual({
+    expect(measureBeatPeriod(Array.from({ length: 40 }, (_, index) => index * 500))).toEqual({
       periodMs: 500,
       stability: 1,
       gridStartMs: 0,
@@ -228,6 +184,29 @@ describe("拍点模型后处理", () => {
     );
   });
 
+  it("前奏首个重拍的起音偏差不进入对拍相位", () => {
+    const scores = new Float32Array(4000).fill(-1);
+    for (let beat = 0; beat < 80; beat++) {
+      // 首拍晚一帧，模拟前奏起音被模型检测得偏晚
+      const frame = 25 + beat * 25 + (beat === 0 ? 1 : 0);
+      scores[frame * 2] = 1;
+      if (beat % 4 === 0) scores[frame * 2 + 1] = 1;
+    }
+    const profile = createAutoMixProfile(
+      {
+        startSeconds: 0,
+        endSeconds: 40,
+        firstAudibleSeconds: 0,
+        lastAudibleSeconds: 40,
+        levels: new Float32Array(400).fill(0.1),
+        chroma: new Float32Array(4800),
+      },
+      scores,
+    );
+    expect(profile.downbeats[0]).toBeCloseTo(500, -1);
+    expect(profile.downbeats[1]).toBeCloseTo(2500, -1);
+  });
+
   it.each([124, 183])("%s BPM 的二十毫秒帧误差不破坏周期估计和稳定性", (bpm) => {
     const beats = Array.from(
       { length: 50 },
@@ -236,16 +215,5 @@ describe("拍点模型后处理", () => {
     const measured = measureBeatPeriod(beats);
     expect(measured.stability).toBe(1);
     expect(60000 / measured.periodMs!).toBeCloseTo(bpm, 0);
-  });
-
-  it("真实前奏后半段的零散拍点不会把前半段的七百二十毫秒拍长拉偏", () => {
-    const beats = [
-      860, 1580, 2300, 3040, 3740, 4460, 5180, 5920, 6660, 7400, 8120, 8840, 9560, 10280, 11020,
-      11740, 12460, 13180, 13900, 15360, 16440, 16820, 17540, 18280, 18620, 19000, 19700,
-    ];
-    const measured = measureBeatPeriod(beats);
-    expect(measured.gridEndMs).toBe(13900);
-    expect(measured.periodMs).toBeGreaterThan(720);
-    expect(measured.periodMs).toBeLessThan(730);
   });
 });

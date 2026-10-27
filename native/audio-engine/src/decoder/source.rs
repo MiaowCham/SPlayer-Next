@@ -95,24 +95,15 @@ impl Iterator for DecoderSampleReader {
             && self
                 .local_index
                 .is_multiple_of(usize::from(self.shared.channels()))
+            && self.source_sample_position() >= self.end_sample
         {
-            let pending = if self.local_buffer.is_empty() {
-                0
-            } else {
-                self.local_source_samples * self.local_index as u64 / self.local_buffer.len() as u64
-                    - self.reported_source_samples
-            };
-            if self.shared.samples_consumed_count() + pending >= self.end_sample {
-                self.sync_position();
-                self.shared.mark_all_consumed();
-                return None;
-            }
+            self.sync_position();
+            self.shared.mark_all_consumed();
+            return None;
         }
         if let Some(sample) = self.local_buffer.get(self.local_index).copied() {
             if let Some(stems) = &self.stem_buffer {
-                self.current_stems = std::array::from_fn(|index| {
-                    stems[index].get(self.local_index).copied().unwrap_or(0.0)
-                });
+                self.current_stems = std::array::from_fn(|index| stems[index][self.local_index]);
             }
             self.local_index += 1;
             return Some(sample);
@@ -145,9 +136,7 @@ impl Iterator for DecoderSampleReader {
                         self.local_buffer = chunk.player_samples;
                         self.stem_buffer = chunk.stem_samples;
                         if let Some(stems) = &self.stem_buffer {
-                            self.current_stems = std::array::from_fn(|index| {
-                                stems[index].first().copied().unwrap_or(0.0)
-                            });
+                            self.current_stems = std::array::from_fn(|index| stems[index][0]);
                         }
                         self.local_index = 1;
                         return self.local_buffer.first().copied();

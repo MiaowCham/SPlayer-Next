@@ -8,7 +8,7 @@ use crossbeam_queue::ArrayQueue;
 use super::buffer::Shared;
 use super::source::DecoderSampleReader;
 use crate::dsp::fft::FftAnalyzer;
-use crate::dsp::transition_filter::{BassSwap, MixEnvelope};
+use crate::dsp::transition_mix::{level_curve, stem_gains, KickSplit};
 
 pub const TRANSITION_DECISION_QUIET: u8 = 1;
 const TRANSITION_DECISION_DEADLINE: u8 = 2;
@@ -37,12 +37,10 @@ struct TransitionCommand {
     completed: Arc<AtomicBool>,
     decision: Arc<AtomicU8>,
     auto_start_sample: Option<u64>,
-    bass_swap: Option<BassSwap>,
-    cancel_requested: Arc<AtomicBool>,
     cancelled: Arc<AtomicBool>,
     level_ratio: f32,
     envelopes: Option<[MixEnvelope; 8]>,
-    stem_mix: bool,
+    kick: KickSplit,
 }
 
 pub struct TransitionSignals {
@@ -50,6 +48,22 @@ pub struct TransitionSignals {
     pub completed: Arc<AtomicBool>,
     pub decision: Arc<AtomicU8>,
     pub cancelled: Arc<AtomicBool>,
+}
+
+/// 归一化到交接长度的单路增益区间，控制线程负责验证
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct MixEnvelope {
+    pub start: f32,
+    pub end: f32,
+}
+
+impl MixEnvelope {
+    /// 将当前进度映射到该声部独立的交接相位
+    /// @param progress - 总混音进度
+    /// @returns 零到一之间的局部进度
+    pub(crate) fn phase(self, progress: f32) -> f32 {
+        ((progress - self.start) / (self.end - self.start)).clamp(0.0, 1.0)
+    }
 }
 
 /// 输出回调使用的有限交接计划
@@ -61,10 +75,8 @@ pub struct TransitionPlan {
     pub quiet_threshold: f32,
     pub quiet_windows_required: u8,
     pub auto_start_sample: Option<u64>,
-    pub bass_swap: bool,
     pub level_ratio: Option<f32>,
     pub envelopes: Option<[MixEnvelope; 8]>,
-    pub stem_mix: bool,
 }
 
 struct ActiveTransition {
@@ -79,14 +91,11 @@ struct ActiveTransition {
     intro_scanned: u64,
     intro_done: bool,
     head_index: usize,
-    gain_a: f32,
-    gain_b: f32,
+    gains: [[f32; 5]; 2],
+    levels: [f32; 2],
     cancelling: u64,
-    cancel_gains: (f32, f32, f32, f32),
-    level_a: f32,
-    level_b: f32,
-    stem_gains: ([f32; 3], [f32; 3]),
-    cancel_stem_gains: ([f32; 3], [f32; 3]),
+    cancel_gains: [[f32; 5]; 2],
+    cancel_levels: [f32; 2],
 }
 
 struct RetiredSource {
@@ -121,13 +130,11 @@ impl TransitionControl {
         let completed = Arc::new(AtomicBool::new(false));
         let decision = Arc::new(AtomicU8::new(0));
         let cancelled = Arc::new(AtomicBool::new(false));
-        let bass_swap = plan
-            .bass_swap
-            .then(|| BassSwap::new(shared.sample_rate(), shared.channels()));
         self.cancel_requested.store(false, Ordering::Release);
         self.set_speed_ratio(1.0);
         let command = TransitionCommand {
             intro_frame: vec![0.0; shared.channels() as usize],
+            kick: KickSplit::new(shared.sample_rate(), shared.channels() as usize),
             next: Box::new(DecoderSampleReader::new(shared)),
             earliest_sample: plan.earliest_sample,
             latest_sample: plan.latest_sample,
@@ -138,12 +145,9 @@ impl TransitionControl {
             completed: Arc::clone(&completed),
             decision: Arc::clone(&decision),
             auto_start_sample: plan.auto_start_sample,
-            bass_swap,
-            cancel_requested: Arc::clone(&self.cancel_requested),
             cancelled: Arc::clone(&cancelled),
             level_ratio: plan.level_ratio.unwrap_or(1.0),
             envelopes: plan.envelopes,
-            stem_mix: plan.stem_mix,
         };
         self.commands
             .push(command)
@@ -234,6 +238,7 @@ impl TransitionSource {
         }
     }
 
+    /// 完成换手并将旧读取器与效果缓冲交回控制线程回收
     fn finish_transition(&mut self) {
         let Some(mut transition) = self.transition.take() else {
             return;
@@ -287,14 +292,11 @@ impl TransitionSource {
                     intro_scanned: 0,
                     intro_done: automix,
                     head_index,
-                    gain_a: 1.0,
-                    gain_b: 0.0,
+                    gains: [[1.0; 5], [0.0; 5]],
+                    levels: [1.0; 2],
                     cancelling: 0,
-                    cancel_gains: (1.0, 0.0, 1.0, 1.0),
-                    level_a: 1.0,
-                    level_b: 1.0,
-                    stem_gains: ([1.0; 3], [0.0; 3]),
-                    cancel_stem_gains: ([1.0; 3], [0.0; 3]),
+                    cancel_gains: [[1.0; 5], [0.0; 5]],
+                    cancel_levels: [1.0; 2],
                 };
                 next.command.next.begin_callback();
                 self.transition = Some(next);
@@ -307,7 +309,7 @@ impl TransitionSource {
         let source_position = self.active.source_sample_position();
         let a = self.active.next();
         let stems_a = self.active.current_stems();
-        let cancel_requested = transition.command.cancel_requested.load(Ordering::Acquire);
+        let cancel_requested = self.control.cancel_requested.load(Ordering::Acquire);
         if cancel_requested && transition.faded == 0 {
             self.cancel_transition();
             return a;
@@ -388,7 +390,7 @@ impl TransitionSource {
         };
         let stems_b = transition.command.next.current_stems();
         if !from_intro && transition.command.next.is_underrun() {
-            return Some(sample * transition.gain_a);
+            return Some(sample * transition.gains[0][3]);
         }
         if a.is_none() && transition.faded == 0 {
             if transition.command.next.is_underrun() {
@@ -415,84 +417,50 @@ impl TransitionSource {
             transition.command.started.store(true, Ordering::Release);
         }
         if cancel_requested && transition.cancelling == 0 {
-            transition.cancel_stem_gains = transition.stem_gains;
-            transition.cancel_gains = (
-                transition.gain_a,
-                transition.gain_b,
-                transition.level_a,
-                transition.level_b,
-            );
+            transition.cancel_gains = transition.gains;
+            transition.cancel_levels = transition.levels;
         }
         if cancel_requested {
             let progress = (transition.cancelling as f32 / self.cancel_samples as f32).min(1.0);
-            transition.gain_a =
-                transition.cancel_gains.0 + (1.0 - transition.cancel_gains.0) * progress;
-            transition.gain_b = transition.cancel_gains.1 * (1.0 - progress);
-            transition.level_a =
-                transition.cancel_gains.2 + (1.0 - transition.cancel_gains.2) * progress;
-            transition.level_b =
-                transition.cancel_gains.3 + (1.0 - transition.cancel_gains.3) * progress;
+            for side in 0..2 {
+                transition.levels[side] = transition.cancel_levels[side]
+                    + (1.0 - transition.cancel_levels[side]) * progress;
+            }
             transition.cancelling += 1;
-            for index in 0..3 {
-                transition.stem_gains.0[index] = transition.cancel_stem_gains.0[index]
-                    + (1.0 - transition.cancel_stem_gains.0[index]) * progress;
-                transition.stem_gains.1[index] =
-                    transition.cancel_stem_gains.1[index] * (1.0 - progress);
+            for index in 0..5 {
+                transition.gains[0][index] = transition.cancel_gains[0][index]
+                    + (1.0 - transition.cancel_gains[0][index]) * progress;
+                transition.gains[1][index] = transition.cancel_gains[1][index] * (1.0 - progress);
             }
         } else if transition.faded % self.channels == 0 {
             let progress =
                 (transition.fade_progress / transition.command.fade_samples as f64).min(1.0) as f32;
-            (transition.gain_b, transition.gain_a) = (progress * FRAC_PI_2).sin_cos();
+            (transition.gains[1][3], transition.gains[0][3]) = (progress * FRAC_PI_2).sin_cos();
             if let Some(spans) = transition.command.envelopes {
-                for index in 0..4 {
-                    let out_phase = spans[index].phase(progress);
-                    let in_phase = spans[index + 4].phase(progress);
-                    let (mut a, mut b) = if index == 1 {
-                        (1.0 - out_phase, in_phase)
-                    } else {
-                        ((out_phase * FRAC_PI_2).cos(), (in_phase * FRAC_PI_2).sin())
-                    };
-                    // 独立入退场区间可重叠，归一化只压低叠加能量，不抬高残响
-                    let norm = a.hypot(b).max(1.0);
-                    a /= norm;
-                    b /= norm;
-                    if index < 3 {
-                        transition.stem_gains.0[index] = a;
-                        transition.stem_gains.1[index] = b;
-                    } else {
-                        transition.gain_a = a;
-                        transition.gain_b = b;
-                    }
-                }
+                transition.gains = stem_gains(&spans, progress);
             }
-            let ratio = transition.command.level_ratio;
             // 人声包络不能连带改变已选伴奏的电平曲线
-            transition.level_a = 1.0 + (ratio.min(1.0) - 1.0) * progress;
-            transition.level_b = (1.0 / ratio).min(1.0) + (1.0 - (1.0 / ratio).min(1.0)) * progress;
+            transition.levels = level_curve(transition.command.level_ratio, progress);
         }
-        let mixed = if transition.command.stem_mix {
-            let mut mixed = sample * transition.gain_a * transition.level_a
-                + b * transition.gain_b * transition.level_b;
+        let mixed = if transition.command.envelopes.is_some() {
+            let mut mixed = sample * transition.gains[0][3] * transition.levels[0]
+                + b * transition.gains[1][3] * transition.levels[1];
             for index in 0..3 {
                 mixed += stems_a[index]
-                    * (transition.stem_gains.0[index] - transition.gain_a)
-                    * transition.level_a;
+                    * (transition.gains[0][index] - transition.gains[0][3])
+                    * transition.levels[0];
                 mixed += stems_b[index]
-                    * (transition.stem_gains.1[index] - transition.gain_b)
-                    * transition.level_b;
+                    * (transition.gains[1][index] - transition.gains[1][3])
+                    * transition.levels[1];
             }
+            let channel = ((transition.elapsed - 1) % self.channels) as usize;
+            mixed += transition.command.kick.low(stems_b[0], channel)
+                * (transition.gains[1][4] - transition.gains[1][0])
+                * transition.levels[1];
             mixed
-        } else if let Some(filter) = &mut transition.command.bass_swap {
-            filter.mix(
-                sample * transition.level_a,
-                b * transition.level_b,
-                ((transition.elapsed - 1) % self.channels) as usize,
-                (transition.stem_gains.0[1], transition.stem_gains.1[1]),
-                (transition.gain_a, transition.gain_b),
-            )
         } else {
-            sample * transition.gain_a * transition.level_a
-                + b * transition.gain_b * transition.level_b
+            sample * transition.gains[0][3] * transition.levels[0]
+                + b * transition.gains[1][3] * transition.levels[1]
         };
         if cancel_requested {
             if transition.cancelling >= self.cancel_samples

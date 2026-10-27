@@ -58,8 +58,18 @@ import type {
 import type { MediaEvent } from "@splayer/media-ctrl";
 import { JsPlayerEvent } from "@splayer/audio-engine";
 import type { JsMusicMetadata } from "@splayer/audio-engine";
-import type { AutoMixPrepareOptions, TransitionMode } from "@shared/types/automix";
+import type { AutoMixEnvelope, AutoMixPrepareOptions, TransitionMode } from "@shared/types/automix";
 import { canAutoMix } from "@main/services/automix/planner";
+
+/**
+ * 将相对混音起点的毫秒区间转换为原生引擎使用的秒
+ * @param span - 毫秒区间
+ * @returns 秒区间
+ */
+const toSeconds = (span: AutoMixEnvelope) => ({
+  startSeconds: span.startMs / 1000,
+  endSeconds: span.endMs / 1000,
+});
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
 
@@ -414,7 +424,6 @@ export const registerPlayerIpc = (): void => {
       const plan = ready ? getPreparedAutoMixPlan(id) : undefined;
       return {
         ready,
-        autoMixReady: plan != null,
         autoMixStartMs: plan ? toDisplayPositionMs(plan.outStartMs) : undefined,
       };
     },
@@ -472,11 +481,7 @@ export const registerPlayerIpc = (): void => {
                 durationSeconds: automix.durationMs / 1000,
                 outgoingRate: automix.outgoingRate,
                 levelRatio: store.get("player.loudnessNormalization") ? 1 : automix.levelRatio,
-                envelopes: automix.envelopes.map((span) => ({
-                  startSeconds: span.startMs / 1000,
-                  endSeconds: span.endMs / 1000,
-                })),
-                stemMix: automix.stems != null,
+                envelopes: automix.envelopes.map(toSeconds),
               }
             : undefined,
         );

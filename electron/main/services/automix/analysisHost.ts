@@ -23,22 +23,19 @@ export interface AnalysisTrack {
  * 按需分析两曲的首尾窗口，模型完成或取消后立即归还进程内存
  * @param tracks - 当前曲尾和下一曲头的本地音源范围
  * @param signal - 本次预载的取消信号
- * @param enhanced - 是否要求声部分离组件就绪
  * @returns 可用档案，组件缺失或不足模型上下文时为空
  */
 export const analyzeAutoMixTracks = (
   tracks: AnalysisTrack[],
   signal: AbortSignal,
-  enhanced = false,
 ): Promise<AutoMixProfile[] | null> =>
   runAutoMixTask(signal, async () => {
     const components = await getAutoMixComponentStatus();
-    const required = enhanced ? ["beat", "demucs", "runtime"] : ["beat", "runtime"];
-    const missing = required.filter(
-      (id) => !components.models.some((model) => model.id === id && model.state === "ready"),
-    );
+    const missing = components.models.filter((model) => model.state !== "ready");
     if (missing.length) {
-      playerLog.info(`AutoMix 组件未就绪：${missing.join("、")}，请在设置中安装`);
+      playerLog.info(
+        `AutoMix 组件未就绪：${missing.map((model) => model.id).join("、")}，请在设置中安装`,
+      );
       return null;
     }
     if (tracks.some((track) => track.source.includes("://"))) return null;

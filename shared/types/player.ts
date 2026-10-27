@@ -297,8 +297,7 @@ export interface AudioStreamInfo {
 /** PCM 预载与自动混音分析的独立就绪状态 */
 export interface PreparedTrackResult {
   ready: boolean;
-  autoMixReady: boolean;
-  /** 当前曲展示时间轴上的计划入场点 */
+  /** 当前曲展示时间轴上的计划入场点，仅在 AutoMix 就绪时返回 */
   autoMixStartMs?: number;
 }
 

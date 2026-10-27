@@ -20,11 +20,6 @@ export interface AutoMixComponentStatus {
   models: AutoMixModelStatus[];
 }
 
-/** 有限窗口的人声电平，不持有分离波形或推断段落标签 */
-export interface AutoMixStructure {
-  vocals: number[];
-}
-
 /** 临时分离音频，只在主进程和原生解码器之间传递路径 */
 export interface AutoMixStemWindow {
   path: string;
@@ -36,7 +31,6 @@ export interface AutoMixStemWindow {
 export interface AutoMixProfile {
   startMs: number;
   endMs: number;
-  beats: number[];
   downbeats: number[];
   periodMs: number | null;
   stability: number;
@@ -71,16 +65,18 @@ export interface AutoMixPlan {
   levelRatio: number;
   /** 顺序为当前曲与下一曲各自的鼓、贝斯、人声、伴奏，均在音频回调按帧执行 */
   envelopes: AutoMixEnvelope[];
-  /** 乐句融合或短旋律交接，决定伴奏的重叠方式 */
+  /** 对拍乐句或短旋律交接 */
   strategy: "phrase" | "handoff";
-  stems?: { outgoing: AutoMixStemWindow; incoming: AutoMixStemWindow };
+  stems: { outgoing: AutoMixStemWindow; incoming: AutoMixStemWindow };
 }
+
+/** 分轨窗口绑定前的声部编排 */
+export type AutoMixArrangement = Omit<AutoMixPlan, "stems">;
 
 /** 随预载提交的 AutoMix 范围，不包含服务器凭据 */
 export interface AutoMixPrepareOptions {
   mode: TransitionMode;
   endMs?: number;
-  enhanced?: boolean;
 }
 
 /** 分析组件管理接口，不会在查询状态时自动下载 */

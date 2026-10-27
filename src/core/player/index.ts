@@ -1035,8 +1035,12 @@ export const trySmartTransition = async (
   });
   if (!candidate) return;
   const slot = peekPreparedTrack(candidate.track);
-  const autoMix = settings.player.transitionMode === "automix" && slot?.autoMixReady;
+  const autoMix = settings.player.transitionMode === "automix" && slot?.autoMixStartMs != null;
+  // 不适合 AutoMix 的曲目对按设置改用交叉过渡，关闭时交给曲尾正常切歌
   if (
+    (!autoMix &&
+      settings.player.transitionMode === "automix" &&
+      !settings.player.automixCrossfadeFallback) ||
     (autoMix && (Math.abs(status.speed - 1) >= 0.0001 || status.pitch !== 0)) ||
     (!autoMix && remainingWallMs > TRANSITION_LOOKAHEAD_MS[settings.player.transitionPreference])
   )

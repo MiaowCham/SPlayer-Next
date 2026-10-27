@@ -3,7 +3,7 @@ use std::io::Write;
 use std::time::Duration;
 
 use anyhow::{ensure, Result};
-use ffmpeg_audio::{AudioError, AudioReader, ResampleOptions, SeekMode};
+use ffmpeg_audio::{sys::AVERROR_INVALIDDATA, AudioError, AudioReader, ResampleOptions, SeekMode};
 use rustfft::{num_complex::Complex, FftPlanner};
 
 const SAMPLE_RATE: usize = 22_050;
@@ -206,7 +206,14 @@ fn decode_window(
     );
     let scan_start = if tail { start.max(end - limit) } else { start };
     let scan_end = end.min(scan_start + limit);
-    reader.seek(Duration::from_secs_f64(scan_start), SeekMode::Accurate)?;
+    // 无时间戳格式无法精确跳转时从头计数，保持分析窗口与播放源时间一致
+    if scan_start > 0.0
+        && reader
+            .seek(Duration::from_secs_f64(scan_start), SeekMode::Accurate)
+            .is_err()
+    {
+        reader = AudioReader::new(crate::decoder::input::AudioInput::new(File::open(source)?)?)?;
+    }
     let mut converter = reader.build_resampler(
         ResampleOptions::new()
             .sample_rate(sample_rate as i32)
@@ -219,16 +226,22 @@ fn decode_window(
     let mut levels = Vec::with_capacity((limit * 10.0) as usize);
     let mut level_energy = 0.0_f64;
     let mut level_samples = 0;
+    let mut decoded_until = 0.0;
     loop {
         let frame = match reader.receive_frame() {
             Ok(Some(frame)) => frame,
             Ok(None) | Err(AudioError::Eof) => break,
+            // FLAC 尾部附加标签或最后一帧损坏，不应丢弃已经完整解出的曲尾
+            Err(AudioError::FFmpeg(AVERROR_INVALIDDATA, _)) if decoded_until >= scan_end - 0.1 => {
+                break
+            }
             Err(error) => return Err(error.into()),
         };
         let position = frame
             .pts()
-            .ok_or_else(|| anyhow::anyhow!("音频缺少时间戳"))?
-            .as_secs_f64();
+            .map(|time| time.as_secs_f64())
+            .unwrap_or(decoded_until);
+        decoded_until = position + frame.duration().as_secs_f64();
         converter.process::<f32>(Some(&frame))?;
         for (index, samples) in converter
             .output_as::<f32>()
@@ -258,7 +271,7 @@ fn decode_window(
                 last_audible = time + 1.0 / sample_rate as f64;
             }
         }
-        if position + frame.duration().as_secs_f64() >= scan_end {
+        if decoded_until >= scan_end {
             break;
         }
     }

@@ -7,16 +7,10 @@ export const autoMixComponentStatus = shallowRef<AutoMixComponentStatus>({
   models: [],
 });
 /**
- * 仅按当前模式所需组件判断就绪，避免无关下载的进度使 PCM 预载失效
- * @param enhanced - 是否启用分轨增强
+ * 仅在全部组件就绪后启用 AutoMix，下载进度变化不使 PCM 预载失效
  * @returns 所需模型和运行时均已就绪时为 true
  */
-export const isAutoMixReady = (enhanced = false): boolean => {
-  const required = enhanced ? ["beat", "demucs", "runtime"] : ["beat", "runtime"];
-  return required.every(
-    (id) => autoMixComponentStatus.value.models.find((model) => model.id === id)?.state === "ready",
-  );
-};
+export const isAutoMixReady = (): boolean => autoMixComponentStatus.value.state === "ready";
 
 /** 读取已校验的状态，设置页与预载服务共享结果，首次检查由主进程合并 */
 export const refreshAutoMixComponents = async (): Promise<void> => {

@@ -6,4 +6,4 @@ pub(crate) mod fft;
 pub(crate) mod limiter;
 pub(crate) mod loudness;
 pub(crate) mod tempo;
-pub(crate) mod transition_filter;
+pub(crate) mod transition_mix;

@@ -280,8 +280,8 @@ export interface PlayerSettings {
   transitionMode: TransitionMode;
   /** 曲尾交接时机与淡化时长偏好 */
   transitionPreference: TransitionPreference;
-  /** 使用 Demucs 对人声、鼓和贝斯分别交接 */
-  autoMixEnhanced: boolean;
+  /** AutoMix 无法对拍的曲目对是否改用交叉过渡，关闭时直接切歌 */
+  automixCrossfadeFallback: boolean;
   /** 搜索页播放行为 */
   searchPlayBehavior: SearchPlayBehavior;
 }

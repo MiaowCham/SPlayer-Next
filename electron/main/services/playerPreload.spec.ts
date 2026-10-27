@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
+import { arrangeAutoMix } from "./automix/arrangement";
 import type { AutoMixProfile } from "@shared/types/automix";
 
 const mocks = vi.hoisted(() => ({
@@ -47,7 +48,6 @@ const profile = (): AutoMixProfile => ({
   stability: 1,
   gridStartMs: 0,
   gridEndMs: 20_000,
-  beats: Array.from({ length: 40 }, (_, i) => i * 500),
   downbeats: Array.from({ length: 10 }, (_, i) => i * 2000),
   levels: Array(200).fill(0.1),
   chroma: Array(2400).fill(0),
@@ -61,7 +61,13 @@ describe("后台曲尾交接通知", () => {
     mocks.prepare.mockResolvedValue(true);
     mocks.analyze.mockResolvedValue(25.25);
     mocks.automix.mockResolvedValue(null);
-    mocks.enhance.mockReset();
+    mocks.enhance.mockReset().mockImplementation(async (plan, _tracks, profiles) => ({
+      ...arrangeAutoMix(plan, profiles[0], profiles[1]),
+      stems: {
+        outgoing: { path: "current.stems", startMs: 0, frames: 882000 },
+        incoming: { path: "next.stems", startMs: 0, frames: 882000 },
+      },
+    }));
     mocks.speed.mockReturnValue(1);
     mocks.pitch.mockReturnValue(0);
     mocks.stems.mockResolvedValue(true);
@@ -153,18 +159,6 @@ describe("后台曲尾交接通知", () => {
     expect(service.takeTransitionReady(900)).toBeNull();
   });
 
-  it("缺少分析组件时从原始起点预载，按交叉过渡时机通知", async () => {
-    const service = await import("./playerPreload");
-    service.setCurrentTransitionRange(0, 40000, "current.wav");
-    expect(
-      await service.prepareNextTrack("next", "next.wav", 0, "standard", { mode: "automix" }),
-    ).toBe(true);
-    expect(service.takeTransitionReady(20_000, 1, 0)).toBeNull();
-    expect(service.takeTransitionReady(5000, 1, 0)).toBe("next");
-    expect(service.getPreparedAutoMixPlan("next")).toBeUndefined();
-    expect(mocks.prepare).toHaveBeenCalledWith("next", "next.wav", 0);
-  });
-
   it("用户使用倍速时不启动模型分析", async () => {
     mocks.speed.mockReturnValue(1.2);
     const service = await import("./playerPreload");
@@ -174,69 +168,39 @@ describe("后台曲尾交接通知", () => {
     expect(service.takeTransitionReady(5000, 1.2, 0)).toBe("next");
   });
 
-  it("节拍不兼容时跳过分轨推理，复用交叉过渡的偏好与静音拖尾分析", async () => {
-    mocks.automix.mockResolvedValue([profile(), { ...profile(), periodMs: 700 }]);
-    const service = await import("./playerPreload");
-    service.setCurrentTransitionRange(0, 20_000, "current.wav");
-    await service.prepareNextTrack("next", "next.wav", 1200, "eager", {
-      mode: "automix",
-      enhanced: true,
-    });
-    expect(mocks.enhance).not.toHaveBeenCalled();
-    expect(mocks.prepare).toHaveBeenCalledWith("next", "next.wav", 1.2);
-    expect(mocks.analyze).toHaveBeenCalledWith(0, 20);
-    expect(service.getPreparedAutoMixPlan("next")).toBeUndefined();
-    expect(service.takeTransitionReady(10_000)).toBeNull();
-    expect(service.takeTransitionReady(8500)).toBe("next");
-  });
+  it.each(["缺少组件", "没有可用编排", "分轨失败"])(
+    "%s 时保留原始入口并正常交接",
+    async (reason) => {
+      if (reason !== "缺少组件") mocks.automix.mockResolvedValue([profile(), profile()]);
+      if (reason === "分轨失败") mocks.enhance.mockRejectedValue(new Error("inference failed"));
+      else mocks.enhance.mockResolvedValue(undefined);
+      const service = await import("./playerPreload");
+      service.setCurrentTransitionRange(0, 20_000, "current.wav");
+      expect(
+        await service.prepareNextTrack("next", "next.wav", 1200, "standard", { mode: "automix" }),
+      ).toBe(true);
+      expect(service.getPreparedAutoMixPlan("next")).toBeUndefined();
+      expect(mocks.prepare).toHaveBeenCalledWith("next", "next.wav", 1.2);
+      expect(mocks.stems).not.toHaveBeenCalled();
+      expect(service.takeTransitionReady(17_000)).toBeNull();
+      expect(service.takeTransitionReady(5000)).toBe("next");
+    },
+  );
 
-  it("关闭增强仍执行对拍，但不调用分离模型或安装声部", async () => {
+  it("按 AutoMix 计划通知交接，提交时复用分析并安装当前解码会话的声部", async () => {
     mocks.automix.mockResolvedValue([profile(), profile()]);
     const service = await import("./playerPreload");
     service.setCurrentTransitionRange(0, 20_000, "current.wav");
-    await service.prepareNextTrack("next", "next.wav", 0, "standard", { mode: "automix" });
+    await service.prepareNextTrack("next", "next.wav", 0, "standard", {
+      mode: "automix",
+    });
     expect(service.getPreparedAutoMixPlan("next")).toBeDefined();
-    expect(service.getPreparedAutoMixPlan("next")?.stems).toBeUndefined();
-    expect(mocks.enhance).not.toHaveBeenCalled();
+    expect(mocks.enhance).toHaveBeenCalledOnce();
     expect(mocks.analyze).not.toHaveBeenCalled();
     expect(service.takeTransitionReady(19_000)).toBeNull();
     expect(service.takeTransitionReady(17_000)).toBe("next");
     expect(service.takeTransitionReady(16_000, 1.2)).toBeNull();
     expect(service.takeTransitionReady(16_000, 1, 2)).toBeNull();
-  });
-
-  it("分离模型失败后回退交叉过渡，不装载半成品声部", async () => {
-    mocks.automix.mockResolvedValue([profile(), profile()]);
-    mocks.enhance.mockRejectedValue(new Error("inference failed"));
-    const service = await import("./playerPreload");
-    service.setCurrentTransitionRange(0, 20_000, "current.wav");
-    await service.prepareNextTrack("next", "next.wav", 0, "standard", {
-      mode: "automix",
-      enhanced: true,
-    });
-    expect(service.getPreparedAutoMixPlan("next")).toBeUndefined();
-    expect(mocks.prepare).toHaveBeenCalledWith("next", "next.wav", 0);
-    expect(mocks.stems).not.toHaveBeenCalled();
-    expect(service.takeTransitionReady(17_000)).toBeNull();
-    expect(service.takeTransitionReady(5000)).toBe("next");
-  });
-
-  it("当前声部在提交交接时按最新解码会话安装，允许跳转进度后复用分析", async () => {
-    mocks.automix.mockResolvedValue([profile(), profile()]);
-    mocks.enhance.mockImplementation(async (plan) => ({
-      ...plan,
-      stems: {
-        outgoing: { path: "current.stems", startMs: 0, frames: 882000 },
-        incoming: { path: "next.stems", startMs: 0, frames: 882000 },
-      },
-    }));
-    const service = await import("./playerPreload");
-    service.setCurrentTransitionRange(0, 20_000, "current.wav");
-    await service.prepareNextTrack("next", "next.wav", 0, "standard", {
-      mode: "automix",
-      enhanced: true,
-    });
-    expect(mocks.enhance).toHaveBeenCalledOnce();
     expect(mocks.stems).not.toHaveBeenCalled();
     expect(mocks.prepare).toHaveBeenCalledWith("next", "next.wav", 0, {
       path: "next.stems",
@@ -280,15 +244,5 @@ describe("后台曲尾交接通知", () => {
     expect(await pending).toBe(false);
     expect(mocks.prepare).not.toHaveBeenCalled();
     expect(service.takeTransitionReady(5000)).toBeNull();
-  });
-
-  it("分析模块加载期间取消后不再启动模型", async () => {
-    const service = await import("./playerPreload");
-    service.setCurrentTransitionRange(0, 40_000, "current.wav");
-    const pending = service.prepareNextTrack("next", "next.wav", 0, undefined, { mode: "automix" });
-    service.cancelPreparedTrack("next");
-    expect(await pending).toBe(false);
-    expect(mocks.automix).not.toHaveBeenCalled();
-    expect(mocks.prepare).not.toHaveBeenCalled();
   });
 });

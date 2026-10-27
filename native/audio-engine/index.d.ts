@@ -266,7 +266,6 @@ export interface JsAutoMixPlan {
   outgoingRate: number
   levelRatio: number
   envelopes: Array<JsAutoMixEnvelope>
-  stemMix: boolean
 }
 
 /** 分析进程生成的有限声部窗口，路径不暴露给渲染进程 */

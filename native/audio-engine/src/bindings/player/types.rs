@@ -9,7 +9,6 @@ pub struct JsAutoMixPlan {
     pub outgoing_rate: f64,
     pub level_ratio: f64,
     pub envelopes: Vec<JsAutoMixEnvelope>,
-    pub stem_mix: bool,
 }
 
 /// 相对于混音起点的单个声部交接区间

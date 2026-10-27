@@ -21,8 +21,7 @@ export interface NextTrackPreloadResult {
   trackId: string;
   /** 已就绪的原生槽位标识，缺省表示仅解析或缓存了音源 */
   preparedId?: string;
-  /** 只有真实分析成功的槽位才允许进入 AutoMix 交接 */
-  autoMixReady?: boolean;
+  /** 仅在 AutoMix 就绪时存在，使用当前曲的展示时间轴 */
   autoMixStartMs?: number;
   source: ResolvedTrackSource | null;
   contextKey: string;
@@ -63,8 +62,7 @@ const buildContextKey = (track: Track): string => {
     settings.player.transitionPreference,
     ...(settings.player.transitionMode === "automix"
       ? [
-          isAutoMixReady(settings.player.autoMixEnhanced),
-          settings.player.autoMixEnhanced,
+          isAutoMixReady(),
           useStatusStore().speed,
           useStatusStore().pitch,
           useStatusStore().currentTrack?.id,
@@ -206,7 +204,7 @@ export const finishPreparedTransition = (id: string, rejected?: NextTrackPreload
   if (transitionPreparedId !== id) return;
   transitionPreparedId = null;
   if (rejected) {
-    cachedResult = { ...rejected, preparedId: undefined, autoMixReady: false };
+    cachedResult = { ...rejected, preparedId: undefined, autoMixStartMs: undefined };
     currentContextKey = rejected.contextKey;
   }
   void window.api.player.cancelPrepared(id).catch(console.warn);
@@ -308,7 +306,6 @@ export const scheduleNextTrackPreload = (): void => {
         if (cachedPath) source = { source: cachedPath, fromCache: true, provider: "cache" };
       }
       let preparedId: string | undefined;
-      let autoMixReady = false;
       let autoMixStartMs: number | undefined;
       if (source.provider === "local" || source.provider === "download" || source.fromCache) {
         const result = await window.api.player.prepareNext(
@@ -318,19 +315,12 @@ export const scheduleNextTrackPreload = (): void => {
           settings.player.transitionMode !== "none"
             ? settings.player.transitionPreference
             : undefined,
-          ...(settings.player.transitionMode === "automix"
-            ? [
-                {
-                  mode: "automix" as const,
-                  endMs: candidateTrack.cueEndMs,
-                  enhanced: settings.player.autoMixEnhanced,
-                },
-              ]
-            : []),
+          settings.player.transitionMode === "automix"
+            ? { mode: "automix", endMs: candidateTrack.cueEndMs }
+            : undefined,
         );
         if (token !== currentToken) return;
         if (result.ready) preparedId = id;
-        autoMixReady = result.autoMixReady;
         autoMixStartMs = result.autoMixStartMs;
       }
       if (!preparedId) {
@@ -343,7 +333,6 @@ export const scheduleNextTrackPreload = (): void => {
         source,
         contextKey,
         preparedId,
-        autoMixReady,
         autoMixStartMs,
       };
       if (!preparedId) {
@@ -380,12 +369,7 @@ export const installNextTrackPreloadWatchers = (): void => {
       settings.player.transitionMode,
       settings.player.transitionPreference,
       ...(settings.player.transitionMode === "automix"
-        ? [
-            isAutoMixReady(settings.player.autoMixEnhanced),
-            settings.player.autoMixEnhanced,
-            status.speed,
-            status.pitch,
-          ]
+        ? [isAutoMixReady(), status.speed, status.pitch]
         : []),
       settings.system.cache.songCache.enabled,
       settings.system.cache.songCache.cacheStreaming,

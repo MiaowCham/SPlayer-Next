@@ -7,7 +7,7 @@ import {
   AUTOMIX_LOOKAHEAD_MS,
   TRANSITION_LOOKAHEAD_MS,
 } from "@shared/constants/playback";
-import type { AutoMixPlan, AutoMixPrepareOptions, TransitionMode } from "@shared/types/automix";
+import type { AutoMixPlan, AutoMixPrepareOptions } from "@shared/types/automix";
 import { canAutoMix, planAutoMix } from "./automix/planner";
 
 let prepared: {
@@ -15,8 +15,8 @@ let prepared: {
   player: ReturnType<typeof getPlayer>;
   ready: boolean;
   preference?: TransitionPreference;
-  mode: TransitionMode;
   automix?: AutoMixPlan;
+  /** 槽位取消、曲目范围变化和播放器重建都会终止该信号 */
   analysis: AbortController;
 } | null = null;
 let notifiedId: string | null = null;
@@ -59,17 +59,15 @@ export const getPreparedAutoMixPlan = (id: string): AutoMixPlan | undefined =>
  */
 export const installPreparedAutoMixStems = async (id: string): Promise<boolean> => {
   const task = prepared;
-  if (!task || task.id !== id || task.analysis.signal.aborted) return false;
-  const window = task.automix?.stems?.outgoing;
-  if (!window) return true;
+  const window = task?.automix?.stems.outgoing;
   const source = currentRange?.source;
-  if (!source) return false;
+  if (!task || task.id !== id || task.analysis.signal.aborted || !window || !source) return false;
   const installed = await task.player.installAutoMixStems(id, source, {
     path: window.path,
     startSeconds: window.startMs / 1000,
     frames: window.frames,
   });
-  return installed && prepared === task && !task.analysis.signal.aborted;
+  return installed && !task.analysis.signal.aborted;
 };
 
 /**
@@ -101,7 +99,7 @@ export const takeTransitionReady = (remainingMs: number, speed = 1, pitch = 0): 
   const lookahead = prepared?.automix
     ? Math.min(
         AUTOMIX_LOOKAHEAD_MS,
-        (currentRange?.endMs ?? 0) - (prepared.automix?.outStartMs ?? 0) + AUTOMIX_ARM_LEAD_MS,
+        (currentRange?.endMs ?? 0) - prepared.automix.outStartMs + AUTOMIX_ARM_LEAD_MS,
       )
     : TRANSITION_LOOKAHEAD_MS[prepared?.preference ?? "standard"];
   if (remainingWallMs > lookahead) notifiedId = null;
@@ -152,7 +150,6 @@ export const prepareNextTrack = async (
     player,
     ready: false,
     preference,
-    mode: options?.mode ?? "crossfade",
     analysis: new AbortController(),
     automix: undefined as AutoMixPlan | undefined,
   };
@@ -161,69 +158,69 @@ export const prepareNextTrack = async (
   try {
     const range = currentRange;
     if (
-      task.mode === "automix" &&
+      options?.mode === "automix" &&
       range?.source &&
       canAutoMix(player.getSpeed(), player.getPitch())
     ) {
       const { analyzeAutoMixTracks } = await import("./automix/analysisHost");
-      if (task.analysis.signal.aborted || prepared !== task) return false;
+      if (task.analysis.signal.aborted) return false;
       const tracks = [
         { source: range.source, startMs: range.startMs, endMs: range.endMs, tail: true },
-        { source, startMs, endMs: options?.endMs, tail: false },
+        { source, startMs, endMs: options.endMs, tail: false },
       ];
-      const profiles = await analyzeAutoMixTracks(
-        tracks,
-        task.analysis.signal,
-        options?.enhanced ?? false,
-      ).catch((error) => {
-        if (!task.analysis.signal.aborted)
-          playerLog.warn("AutoMix 分析不可用，回退交叉过渡", error);
+      const profiles = await analyzeAutoMixTracks(tracks, task.analysis.signal).catch((error) => {
+        if (!task.analysis.signal.aborted) playerLog.warn("AutoMix 分析不可用", error);
         return null;
       });
-      if (task.analysis.signal.aborted || prepared !== task || currentRange !== range) return false;
-      if (profiles) {
-        task.automix =
-          planAutoMix(profiles[0], profiles[1], range.endMs, options?.enhanced) ?? undefined;
-        if (task.automix && options?.enhanced) {
-          const { enhanceAutoMixPlan } = await import("./automix/enhancement");
-          task.automix = await enhanceAutoMixPlan(
-            task.automix,
-            tracks,
-            profiles,
-            task.analysis.signal,
-          ).catch((error) => {
-            if (!task.analysis.signal.aborted)
-              playerLog.warn("AutoMix 分轨编排不可用，沿用交叉过渡", error);
-            return undefined;
-          });
-        }
-        if (task.analysis.signal.aborted || prepared !== task || currentRange !== range)
-          return false;
+      if (task.analysis.signal.aborted) return false;
+      const candidate = profiles && planAutoMix(profiles[0], profiles[1], range.endMs);
+      if (profiles && !candidate) playerLog.info("AutoMix 两曲节奏无法对齐，不做混音");
+      if (candidate) {
+        const { enhanceAutoMixPlan } = await import("./automix/enhancement");
+        task.automix = await enhanceAutoMixPlan(
+          candidate,
+          tracks,
+          profiles,
+          range.endMs,
+          task.analysis.signal,
+        ).catch((error) => {
+          if (!task.analysis.signal.aborted) playerLog.warn("AutoMix 分轨编排不可用", error);
+          return undefined;
+        });
+        if (task.analysis.signal.aborted) return false;
         if (task.automix) {
-          const stems = task.automix.stems ? " · 分轨" : "";
           playerLog.info(
-            `AutoMix 就绪：对拍${stems} · ${(task.automix.durationMs / 1000).toFixed(1)} 秒`,
+            `AutoMix 就绪：对拍 · 分轨 · ${(task.automix.durationMs / 1000).toFixed(1)} 秒`,
+            {
+              outStartMs: task.automix.outStartMs,
+              inStartMs: task.automix.inStartMs,
+              outgoingRate: task.automix.outgoingRate,
+              overlapMs: task.automix.envelopes.slice(0, 4).map((outgoing, index) => {
+                const incoming = task.automix!.envelopes[index + 4];
+                return Math.max(0, outgoing.endMs - incoming.startMs);
+              }),
+            },
           );
         }
       }
     }
-    if (prepared !== task || task.analysis.signal.aborted) return false;
-    if (task.mode === "automix" && !task.automix)
-      playerLog.info("AutoMix 本次不可用，沿用交叉过渡");
-    const incomingStems = task.automix?.stems?.incoming;
-    const ready = incomingStems
-      ? await player.prepareNext(id, source, task.automix!.inStartMs / 1000, {
-          path: incomingStems.path,
-          startSeconds: incomingStems.startMs / 1000,
-          frames: incomingStems.frames,
+    if (task.analysis.signal.aborted) return false;
+    if (options?.mode === "automix" && !task.automix)
+      playerLog.info("AutoMix 本次不可用，按设置交叉过渡或直接切歌");
+    const plan = task.automix;
+    const ready = plan
+      ? await player.prepareNext(id, source, plan.inStartMs / 1000, {
+          path: plan.stems.incoming.path,
+          startSeconds: plan.stems.incoming.startMs / 1000,
+          frames: plan.stems.incoming.frames,
         })
-      : await player.prepareNext(id, source, (task.automix?.inStartMs ?? startMs) / 1000);
-    if (!ready || prepared?.id !== id) {
+      : await player.prepareNext(id, source, startMs / 1000);
+    if (!ready || task.analysis.signal.aborted) {
       player.cancelPrepared(id);
       cancelPreparedTrack(id);
       return false;
     }
-    prepared.ready = true;
+    task.ready = true;
     if (!task.automix && preference && range && !range.analyzed) {
       range.analyzed = true;
       const began = performance.now();

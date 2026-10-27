@@ -1,17 +1,18 @@
-import type { AutoMixEnvelope, AutoMixPlan, AutoMixProfile } from "@shared/types/automix";
+import type { AutoMixEnvelope, AutoMixArrangement, AutoMixProfile } from "@shared/types/automix";
+import type { AutoMixCandidate } from "./planner";
 
 /**
- * 将选点转换为按音乐时间错开的鼓、低频、人声与伴奏包络
- * @param plan - 已通过边界与小节验证的对拍计划
- * @param outgoing - 当前曲的稳定节拍证据
- * @param incoming - 下一曲的稳定节拍证据
+ * 将对拍候选转换为按音乐时间错开的鼓、低频、人声与伴奏包络
+ * @param plan - 已通过音频边界验证的交接计划
+ * @param outgoing - 当前曲的尾部音乐证据
+ * @param incoming - 下一曲的首部音乐证据
  * @returns 只含有限区间的可执行编排，不在音频回调做选点
  */
 export const arrangeAutoMix = (
-  plan: Omit<AutoMixPlan, "envelopes">,
+  plan: AutoMixCandidate,
   outgoing: AutoMixProfile,
   incoming: AutoMixProfile,
-): AutoMixPlan => {
+): AutoMixArrangement => {
   const duration = plan.durationMs;
   const beat = Math.max(outgoing.periodMs! / plan.outgoingRate, incoming.periodMs!);
   const bar = beat * 4;
@@ -32,7 +33,8 @@ export const arrangeAutoMix = (
     { startMs: bassAt - width / 2, endMs: bassAt + width / 2 },
     { startMs: drumAt, endMs: Math.min(duration, drumAt + bar / 2) },
     { startMs: Math.max(0, drumAt - bar), endMs: duration },
-    { startMs: drumAt - width / 2, endMs: drumAt + width / 2 },
+    // 下一曲的鼓提前两小节对拍叠入，交换点不再是一瞬间的硬切
+    { startMs: Math.max(0, drumAt - bar * 2), endMs: drumAt + width / 2 },
     { startMs: bassAt - width / 2, endMs: bassAt + width / 2 },
     {
       startMs: Math.min(duration - 200, drumAt + bar / 2),

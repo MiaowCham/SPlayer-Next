@@ -7,7 +7,6 @@ import { getActiveDeviceId } from "@/core/player";
 import { setDeviceVolume } from "@/services/deviceVolume";
 import { useStatusStore } from "@/stores/status";
 import AutoMixComponents from "@/components/settings/custom/AutoMixComponents.vue";
-import { isAutoMixReady } from "@/services/automix";
 
 const playerCategory: SettingCategory = {
   id: "player",
@@ -166,17 +165,16 @@ const playerCategory: SettingCategory = {
           hideChildren: true,
         },
         {
-          key: "autoMixEnhanced",
-          type: "switch",
-          binding: { store: "settings", path: "player.autoMixEnhanced" },
-          defaultValue: false,
-          visible: () => useSettingsStore().player.transitionMode === "automix",
-          disabled: () => !isAutoMixReady(true),
-        },
-        {
           key: "automixComponents",
           type: "custom",
           component: AutoMixComponents,
+          visible: () => useSettingsStore().player.transitionMode === "automix",
+        },
+        {
+          key: "automixCrossfadeFallback",
+          type: "switch",
+          binding: { store: "settings", path: "player.automixCrossfadeFallback" },
+          defaultValue: true,
           visible: () => useSettingsStore().player.transitionMode === "automix",
         },
       ],

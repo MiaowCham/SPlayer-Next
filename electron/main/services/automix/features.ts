@@ -3,6 +3,28 @@ import type { AutoMixProfile } from "@shared/types/automix";
 import { measureBeatPeriod, pickBeatPeaks } from "./beats";
 
 /**
+ * 测量实际候选片段的有效电平与音级分布，避免残响和空前奏支配决策
+ * @param profile - 有限分析档案
+ * @param startMs - 片段绝对起点
+ * @param endMs - 片段绝对终点
+ * @returns 有效电平与归一化音级能量
+ */
+export const measureMixWindow = (profile: AutoMixProfile, startMs: number, endMs: number) => {
+  const first = Math.max(0, Math.floor((startMs - profile.startMs) / 100));
+  const last = Math.min(profile.levels.length, Math.ceil((endMs - profile.startMs) / 100));
+  const levels = profile.levels.slice(first, last).sort((a, b) => a - b);
+  const level = Math.max(0.001, levels[Math.floor(levels.length * 0.65)] ?? 0);
+  const chroma = Array<number>(12).fill(0);
+  for (let index = first; index < last; index++) {
+    if (profile.levels[index] < level * 0.25) continue;
+    for (let pitch = 0; pitch < 12; pitch++) chroma[pitch] += profile.chroma[index * 12 + pitch];
+  }
+  const norm = Math.hypot(...chroma);
+  if (norm > 0) for (let pitch = 0; pitch < 12; pitch++) chroma[pitch] /= norm;
+  return { level, chroma };
+};
+
+/**
  * 将原生频谱和模型预测转换为有限的音乐档案，不保留模型输入
  * @param features - 原生窗口特征，时间单位为秒
  * @param scores - 交错排列的拍点和重拍预测
@@ -28,6 +50,15 @@ export const createAutoMixProfile = (
     (time) => time + startMs,
   );
   const rawDownbeats = pickBeatPeaks(scores.filter((_, index) => index % 2 === 1));
+  const period = measureBeatPeriod(beats, tail);
+  const grid = beats.filter((beat) => beat >= period.gridStartMs! && beat <= period.gridEndMs!);
+  // 网格内的重拍落到整段拟合直线上，单拍的帧量化和前奏起音偏差不会传给对拍相位
+  const origin =
+    grid.reduce((sum, beat, index) => sum + beat - index * period.periodMs!, 0) / grid.length;
+  const snap = (beat: number): number =>
+    period.periodMs && beat >= period.gridStartMs! - 1 && beat <= period.gridEndMs! + 1
+      ? origin + Math.round((beat - origin) / period.periodMs) * period.periodMs
+      : beat;
   const downbeats = beats.length
     ? [
         ...new Set(
@@ -35,7 +66,7 @@ export const createAutoMixProfile = (
             const nearest = beats.reduce((best, beat) =>
               Math.abs(beat - startMs - time) < Math.abs(best - startMs - time) ? beat : best,
             );
-            return Math.abs(nearest - startMs - time) <= 80 ? [nearest] : [];
+            return Math.abs(nearest - startMs - time) <= 80 ? [snap(nearest)] : [];
           }),
         ),
       ]
@@ -76,8 +107,7 @@ export const createAutoMixProfile = (
     levels,
     chroma,
     boundaries,
-    beats,
     downbeats,
-    ...measureBeatPeriod(beats, tail),
+    ...period,
   };
 };

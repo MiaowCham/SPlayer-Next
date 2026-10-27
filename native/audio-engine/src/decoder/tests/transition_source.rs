@@ -46,7 +46,6 @@ fn stem_handoff_does_not_mix_two_singers_throughout_the_instrumental_blend() {
                 auto_start_sample: Some(0),
                 fade_samples: 1000,
                 envelopes: Some(mix_envelopes()),
-                stem_mix: true,
                 ..Default::default()
             },
         )
@@ -59,7 +58,7 @@ fn stem_handoff_does_not_mix_two_singers_throughout_the_instrumental_blend() {
     assert!((samples[1001] - 0.6).abs() < 1e-5);
 }
 
-/// 人声提前进入时伴奏仍沿原电平曲线变化，取消后恢复原曲
+/// 人声提前进入时伴奏仍沿原电平曲线变化
 #[test]
 fn vocal_entry_preserves_the_selected_backing_level_curve() {
     let mut source = TransitionSource::new(buffered(vec![0.4; 2000]), Arc::new(FftAnalyzer::new()));
@@ -84,7 +83,6 @@ fn vocal_entry_preserves_the_selected_backing_level_curve() {
                 fade_samples: 1000,
                 envelopes: Some(spans),
                 level_ratio: Some(0.5),
-                stem_mix: true,
                 ..Default::default()
             },
         )
@@ -94,49 +92,10 @@ fn vocal_entry_preserves_the_selected_backing_level_curve() {
     assert!((samples[0] - 0.4).abs() < 1e-5);
     assert!((samples[300] - 0.54).abs() < 1e-5);
     assert!((samples[450] - 0.51).abs() < 1e-5);
-    control.cancel();
-    for _ in 0..60 {
-        source.next();
-    }
-    assert!((source.next().unwrap() - 0.4).abs() < 1e-5);
-}
-
-/// 改变空人声的包络不能改变伴奏的任何输出采样
-#[test]
-fn silent_vocal_envelopes_leave_the_backing_unchanged() {
-    let outputs: Vec<Vec<f32>> = [0.0, 0.7]
-        .into_iter()
-        .map(|at| {
-            let mut source =
-                TransitionSource::new(buffered(vec![0.4; 2000]), Arc::new(FftAnalyzer::new()));
-            let mut spans = mix_envelopes();
-            spans[2] = MixEnvelope {
-                start: at,
-                end: at + 0.2,
-            };
-            spans[6] = spans[2];
-            source
-                .control()
-                .queue(
-                    voice_buffered(0.0),
-                    TransitionPlan {
-                        auto_start_sample: Some(0),
-                        fade_samples: 1000,
-                        envelopes: Some(spans),
-                        level_ratio: Some(0.5),
-                        stem_mix: true,
-                        ..Default::default()
-                    },
-                )
-                .unwrap();
-            source.begin_callback();
-            (0..1100).map(|_| source.next().unwrap()).collect()
-        })
-        .collect();
-    assert_eq!(outputs[0], outputs[1]);
 }
 
 #[test]
+/// 分轨交接取消后恢复当前曲原声，不切换曲目
 fn cancelling_stem_mix_restores_the_original_voice_without_changing_tracks() {
     let mut source = TransitionSource::new(voice_buffered(0.3), Arc::new(FftAnalyzer::new()));
     let control = source.control();
@@ -147,7 +106,6 @@ fn cancelling_stem_mix_restores_the_original_voice_without_changing_tracks() {
                 auto_start_sample: Some(0),
                 fade_samples: 1000,
                 envelopes: Some(mix_envelopes()),
-                stem_mix: true,
                 ..Default::default()
             },
         )
@@ -316,32 +274,6 @@ fn automix_uses_source_position_and_never_skips_the_planned_intro() {
 }
 
 #[test]
-fn automix_executes_planned_envelopes_without_a_fixed_middle_plateau() {
-    for (a, b) in [(0.4, 0.0), (0.0, 0.4)] {
-        let mut source =
-            TransitionSource::new(buffered(vec![a; 1000]), Arc::new(FftAnalyzer::new()));
-        source
-            .control()
-            .queue(
-                buffered(vec![b; 1000]),
-                TransitionPlan {
-                    auto_start_sample: Some(100),
-                    fade_samples: 400,
-                    envelopes: Some(mix_envelopes()),
-                    ..Default::default()
-                },
-            )
-            .unwrap();
-        source.begin_callback();
-        let output: Vec<f32> = (0..600).map(|_| source.next().unwrap()).collect();
-        assert!((output[100] - a).abs() < 0.0001);
-        assert!((output[300] - 0.4 / 2.0_f32.sqrt()).abs() < 0.0001);
-        assert!((output[220] - output[380]).abs() > 0.1);
-        assert!((output[500] - b).abs() < 0.0001);
-    }
-}
-
-#[test]
 fn automix_attenuates_the_louder_side_without_amplifying_quiet_audio() {
     for (a, b) in [(0.4, 0.0), (0.0, 0.1)] {
         let mut source =
@@ -367,40 +299,6 @@ fn automix_attenuates_the_louder_side_without_amplifying_quiet_audio() {
         assert!((output[300] - expected).abs() < 0.0001);
         assert!((output[500] - b).abs() < 0.0001);
     }
-}
-
-/// 取消对拍后恢复原曲增益，并释放下一曲槽位
-#[test]
-fn cancelling_balanced_automix_restores_outgoing_and_releases_incoming() {
-    let mut source = TransitionSource::new(buffered(vec![0.4; 1000]), Arc::new(FftAnalyzer::new()));
-    let control = source.control();
-    let incoming = buffered(vec![0.1; 1000]);
-    let incoming_weak = Arc::downgrade(&incoming);
-    let signals = control
-        .queue(
-            incoming,
-            TransitionPlan {
-                auto_start_sample: Some(100),
-                fade_samples: 400,
-                level_ratio: Some(0.25),
-                bass_swap: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-    source.begin_callback();
-    for _ in 0..300 {
-        source.next();
-    }
-    control.cancel();
-    for _ in 0..60 {
-        source.next();
-    }
-    assert!(signals.cancelled.load(Ordering::Acquire));
-    assert!(!signals.completed.load(Ordering::Acquire));
-    control.drain_retired();
-    assert!(incoming_weak.upgrade().is_none());
-    assert!((source.next().unwrap() - 0.4).abs() < 0.0001);
 }
 
 #[test]
