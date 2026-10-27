@@ -83,10 +83,10 @@ impl FftAnalyzer {
         let Some(mut buffer) = self.sample_buffer.try_lock() else {
             return;
         };
-        for pair in interleaved.chunks_exact(2) {
+        for &[left, right] in interleaved.as_chunks::<2>().0 {
             let write_pos = buffer.write_pos;
-            buffer.left[write_pos] = pair[0];
-            buffer.right[write_pos] = pair[1];
+            buffer.left[write_pos] = left;
+            buffer.right[write_pos] = right;
             buffer.write_pos = (write_pos + 1) % MAX_BUFFER_SIZE;
             buffer.len = (buffer.len + 1).min(MAX_BUFFER_SIZE);
         }
