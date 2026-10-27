@@ -186,13 +186,8 @@ fn run() -> Result<Value> {
         .with_name("AutoMix")
         .with_telemetry(false)
         .commit();
-    let candidates = if cfg!(windows) && !request.cpu_only {
-        vec![true, false]
-    } else {
-        vec![false]
-    };
-    let mut selected = None;
-    for gpu in candidates {
+    let mut gpu = cfg!(windows) && !request.cpu_only;
+    let (mut session, backend) = loop {
         let candidate = (|| -> Result<Session> {
             // 分离模型在 CPU 使用两条执行流及时释放张量，节拍模型仍按顺序执行
             let parallel = !gpu && request.kind == "demucs";
@@ -220,15 +215,11 @@ fn run() -> Result<Value> {
             Ok(session)
         })();
         match candidate {
-            Ok(session) => {
-                selected = Some((session, if gpu { "DirectML" } else { "CPU" }));
-                break;
-            }
+            Ok(session) => break (session, if gpu { "DirectML" } else { "CPU" }),
             Err(error) if !gpu => return Err(error),
-            Err(_) => {}
+            Err(_) => gpu = false,
         }
-    }
-    let (mut session, backend) = selected.context("没有可用的推理后端")?;
+    };
     let mut results = Vec::new();
     for window in request.windows {
         let samples = read_samples(&window.input)?;

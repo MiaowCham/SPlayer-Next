@@ -93,7 +93,7 @@ export const installAutoMixComponents = (
       broadcast("automix:componentStatus", snapshot());
       await rm(staging, { recursive: true, force: true });
       await mkdir(staging, { recursive: true });
-      const archive = path.join(staging, asset.file);
+      const archive = path.join(staging, path.basename(asset.url));
       const response = await net.fetch(asset.url, { signal });
       if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
       model.total = Number(response.headers.get("content-length")) || 0;

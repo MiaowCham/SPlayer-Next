@@ -6,11 +6,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { ZipFile } from "yazl";
-import {
-  AUTOMIX_RUNTIME_FILES,
-  AUTOMIX_RUNTIME_VERSION,
-  AUTOMIX_WORKER,
-} from "../electron/main/services/automix/assets";
+import { AUTOMIX_RUNTIME_FILES, AUTOMIX_WORKER } from "../electron/main/services/automix/assets";
 import { extractAutoMixPackage } from "../electron/main/services/automix/runtime";
 
 const version = process.platform === "darwin" && process.arch === "x64" ? "1.23.2" : "1.24.4";
@@ -165,7 +161,7 @@ const main = async (): Promise<void> => {
     })),
   );
   const manifest = {
-    version: AUTOMIX_RUNTIME_VERSION,
+    version: "rust-1",
     platform: process.platform,
     arch: process.arch,
     onnxruntime: version,
@@ -181,7 +177,7 @@ const main = async (): Promise<void> => {
     ),
   );
   await copyFile("LICENSE", path.join(staging, "LICENSE.SPlayer"));
-  const archive = path.join(target, `automix-runtime-${identity}.zip`);
+  const archive = path.join(target, `automix-runtime-v3-${identity}.zip`);
   const zip = new ZipFile();
   const writing = pipeline(zip.outputStream, createWriteStream(archive));
   for (const file of (await readdir(staging)).sort())
@@ -211,7 +207,7 @@ const main = async (): Promise<void> => {
         const models = path.join(verification, kind);
         await mkdir(models);
         await extractAutoMixPackage(
-          path.resolve(process.argv[3], `automix-${kind}-v2.zip`),
+          path.resolve(process.argv[3], `automix-${kind}-v3.zip`),
           models,
           signal,
         );

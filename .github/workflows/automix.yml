@@ -1,19 +1,6 @@
 name: AutoMix components
 
 on:
-  push:
-    branches:
-      - feat/automix
-    paths:
-      - native/automix-worker/**
-      - scripts/export-automix-model.py
-      - scripts/package-automix-runtime.ts
-      - electron/main/services/automix/assets.ts
-      - electron/main/services/automix/runtime.ts
-      - Cargo.toml
-      - Cargo.lock
-      - package.json
-      - pnpm-lock.yaml
   workflow_dispatch:
     inputs:
       release_run_id:
@@ -117,7 +104,6 @@ jobs:
     needs: [models, runtime]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v7
         with:
           pattern: automix-*
