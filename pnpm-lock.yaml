@@ -191,9 +191,9 @@ overrides:
   node-abi: ^4.33.0
 
 patchedDependencies:
-  '@applemusic-like-lyrics/core@0.6.0': 7322d4a9a7f3c0d5f38556ad9169582db6aeb1b5db42614c8947d8a27730393f
+  '@applemusic-like-lyrics/core@0.6.0': b3534c78a5cd2c01d6df81b52a739a343f71366c40f574f9c5baa790eaa9cff8
   lyric-dom@0.2.1: 3ba6187dbcafed1ff637830c384bd479b4e276eeda006a8c8251b2f046d26bf9
-  lyric-kit@0.6.1: ca06c47452df86c381fa00cfcb187a5678a321a9bdcb85b09c3818ce11f1440a
+  lyric-kit@0.6.1: 2a3c5ad2a63d385b2d2a57f117b836608ab7e16d237e4420033e57eb88766122
 
 importers:
 
@@ -234,7 +234,7 @@ importers:
         version: 4.13.13
       lyric-kit:
         specifier: ^0.6.1
-        version: 0.6.1(patch_hash=ca06c47452df86c381fa00cfcb187a5678a321a9bdcb85b09c3818ce11f1440a)
+        version: 0.6.1(patch_hash=2a3c5ad2a63d385b2d2a57f117b836608ab7e16d237e4420033e57eb88766122)
       undici:
         specifier: ^8.12.3
         version: 8.12.3
@@ -247,7 +247,7 @@ importers:
     devDependencies:
       '@applemusic-like-lyrics/core':
         specifier: ^0.6.0
-        version: 0.6.0(patch_hash=7322d4a9a7f3c0d5f38556ad9169582db6aeb1b5db42614c8947d8a27730393f)(@pixi/app@7.4.3(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3)))(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3))(@pixi/filter-blur@7.4.3(@pixi/core@7.4.3))(@pixi/filter-bulge-pinch@5.1.1(@pixi/core@7.4.3))(@pixi/filter-color-matrix@7.4.3(@pixi/core@7.4.3))(@pixi/sprite@7.4.3(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3)))(@types/node@24.19.2)(happy-dom@21.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.100.0)(sass@1.100.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 0.6.0(patch_hash=b3534c78a5cd2c01d6df81b52a739a343f71366c40f574f9c5baa790eaa9cff8)(@pixi/app@7.4.3(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3)))(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3))(@pixi/filter-blur@7.4.3(@pixi/core@7.4.3))(@pixi/filter-bulge-pinch@5.1.1(@pixi/core@7.4.3))(@pixi/filter-color-matrix@7.4.3(@pixi/core@7.4.3))(@pixi/sprite@7.4.3(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3)))(@types/node@24.19.2)(happy-dom@21.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.100.0)(sass@1.100.0)(tsx@4.23.15)(yaml@2.9.1))
       '@electron-toolkit/eslint-config-ts':
         specifier: ^3.1.0
         version: 3.1.0(eslint@10.13.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3)
@@ -5709,7 +5709,7 @@ snapshots:
       package-manager-detector: 1.9.0
       tinyexec: 1.3.1
 
-  '@applemusic-like-lyrics/core@0.6.0(patch_hash=7322d4a9a7f3c0d5f38556ad9169582db6aeb1b5db42614c8947d8a27730393f)(@pixi/app@7.4.3(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3)))(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3))(@pixi/filter-blur@7.4.3(@pixi/core@7.4.3))(@pixi/filter-bulge-pinch@5.1.1(@pixi/core@7.4.3))(@pixi/filter-color-matrix@7.4.3(@pixi/core@7.4.3))(@pixi/sprite@7.4.3(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3)))(@types/node@24.19.2)(happy-dom@21.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.100.0)(sass@1.100.0)(tsx@4.23.15)(yaml@2.9.1))':
+  '@applemusic-like-lyrics/core@0.6.0(patch_hash=b3534c78a5cd2c01d6df81b52a739a343f71366c40f574f9c5baa790eaa9cff8)(@pixi/app@7.4.3(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3)))(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3))(@pixi/filter-blur@7.4.3(@pixi/core@7.4.3))(@pixi/filter-bulge-pinch@5.1.1(@pixi/core@7.4.3))(@pixi/filter-color-matrix@7.4.3(@pixi/core@7.4.3))(@pixi/sprite@7.4.3(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3)))(@types/node@24.19.2)(happy-dom@21.0.3)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(sass-embedded@1.100.0)(sass@1.100.0)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@pixi/app': 7.4.3(@pixi/core@7.4.3)(@pixi/display@7.4.3(@pixi/core@7.4.3))
       '@pixi/core': 7.4.3
@@ -9171,7 +9171,7 @@ snapshots:
 
   lyric-dom@0.2.1(patch_hash=3ba6187dbcafed1ff637830c384bd479b4e276eeda006a8c8251b2f046d26bf9): {}
 
-  lyric-kit@0.6.1(patch_hash=ca06c47452df86c381fa00cfcb187a5678a321a9bdcb85b09c3818ce11f1440a): {}
+  lyric-kit@0.6.1(patch_hash=2a3c5ad2a63d385b2d2a57f117b836608ab7e16d237e4420033e57eb88766122): {}
 
   magic-string-ast@1.0.2:
     dependencies:

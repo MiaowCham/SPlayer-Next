@@ -1,4 +1,13 @@
-import { parseLRC, parseQRC, parseYRC, parseKRC, parseLyS, parseSRT, parseASS } from "lyric-kit";
+import {
+  alignRomanization,
+  parseLRC,
+  parseQRC,
+  parseYRC,
+  parseKRC,
+  parseLyS,
+  parseSRT,
+  parseASS,
+} from "lyric-kit";
 import type { LyricFormat, LyricInput, LyricLine } from "@shared/types/lyrics";
 import { DEFAULT_LYRIC_FORMAT_ORDER } from "@shared/types/lyrics";
 import { parseTTML } from "./parseTTML";
@@ -121,10 +130,11 @@ const parseContent = (
 
 /**
  * 解析歌词
- * @param input 主 + 可选翻译 / 音译
- * @param format 主歌词格式
- * @param preferredLang 偏好翻译语言标签
- * @param options 解析选项
+ * @param input - 主歌词及可选翻译、发音
+ * @param format - 主歌词格式
+ * @param preferredLang - 偏好翻译语言标签
+ * @param options - 解析选项
+ * @returns 带展示标记和发音的歌词行
  */
 export const parseLyric = (
   input: LyricInput,
@@ -176,7 +186,7 @@ export const parseLyric = (
         format === "lrcn" && romajiFormat === "lrc"
           ? parseLRCN(normalizeHan(romaji), options.platform).lines
           : parseContent(normalizeHan(romaji), romajiFormat, "", options);
-      pairTranslation(lines, romajiLines, "romanLyric");
+      pairTranslation(lines, romajiLines, "romanLyric", romajiFormat !== "lrc");
     }
   }
   const wordRomaji = externalWordRomaji ?? embedded?.wordRomaji;
@@ -387,28 +397,38 @@ const isMeaningfulTrans = (text: string): boolean =>
 
 /**
  * 将翻译/音译歌词按时间戳对齐到主歌词行
- * @param lines 主歌词行数组（会被原地修改）
- * @param transLines 已解析的翻译/音译歌词行
- * @param field 写入目标字段："translatedLyric" 或 "romanLyric"
+ * @param lines - 主歌词行数组（会被原地修改）
+ * @param transLines - 已解析的翻译/音译歌词行
+ * @param field - 写入目标字段："translatedLyric" 或 "romanLyric"
+ * @param wordRomanization - 是否按音节时间写入逐字发音
  */
 export const pairTranslation = (
   lines: LyricLine[],
   transLines: LyricLine[],
   field: "translatedLyric" | "romanLyric",
+  wordRomanization = false,
 ): void => {
   pairTranslationByType(
     lines.filter((line) => !line.isBG),
     transLines.filter((line) => !line.isBG),
     field,
+    wordRomanization,
   );
-  pairBackgroundTranslation(lines, transLines, field);
+  pairBackgroundTranslation(lines, transLines, field, wordRomanization);
 };
 
-/** 背景行的时间戳可能来自所属主行，按主行时间而不是背景行自身时间配对。 */
+/**
+ * 按所属主行的时间配对背景翻译与发音
+ * @param lines - 原始歌词行
+ * @param transLines - 辅助歌词行
+ * @param field - 写入的副行字段
+ * @param wordRomanization - 是否同步逐字发音
+ */
 const pairBackgroundTranslation = (
   lines: LyricLine[],
   transLines: LyricLine[],
   field: "translatedLyric" | "romanLyric",
+  wordRomanization: boolean,
 ): void => {
   const targets = lines.map((line, index) => ({ line, index })).filter(({ line }) => line.isBG);
   const trans = transLines.map((line, index) => ({ line, index })).filter(({ line }) => line.isBG);
@@ -438,16 +458,28 @@ const pairBackgroundTranslation = (
     const candidate = trans.find((item) => item.index === match);
     if (!candidate) continue;
     const text = lineText(candidate.line);
-    if (isMeaningfulTrans(text)) target.line[field] = text;
+    if (isMeaningfulTrans(text)) {
+      target.line[field] = text;
+      if (field === "romanLyric" && wordRomanization) {
+        alignRomanization(target.line.words, candidate.line.words);
+      }
+    }
     used.add(match);
   }
 };
 
-/** 主行按时间戳对齐；背景行遵循 LRCN 的出现顺序。 */
+/**
+ * 按主行时间戳配对翻译和发音
+ * @param lines - 原始主行
+ * @param transLines - 辅助主行
+ * @param field - 写入的副行字段
+ * @param wordRomanization - 是否同步逐字发音
+ */
 const pairTranslationByType = (
   lines: LyricLine[],
   transLines: LyricLine[],
   field: "translatedLyric" | "romanLyric",
+  wordRomanization: boolean,
 ): void => {
   const targets = [...lines].sort((a, b) => a.startTime - b.startTime);
   const trans = [...transLines].sort((a, b) => a.startTime - b.startTime);
@@ -464,7 +496,12 @@ const pairTranslationByType = (
     const diff = targets[i].startTime - trans[j].startTime;
     if (Math.abs(diff) <= ALIGN_TOLERANCE_MS) {
       const text = lineText(trans[j]);
-      if (isMeaningfulTrans(text)) targets[i][field] = text;
+      if (isMeaningfulTrans(text)) {
+        targets[i][field] = text;
+        if (field === "romanLyric" && wordRomanization) {
+          alignRomanization(targets[i].words, trans[j].words);
+        }
+      }
       i++;
       j++;
     } else if (diff < 0) {

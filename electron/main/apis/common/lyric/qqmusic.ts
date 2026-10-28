@@ -8,6 +8,7 @@
  * 返回只带原生格式文本（qrc / lrc + 翻译 / 罗马音），不做解析，交给渲染端。
  */
 
+import { detectFormat } from "lyric-kit";
 import { callQQMusic } from "@main/apis/qqmusic";
 import { getCachedLyric, setCachedLyric } from "@main/database/lyricCache";
 import { buildFingerprint, getMatchedId, setMatchedId } from "@main/database/lyricMatchCache";
@@ -31,8 +32,9 @@ const pickFormatted = (
 
 /**
  * 按 QQMusic 数字 songID 直取歌词
- * @param id  数字 songID
- * @param mid 字符串 mid（用于 AMLL TTML DB 等外部映射）
+ * @param id - 数字 songID
+ * @param mid - 字符串 mid（用于 AMLL TTML DB 等外部映射）
+ * @returns 歌词及各自的实际格式，未命中时返回 null
  */
 export const getByPlatformId = async (
   id: string,
@@ -43,7 +45,10 @@ export const getByPlatformId = async (
   prefetchTTML("qqmusic", mid ? [mid, id] : [id]);
 
   const cached = getCachedLyric("qqmusic", id);
-  if (cached) return cached;
+  if (cached) {
+    if (cached.romaji) cached.romajiFormat = detectFormat(cached.romaji);
+    return cached;
+  }
   try {
     const body = await callQQMusic("lyric", { id });
     if (body.code !== 200) {
@@ -55,7 +60,9 @@ export const getByPlatformId = async (
 
     const main = pickFormatted(body.qrc, body.lrc);
     if (!main) {
-      coreLog.info(`[lyric:qqmusic] getByPlatformId(${id}) 无主歌词: qrc=${!!body.qrc}, lrc=${!!body.lrc}`);
+      coreLog.info(
+        `[lyric:qqmusic] getByPlatformId(${id}) 无主歌词: qrc=${!!body.qrc}, lrc=${!!body.lrc}`,
+      );
       return null;
     }
 
@@ -69,7 +76,7 @@ export const getByPlatformId = async (
       translation: trans || undefined,
       translationFormat: trans ? "lrc" : undefined,
       romaji: roma || undefined,
-      romajiFormat: roma ? main.format : undefined,
+      romajiFormat: roma ? detectFormat(roma) : undefined,
       extra: mid ? { mid, id } : id ? { id } : undefined,
     };
     setCachedLyric("qqmusic", id, result);

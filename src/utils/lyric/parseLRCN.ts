@@ -1,6 +1,7 @@
 import type { LyricLine, LyricWord } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
 import { MAX_TIME, parseTime } from "./timestamp";
+import { createDuetResolver } from "./duet";
 
 interface ParsedLine {
   line: LyricLine;
@@ -140,28 +141,12 @@ const parseAgentTypes = (text: string): Map<string, string> => {
   return types;
 };
 
-/** 根据 Agent ID 计算对唱方向，特殊 Agent 不参与后续比较。 */
-const createDuetResolver = (agentTypes: Map<string, string>) => {
-  let previousAgentId: string | undefined;
-  let previousIsDuet: boolean | undefined;
-  return (agentId?: string): boolean => {
-    const agentType = agentId ? agentTypes.get(agentId) : undefined;
-    if (agentType === "group") return false;
-    if (agentType === "other") return true;
-    if (previousIsDuet === undefined) {
-      const isDuet = agentId === "v2";
-      previousAgentId = agentId;
-      previousIsDuet = isDuet;
-      return isDuet;
-    }
-    const isDuet = agentId === previousAgentId ? previousIsDuet : !previousIsDuet;
-    previousAgentId = agentId;
-    previousIsDuet = isDuet;
-    return isDuet;
-  };
-};
-
-/** 解析 LRCN 主歌词，行 ID 仅供同模块的 LNT 配对使用。 */
+/**
+ * 解析 LRCN 主歌词，保留行 ID 供 LNT 配对
+ * @param text - LRCN 原文
+ * @param platform - 平台专用偏移的匹配目标
+ * @returns 歌词行、行 ID 索引与有效偏移
+ */
 export const parseLRCN = (text: string, platform?: Platform): ParsedLRCN => {
   const offset = resolveOffset(text, platform);
   const resolveDuet = createDuetResolver(parseAgentTypes(text));

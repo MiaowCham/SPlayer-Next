@@ -1,3 +1,33 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 47d1028343be36537d48e02f450ce3eba4aa2576..6830735f38f64e20461571b40940c71d34ebdb2e 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -1452,6 +1452,7 @@ const alignRomanization = (mainWords, romanWords) => {
+ 	let romanSearchStartIndex = 0;
+ 	for (let mainIndex = 0; mainIndex < mainWords.length; mainIndex++) {
+ 		const main = mainWords[mainIndex];
++		if (!main.word.trim()) continue;
+ 		const mainStartTime = main.startTime;
+ 		const mainEndTime = main.endTime;
+ 		const syllables = [];
+@@ -1460,12 +1461,16 @@ const alignRomanization = (mainWords, romanWords) => {
+ 		let maxOverlapDuration = 0;
+ 		while (romanIndex < romanWords.length) {
+ 			const sub = romanWords[romanIndex];
++			if (!sub.word.trim()) {
++				romanSearchStartIndex = ++romanIndex;
++				continue;
++			}
+ 			if (sub.endTime <= mainStartTime - BOUNDARY_TOLERANCE_MS) {
+ 				romanSearchStartIndex = romanIndex + 1;
+ 				romanIndex++;
+ 				continue;
+ 			}
+-			if (syllables.length > 0 && sub.startTime >= mainEndTime - BOUNDARY_TOLERANCE_MS) break;
++			if (sub.startTime >= mainEndTime - BOUNDARY_TOLERANCE_MS && sub.startTime > mainStartTime + BOUNDARY_TOLERANCE_MS) break;
+ 			if (sub.startTime >= mainEndTime) break;
+ 			const overlapStart = Math.max(mainStartTime, sub.startTime);
+ 			const overlapEnd = Math.min(mainEndTime, sub.endTime);
 diff --git a/dist/index.d.cts b/dist/index.d.cts
 index cc899cd833a771e357928d35526c452af113f444..3b693876abf4205f2728969b0eeb651d5648d528 100644
 --- a/dist/index.d.cts
@@ -24,3 +54,33 @@ index f46f278e945b7f56bc9b8499a8d12faa83fa2269..fb6ea73a9be891cd0e25eb484971ffa4
  /** 歌词时间片段 */
  interface LyricSpan {
    /** 起始时间（毫秒） */
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 988d3d4eb4a9de593df7e186dec0dff4d67fea98..0522fe68e8b9630c7f91711330b525be3e3ad3ae 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1451,6 +1451,7 @@ const alignRomanization = (mainWords, romanWords) => {
+ 	let romanSearchStartIndex = 0;
+ 	for (let mainIndex = 0; mainIndex < mainWords.length; mainIndex++) {
+ 		const main = mainWords[mainIndex];
++		if (!main.word.trim()) continue;
+ 		const mainStartTime = main.startTime;
+ 		const mainEndTime = main.endTime;
+ 		const syllables = [];
+@@ -1459,12 +1460,16 @@ const alignRomanization = (mainWords, romanWords) => {
+ 		let maxOverlapDuration = 0;
+ 		while (romanIndex < romanWords.length) {
+ 			const sub = romanWords[romanIndex];
++			if (!sub.word.trim()) {
++				romanSearchStartIndex = ++romanIndex;
++				continue;
++			}
+ 			if (sub.endTime <= mainStartTime - BOUNDARY_TOLERANCE_MS) {
+ 				romanSearchStartIndex = romanIndex + 1;
+ 				romanIndex++;
+ 				continue;
+ 			}
+-			if (syllables.length > 0 && sub.startTime >= mainEndTime - BOUNDARY_TOLERANCE_MS) break;
++			if (sub.startTime >= mainEndTime - BOUNDARY_TOLERANCE_MS && sub.startTime > mainStartTime + BOUNDARY_TOLERANCE_MS) break;
+ 			if (sub.startTime >= mainEndTime) break;
+ 			const overlapStart = Math.max(mainStartTime, sub.startTime);
+ 			const overlapEnd = Math.min(mainEndTime, sub.endTime);

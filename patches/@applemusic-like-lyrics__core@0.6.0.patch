@@ -1,5 +1,5 @@
 diff --git a/dist/amll-core.cjs b/dist/amll-core.cjs
-index fbd090aa45196ed1ba08ac4be703e227fae547f2..2fe51945657fd772fd819259089e5c2c43391f9e 100644
+index fbd090aa45196ed1ba08ac4be703e227fae547f2..7c11da26f4624e6b9a9f2cd9949125a76752672a 100644
 --- a/dist/amll-core.cjs
 +++ b/dist/amll-core.cjs
 @@ -39,7 +39,7 @@ let _pixi_filter_bulge_pinch = require("@pixi/filter-bulge-pinch");
@@ -47,6 +47,21 @@ index fbd090aa45196ed1ba08ac4be703e227fae547f2..2fe51945657fd772fd819259089e5c2c
  		}
  		const visual = this.visualFrame;
  		visual.latestIndex = snapshot.latestHighlightedIndex ?? snapshot.scrollToIndex;
+@@ -5365,11 +5376,11 @@ var LyricPlayerBase = class extends EventTarget {
+ 	}
+ 	/**
+ 	* 推导某一行是否处于激活状态
+-	* @param index 歌词行索引
+-	* @param snapshot 当前帧的时间线快照
++	* @param index - 歌词行索引
++	* @param snapshot - 当前帧的时间线快照
+ 	*/
+ 	resolveIsActive(index, snapshot) {
+-		return snapshot.highlightedGroups.has(index) || index >= snapshot.scrollToIndex && index < this.visualFrame.latestIndex;
++		return snapshot.highlightedGroups.has(index);
+ 	}
+ 	/**
+ 	* 推导一行的目标透明度
 @@ -6778,7 +6789,7 @@ const WHITESPACE_RE = /\s/g;
  * @param words 输入的单词数组
  * @returns 重新分组后的单词数组
@@ -218,7 +233,7 @@ index ae6a1fe5bef2a9c19e79f880cf264cfbb52d36ee..743b51c79034df5b57561c3304a8c4e2
    /**
     * 全部歌词行中最晚的结束时间，用于判定歌曲是否播放完毕
 diff --git a/dist/amll-core.mjs b/dist/amll-core.mjs
-index b38e570ef34f599d6bbd2e3bdd5191bcc51d5f34..b532457520bb740244ec0483d52b848e7c26d7c2 100644
+index b38e570ef34f599d6bbd2e3bdd5191bcc51d5f34..4d863a26acc997f32832dbb9fdfed2fb8b20b4f3 100644
 --- a/dist/amll-core.mjs
 +++ b/dist/amll-core.mjs
 @@ -3270,7 +3270,10 @@ const DEFAULT_OPTIMIZE_OPTIONS = {
@@ -257,6 +272,21 @@ index b38e570ef34f599d6bbd2e3bdd5191bcc51d5f34..b532457520bb740244ec0483d52b848e
  		}
  		const visual = this.visualFrame;
  		visual.latestIndex = snapshot.latestHighlightedIndex ?? snapshot.scrollToIndex;
+@@ -5332,11 +5343,11 @@ var LyricPlayerBase = class extends EventTarget {
+ 	}
+ 	/**
+ 	* 推导某一行是否处于激活状态
+-	* @param index 歌词行索引
+-	* @param snapshot 当前帧的时间线快照
++	* @param index - 歌词行索引
++	* @param snapshot - 当前帧的时间线快照
+ 	*/
+ 	resolveIsActive(index, snapshot) {
+-		return snapshot.highlightedGroups.has(index) || index >= snapshot.scrollToIndex && index < this.visualFrame.latestIndex;
++		return snapshot.highlightedGroups.has(index);
+ 	}
+ 	/**
+ 	* 推导一行的目标透明度
 @@ -6745,7 +6756,7 @@ const WHITESPACE_RE = /\s/g;
  * @param words 输入的单词数组
  * @returns 重新分组后的单词数组

@@ -13,6 +13,7 @@
 
 import type { LyricLanguage, LyricLine, LyricWord } from "@shared/types/lyrics";
 import { parseTTMLTime } from "./timestamp";
+import { createDuetResolver } from "./duet";
 import { pickTranslationIndex } from "./translationLanguage";
 import { normalizeTtml } from "@shared/utils/ttml";
 
@@ -70,22 +71,20 @@ const getWordText = (el: Element): string => {
 };
 
 /**
- * 收集所有演唱者 agent：建立 id→type 映射，并取第一个 type="person" 的 agent 作为主唱
- * @param doc XML 文档
- * @returns 主唱 agent id 与 id→type 映射
+ * 收集演唱声部的 ID 与类型，供统一对唱规则识别特殊声部
+ * @param doc - TTML 文档
+ * @returns 声部 ID 与类型的映射
  */
-const collectAgents = (doc: Document): { mainAgent: string; agentTypes: Map<string, string> } => {
+const collectAgentTypes = (doc: Document): Map<string, string> => {
   const agentTypes = new Map<string, string>();
-  let mainAgent = "";
   for (const el of Array.from(doc.querySelectorAll("*"))) {
     if (el.localName !== "agent") continue;
     const id = el.getAttribute("xml:id") || getAttr(el, "id");
     if (!id) continue;
-    const type = el.getAttribute("type") || "";
+    const type = (el.getAttribute("type") || "").trim().toLowerCase();
     agentTypes.set(id, type);
-    if (!mainAgent && type === "person") mainAgent = id;
   }
-  return { mainAgent: mainAgent || "v1", agentTypes };
+  return agentTypes;
 };
 
 /**
@@ -454,8 +453,9 @@ const alignRomanWords = (words: LyricWord[], romanWords: RomanWord[]): void => {
 
 /**
  * 解析 TTML 歌词文本
- * @param text TTML XML 文本内容
- * @param preferredLang 偏好翻译语言标签
+ * @param text - TTML XML 文本内容
+ * @param preferredLang - 偏好翻译语言标签
+ * @param fallbackTranslation - 是否允许回退到其他翻译语言
  * @returns 解析后的歌词行数组
  * @throws 当 XML 解析失败时抛出错误
  */
@@ -469,7 +469,7 @@ export const parseTTML = (
     throw new Error("Invalid TTML XML");
   }
 
-  const { mainAgent, agentTypes } = collectAgents(doc);
+  const resolveDuet = createDuetResolver(collectAgentTypes(doc));
   const backgroundLayouts = collectBackgroundLayouts(doc);
   const translations = collectTranslations(
     doc,
@@ -481,7 +481,11 @@ export const parseTTML = (
   const lines: LyricLine[] = [];
 
   /**
-   * 递归解析段落元素（支持嵌套背景行）
+   * 递归解析段落元素及其背景行
+   * @param el - 当前段落元素
+   * @param isBG - 是否为背景行
+   * @param isDuet - 所属主行的对唱方向
+   * @param parentKey - 所属主行的翻译与发音索引
    */
   const parseParagraph = (
     el: Element,
@@ -491,17 +495,15 @@ export const parseTTML = (
   ): void => {
     const begin = getAttr(el, "begin");
     const end = getAttr(el, "end");
-    const lineAgent = getAttr(el, "agent");
+    const lineAgent = getAttr(el, "agent")?.trim() || undefined;
 
     const line: LyricLine = {
       words: [],
       translatedLyric: "",
       romanLyric: "",
       isBG,
-      // 合唱（type="group"）行居中、不算对唱，仅非主唱的个人 agent 才右对齐
-      isDuet: isBG
-        ? isDuet
-        : !!lineAgent && lineAgent !== mainAgent && agentTypes.get(lineAgent) !== "group",
+      // 背景行不消耗普通声部的方向状态
+      isDuet: isBG ? isDuet : resolveDuet(lineAgent),
       startTime: begin ? parseTTMLTime(begin) : 0,
       endTime: end ? parseTTMLTime(end) : 0,
       language: getInheritedLanguage(el),

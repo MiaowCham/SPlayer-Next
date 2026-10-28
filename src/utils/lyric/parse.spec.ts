@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createRequire } from "node:module";
+import { alignRomanization } from "lyric-kit";
 import { bestExternalIndex, detectFormat, parseLyric } from "./parse";
 import { promoteDefaultPronunciation } from "@/components/player/Lyrics/romanization";
 
@@ -516,4 +518,202 @@ describe("lyric parse", () => {
     expect(line.translatedLyric).toBe("你好");
     expect(line.romanLyric).toBe("ni hao");
   });
+});
+
+describe("QQ 逐字发音", () => {
+  it("按音节时间合并同一正文词的多个发音，保留正文时间与 ruby", () => {
+    const [line] = parseLyric(
+      {
+        content:
+          '<QrcInfos><LyricInfo><Lyric_1 LyricContent="[kana:1のこ]\n[1004,352]残(1004,352)"/></LyricInfo></QrcInfos>',
+        romaji:
+          '<QrcInfos><LyricInfo><Lyric_1 LyricContent="[1003,352]no (1003,128)ko (1131,223)"/></LyricInfo></QrcInfos>',
+        romajiFormat: "qrc",
+      },
+      "qrc",
+    );
+    expect(line.words).toMatchObject([
+      { word: "残", startTime: 1004, endTime: 1356, romanWord: "noko" },
+    ]);
+    expect(line.words[0].ruby?.map((word) => word.word).join("")).toBe("のこ");
+    expect(line.romanLyric).toBe("no ko");
+  });
+
+  it("逐字正文与逐行发音混用时只显示副行", () => {
+    const [line] = parseLyric(
+      {
+        content: "[1000,1000]你(1000,500)好(1500,500)",
+        romaji: "[00:01.00]ni hao",
+        romajiFormat: "lrc",
+      },
+      "qrc",
+    );
+    expect(line.romanLyric).toBe("ni hao");
+    expect(line.words.every((word) => word.romanWord === undefined)).toBe(true);
+  });
+
+  it("独立配对背景发音，不将下一行发音填入时间空隙", () => {
+    const lines = parseLyric(
+      {
+        content:
+          "[1000,1000]你(1000,500)好(1500,500)\n[1000,1000]（和(1000,500)声）(1500,500)\n[4000,1000]再(4000,500)见(4500,500)",
+        romaji:
+          "[1000,1000]ni (1000,499)hao (1499,500)\n[1000,1000]（he (1000,499)sheng）(1499,500)\n[4000,1000]zai (4000,499)jian (4499,500)",
+        romajiFormat: "qrc",
+      },
+      "qrc",
+    );
+    expect(lines.map((line) => line.words.map((word) => word.romanWord))).toEqual([
+      ["ni", "hao"],
+      ["he", "sheng"],
+      ["zai", "jian"],
+    ]);
+    expect(lines.map((line) => line.isBG)).toEqual([false, true, false]);
+  });
+});
+
+describe("TTML 与 LRCN 的统一对唱规则", () => {
+  it.each([
+    {
+      name: "多声部依次翻转",
+      agents: ["v1", "v2", "v3", "v1"],
+      expected: [false, true, false, true],
+    },
+    { name: "首条 v2 从右侧开始", agents: ["v2", "v2", "v1"], expected: [true, true, false] },
+    {
+      name: "自定义 ID 只按出现顺序判断",
+      agents: ["alice", "bob", "alice"],
+      expected: [false, true, false],
+    },
+    {
+      name: "缺省 Agent 参与比较",
+      agents: ["v1", undefined, undefined, "v1"],
+      expected: [false, true, true, false],
+    },
+    { name: "group 不建立普通声部状态", agents: ["g", "v1", "v2"], expected: [false, false, true] },
+    { name: "other 不建立普通声部状态", agents: ["o", "v1", "v2"], expected: [true, false, true] },
+    {
+      name: "特殊声部不影响下一次比较",
+      agents: ["v1", "v2", "g", "v2", "o", "v1"],
+      expected: [false, true, false, true, true, false],
+    },
+    {
+      name: "未以 v1 或 v2 开头时仍从左侧开始",
+      agents: ["v3", "v1", "v3"],
+      expected: [false, true, false],
+    },
+  ])("$name", ({ agents, expected }) => {
+    const ttml =
+      '<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><head><metadata><ttm:agent xml:id="v3" type="person"/><ttm:agent xml:id="v2" type="person"/><ttm:agent xml:id="v1" type="person"/><ttm:agent xml:id="g" type="group"/><ttm:agent xml:id="o" type="other"/></metadata></head><body><div>' +
+      agents
+        .map(
+          (agent, index) =>
+            '<p begin="' +
+            index +
+            's" end="' +
+            (index + 1) +
+            's"' +
+            (agent ? ' ttm:agent="' + agent + '"' : "") +
+            ">演唱</p>",
+        )
+        .join("") +
+      "</div></body></tt>";
+    const lrcn =
+      "[Lyrics Next]\n[agent:person@v3]\n[agent:person@v2]\n[agent:person@v1]\n[agent:group@g]\n[agent:other@o]\n" +
+      agents
+        .map((agent, index) => "[" + index + "," + (index + 1) + "," + (agent ?? "") + "]演唱")
+        .join("\n");
+    expect(parseLyric({ content: ttml }, "ttml").map((line) => line.isDuet)).toEqual(expected);
+    expect(parseLyric({ content: lrcn }, "lrcn").map((line) => line.isDuet)).toEqual(expected);
+  });
+
+  it("背景行继承主行且不更新声部比较状态", () => {
+    const ttml =
+      '<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="0s" end="1s" agent="v1">甲<span role="x-bg" agent="v2" begin="0s" end="1s">和</span></p><p begin="1s" end="2s" agent="v2">乙<span role="x-bg" agent="v1" begin="1s" end="2s">声</span></p><p begin="2s" end="3s" agent="v2">丙</p></div></body></tt>';
+    const lrcn = "[Lyrics Next]\n[0,1,v1]甲\n[x-bg]<0,1>和\n[1,2,v2]乙\n[x-bg]<1,2>声\n[2,3,v2]丙";
+    expect(parseLyric({ content: ttml }, "ttml").map((line) => line.isDuet)).toEqual([
+      false,
+      false,
+      true,
+      true,
+      true,
+    ]);
+    expect(parseLyric({ content: lrcn }, "lrcn").map((line) => line.isDuet)).toEqual([
+      false,
+      false,
+      true,
+      true,
+      true,
+    ]);
+  });
+
+  it("每首歌词的声部状态独立", () => {
+    const first =
+      '<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="0s" end="1s" agent="v1">甲</p><p begin="1s" end="2s" agent="v3">乙</p></div></body></tt>';
+    const second =
+      '<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="0s" end="1s" agent="v3">丙</p></div></body></tt>';
+    expect(parseLyric({ content: first }, "ttml").map((line) => line.isDuet)).toEqual([
+      false,
+      true,
+    ]);
+    expect(parseLyric({ content: second }, "ttml")[0].isDuet).toBe(false);
+    expect(parseLyric({ content: first }, "ttml").map((line) => line.isDuet)).toEqual([
+      false,
+      true,
+    ]);
+  });
+});
+
+describe("QQ 发音边界", () => {
+  it("零时长空白不占用下一字的音节", () => {
+    const [line] = parseLyric(
+      {
+        content: "[57585,722] (57585,0)ほ(57585,176)ら(57761,546)",
+        romaji: "[57584,723]  (57584,0)ho (57584,176)ra (57761,546)",
+        romajiFormat: "qrc",
+      },
+      "qrc",
+    );
+    expect(line.words.map((word) => word.romanWord)).toEqual([undefined, "ho", "ra"]);
+  });
+
+  it("缺少独立发音的小假名不抢占结束边界上下一字的发音", () => {
+    const [line] = parseLyric(
+      {
+        content: "[101936,480]り(101936,84)ゃ(102020,84)い(102104,156)い(102260,156)",
+        romaji: "[101935,480]rya (101935,83)i (102103,156)i (102259,156)",
+        romajiFormat: "qrc",
+      },
+      "qrc",
+    );
+    expect(line.words.map((word) => word.romanWord)).toEqual(["rya", undefined, "i", "i"]);
+  });
+});
+
+it.each(["ESM", "CommonJS"])("%s 发音入口都跳过空白和末尾 1ms 交叠", (entry) => {
+  const align =
+    entry === "ESM"
+      ? alignRomanization
+      : (createRequire(import.meta.url)("lyric-kit") as typeof import("lyric-kit"))
+          .alignRomanization;
+  const words = [
+    { word: " ", startTime: 101936, endTime: 101936 },
+    { word: "り", startTime: 101936, endTime: 102020 },
+    { word: "ゃ", startTime: 102020, endTime: 102104 },
+    { word: "い", startTime: 102104, endTime: 102260 },
+    { word: "い", startTime: 102260, endTime: 102416 },
+  ];
+  align(words, [
+    { word: " ", startTime: 101935, endTime: 101935 },
+    { word: "rya ", startTime: 101935, endTime: 102018 },
+    { word: "i ", startTime: 102103, endTime: 102259 },
+    { word: "i ", startTime: 102259, endTime: 102415 },
+  ]);
+  expect(words.map((word) => (word as { romanWord?: string }).romanWord)).toEqual([
+    undefined,
+    "rya",
+    undefined,
+    "i",
+    "i",
+  ]);
 });

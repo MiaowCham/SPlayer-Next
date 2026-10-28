@@ -8,6 +8,7 @@ import AMLLLyrics from "./AMLLLyrics.vue";
 import { promotePronunciation } from "./romanization";
 import { SPlayerLyricPlayer } from "./amll-player";
 import { getOverlapAlignPosition } from "@/utils/lyric/overlapAlign";
+import { parseLyric } from "@/utils/lyric/parse";
 
 vi.mock("@/stores/settings", () => ({
   useSettingsStore: () => ({
@@ -493,5 +494,133 @@ describe("AMLL 效果设置 hook", () => {
     player.currentLyricGroups[0].mainLine.show();
     expect(animations.some(({ options }) => options.id?.startsWith("fade-word"))).toBe(true);
     expect(animations.some(({ options }) => options.id?.startsWith("emphasize"))).toBe(false);
+  });
+});
+
+describe.each(["ESM", "CommonJS"] as const)("%s 的 AMLL 高亮", (entry) => {
+  it.each(["ttml", "lrcn", "qrc"] as const)(
+    "%s 解析后不会点亮两条重叠主行之间已经结束的行",
+    (format) => {
+      const Player =
+        entry === "ESM"
+          ? LyricPlayer
+          : (
+              createRequire(import.meta.url)(
+                "@applemusic-like-lyrics/core",
+              ) as typeof import("@applemusic-like-lyrics/core")
+            ).LyricPlayer;
+      player = new Player();
+      player.setOptimizeOptions({
+        normalizeSpaces: false,
+        resetLineTimestamps: false,
+        cleanUnintentionalOverlaps: false,
+        tryAdvanceStartTime: false,
+      });
+      const ranges = [
+        [0, 15000],
+        [1000, 2000],
+        [3000, 4000],
+        [6000, 8000],
+      ];
+      const contents = {
+        ttml:
+          '<tt xmlns="http://www.w3.org/ns/ttml"><body><div>' +
+          ranges
+            .map(
+              ([start, end], index) =>
+                '<p begin="' +
+                start / 1000 +
+                's" end="' +
+                end / 1000 +
+                's" agent="v' +
+                ((index % 2) + 1) +
+                '"><span begin="' +
+                start / 1000 +
+                's" end="' +
+                end / 1000 +
+                's">歌词</span></p>',
+            )
+            .join("") +
+          "</div></body></tt>",
+        lrcn:
+          "[Lyrics Next]\n" +
+          ranges
+            .map(
+              ([start, end], index) =>
+                "[" +
+                start / 1000 +
+                "," +
+                end / 1000 +
+                ",v" +
+                ((index % 2) + 1) +
+                "]<" +
+                start / 1000 +
+                "," +
+                end / 1000 +
+                ">歌词",
+            )
+            .join("\n"),
+        qrc: ranges
+          .map(
+            ([start, end]) =>
+              "[" + start + "," + (end - start) + "]歌词(" + start + "," + (end - start) + ")",
+          )
+          .join("\n"),
+      };
+      player.setLyricLines(parseLyric({ content: contents[format] }, format));
+      player.setCurrentTime(1500, true);
+      expect(
+        player.currentLyricGroups.map(
+          (group) => (group as unknown as { isActive: boolean }).isActive,
+        ),
+      ).toEqual([true, true, false, false]);
+      player.setCurrentTime(3500);
+      player.setCurrentTime(6500);
+      expect(
+        player.currentLyricGroups.map(
+          (group) => (group as unknown as { isActive: boolean }).isActive,
+        ),
+      ).toEqual([true, false, false, true]);
+      player.setCurrentTime(6500, true);
+      expect(
+        player.currentLyricGroups.map(
+          (group) => (group as unknown as { isActive: boolean }).isActive,
+        ),
+      ).toEqual([true, false, false, true]);
+      player.setCurrentTime(1500, true);
+      expect(
+        player.currentLyricGroups.map(
+          (group) => (group as unknown as { isActive: boolean }).isActive,
+        ),
+      ).toEqual([true, true, false, false]);
+    },
+  );
+
+  it("切换歌曲后不会保留上一首的高亮行", () => {
+    const Player =
+      entry === "ESM"
+        ? LyricPlayer
+        : (
+            createRequire(import.meta.url)(
+              "@applemusic-like-lyrics/core",
+            ) as typeof import("@applemusic-like-lyrics/core")
+          ).LyricPlayer;
+    player = new Player();
+    player.setOptimizeOptions({ normalizeSpaces: false, resetLineTimestamps: false });
+    player.setLyricLines([makeLine(0, 15000), makeLine(1000, 2000), makeLine(6000, 8000)]);
+    player.setCurrentTime(6500, true);
+    player.setLyricLines([makeLine(0, 1000), makeLine(6000, 8000)]);
+    player.setCurrentTime(6500, true);
+    expect(
+      player.currentLyricGroups.map(
+        (group) => (group as unknown as { isActive: boolean }).isActive,
+      ),
+    ).toEqual([false, true]);
+    player.setCurrentTime(500, true);
+    expect(
+      player.currentLyricGroups.map(
+        (group) => (group as unknown as { isActive: boolean }).isActive,
+      ),
+    ).toEqual([true, false]);
   });
 });
