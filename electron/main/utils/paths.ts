@@ -38,8 +38,8 @@ export const logsDir = path.join(dataRoot, "logs");
 /** 插件根目录：scripts / data / logs */
 export const pluginsDir = path.join(dataRoot, "plugins");
 
-/** 用户手动下载的 AutoMix 模型和独立推理运行时 */
-export const automixDir = path.join(dataRoot, "models", "automix-v3");
+/** 用户手动下载的模型和独立推理运行时 */
+export const modelsDir = path.join(dataRoot, "models");
 
 /** 有界分离窗口缓存，首次分析时回收上一会话 */
 export const automixCacheDir = path.join(defaultCacheDir, "automix");

@@ -2,8 +2,7 @@ use super::spectral::{Spectral, CELLS, SIZE};
 use anyhow::{ensure, Result};
 use ort::{session::Session, value::Tensor};
 
-/// 官方训练段长 7.8 秒内最长的 1024 整数倍，与导出模型的输入一致
-pub const FRAMES: usize = 335 * 1024;
+pub const FRAMES: usize = 172032;
 
 /// 沿用原精度模型与分段规则，及时合并并释放每段预测
 /// @param session - 已校验的分离模型

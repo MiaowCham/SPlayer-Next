@@ -177,7 +177,7 @@ const main = async (): Promise<void> => {
     ),
   );
   await copyFile("LICENSE", path.join(staging, "LICENSE.SPlayer"));
-  const archive = path.join(target, `automix-runtime-v3-${identity}.zip`);
+  const archive = path.join(target, `automix-runtime-${identity}.zip`);
   const zip = new ZipFile();
   const writing = pipeline(zip.outputStream, createWriteStream(archive));
   for (const file of (await readdir(staging)).sort())
@@ -207,7 +207,7 @@ const main = async (): Promise<void> => {
         const models = path.join(verification, kind);
         await mkdir(models);
         await extractAutoMixPackage(
-          path.resolve(process.argv[3], `automix-${kind}-v3.zip`),
+          path.resolve(process.argv[3], `automix-${kind}-v2.zip`),
           models,
           signal,
         );

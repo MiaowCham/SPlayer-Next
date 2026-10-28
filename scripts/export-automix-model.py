@@ -15,9 +15,6 @@ import onnx
 import onnxruntime as ort
 from onnx import helper, numpy_helper
 import torch
-
-# 官方训练段长 7.8 秒内最长的 1024 整数倍，频谱无需额外补边
-DEMUCS_FRAMES = 335 * 1024
 SOURCES = {
     "beat": ("https://github.com/CPJKU/beat_this", "beat-this==1.1.0",
              "8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331"),
@@ -73,7 +70,7 @@ def model_inputs(kind):
     @param kind - 节拍或分离模型
     @returns 不依赖随机数实现的命名张量
     """
-    shape = (1, 1500, 128) if kind == "beat" else (1, 2, DEMUCS_FRAMES)
+    shape = (1, 1500, 128) if kind == "beat" else (1, 2, 172032)
     values = np.arange(np.prod(shape), dtype=np.uint32)
     values = (values * np.uint32(1664525) + np.uint32(1013904223)) & np.uint32(65535)
     samples = (values.astype(np.float32).reshape(shape) / 65535 - 0.5) * (4 if kind == "beat" else 0.2)
@@ -83,8 +80,8 @@ def model_inputs(kind):
     padded = np.pad(samples, ((0, 0), (0, 0), (1536, 1536)), mode="reflect")
     padded = np.pad(padded, ((0, 0), (0, 0), (2048, 2048)), mode="reflect")
     chunks = np.lib.stride_tricks.sliding_window_view(padded, 4096, axis=-1)[..., ::1024, :]
-    spectrum = np.fft.rfft(chunks * window, axis=-1, norm="ortho").swapaxes(-1, -2)[..., :-1, 2:2 + DEMUCS_FRAMES // 1024]
-    real = np.stack((spectrum.real, spectrum.imag), axis=2).reshape(1, 4, 2048, DEMUCS_FRAMES // 1024)
+    spectrum = np.fft.rfft(chunks * window, axis=-1, norm="ortho").swapaxes(-1, -2)[..., :-1, 2:170]
+    real = np.stack((spectrum.real, spectrum.imag), axis=2).reshape(1, 4, 2048, 168)
     return {"waveform": samples, "spectrum": real.astype(np.float32)}
 
 
@@ -116,9 +113,9 @@ def main():
 
         model = load_model(torch.load(checkpoint, map_location="cpu", weights_only=False,
                                       mmap=True)).eval()
-        model.segment = Fraction(DEMUCS_FRAMES, 44100)
+        model.segment = Fraction(172032, 44100)
         model.use_train_segment = False
-        shape, prefix = [1, 2, DEMUCS_FRAMES], "htdemucs"
+        shape, prefix = [1, 2, 172032], "htdemucs"
     else:
         from beat_this.model.beat_tracker import BeatThis
 
@@ -190,7 +187,7 @@ def main():
         files.append({"file": filename.name, "bytes": filename.stat().st_size, "sha256": digest})
     manifest = {"source": source_url, "sourceSha256": expected, "package": package,
                 "runtime": "ONNX Runtime", "inputShape": shape, "precision": "FP32", "files": files}
-    archive = target / ("automix-" + args.kind + "-v3.zip")
+    archive = target / ("automix-" + args.kind + "-v2.zip")
     distribution = importlib.metadata.distribution(package.split("==")[0])
     license_path = next(path for path in distribution.files
                         if path.name in ("LICENSE", "LICENSE.txt"))

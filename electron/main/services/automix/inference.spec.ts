@@ -5,9 +5,11 @@ import { flushPromises } from "@vue/test-utils";
 const mocks = vi.hoisted(() => ({ spawn: vi.fn() }));
 vi.mock("node:child_process", () => ({ spawn: mocks.spawn, default: { spawn: mocks.spawn } }));
 vi.mock("electron", () => ({ app: { once: vi.fn() } }));
-vi.mock("@main/utils/paths", () => ({ automixDir: "models" }));
 vi.mock("@main/utils/logger", () => ({ playerLog: { info: vi.fn() } }));
-vi.mock("./assets", () => ({ AUTOMIX_WORKER: "automix-worker.exe" }));
+vi.mock("./assets", () => ({
+  AUTOMIX_WORKER: "automix-worker.exe",
+  AUTOMIX_DIRS: { beat: "beat", demucs: "demucs", runtime: "runtime" },
+}));
 
 const windows = [{ input: "a.mel", output: "a.beats" }];
 

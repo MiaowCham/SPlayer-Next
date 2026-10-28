@@ -1,10 +1,10 @@
+import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { chmod, mkdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { net } from "electron";
-import { automixDir } from "@main/utils/paths";
 import { broadcast } from "@main/utils/broadcast";
 import { playerLog } from "@main/utils/logger";
 import type {
@@ -12,7 +12,7 @@ import type {
   AutoMixComponentStatus,
   AutoMixModelStatus,
 } from "@shared/types/automix";
-import { AUTOMIX_COMPONENTS, AUTOMIX_WORKER } from "./assets";
+import { AUTOMIX_COMPONENTS, AUTOMIX_DIRS, AUTOMIX_MIRRORS, AUTOMIX_WORKER } from "./assets";
 import { extractAutoMixPackage } from "./runtime";
 
 const models: AutoMixModelStatus[] = (["beat", "demucs", "runtime"] as const).map((id) => ({
@@ -51,7 +51,7 @@ export const getAutoMixComponentStatus = (): Promise<AutoMixComponentStatus> => 
       const asset = AUTOMIX_COMPONENTS[model.id];
       if (!asset) continue;
       const files = await Promise.all(
-        asset.files.map((file) => stat(path.join(automixDir, model.id, file)).catch(() => null)),
+        asset.files.map((file) => stat(path.join(AUTOMIX_DIRS[model.id], file)).catch(() => null)),
       );
       model.state = files.every((file) => file?.isFile() && file.size > 0) ? "ready" : "missing";
     }
@@ -82,7 +82,7 @@ export const installAutoMixComponents = (
   activeComponentId = id;
   const signal = controller.signal;
   installation = (async () => {
-    const staging = path.join(automixDir, id + ".part");
+    const staging = AUTOMIX_DIRS[id] + ".part";
     try {
       await getAutoMixComponentStatus();
       if (model.state === "ready") return snapshot();
@@ -93,27 +93,43 @@ export const installAutoMixComponents = (
       broadcast("automix:componentStatus", snapshot());
       await rm(staging, { recursive: true, force: true });
       await mkdir(staging, { recursive: true });
-      const archive = path.join(staging, path.basename(asset.url));
-      const response = await net.fetch(asset.url, { signal });
-      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
-      model.total = Number(response.headers.get("content-length")) || 0;
-      const body = response.body;
-      const startedAt = performance.now();
-      let announcedAt = 0;
-      const source = (async function* () {
-        for await (const chunk of body) {
-          model.received += chunk.byteLength;
-          model.bytesPerSecond = Math.round(
-            (model.received * 1000) / Math.max(1, performance.now() - startedAt),
-          );
-          if (performance.now() - announcedAt >= 200) {
-            announcedAt = performance.now();
-            broadcast("automix:componentStatus", snapshot(), true);
-          }
-          yield chunk;
+      const archive = path.join(staging, asset.file);
+      model.total = asset.bytes;
+      let failure: unknown;
+      for (const mirror of AUTOMIX_MIRRORS) {
+        try {
+          model.received = 0;
+          const response = await net.fetch(mirror + asset.file, { signal });
+          if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+          const body = response.body;
+          const hash = createHash("sha256");
+          const startedAt = performance.now();
+          let announcedAt = 0;
+          const source = (async function* () {
+            for await (const chunk of body) {
+              hash.update(chunk);
+              model.received += chunk.byteLength;
+              model.bytesPerSecond = Math.round(
+                (model.received * 1000) / Math.max(1, performance.now() - startedAt),
+              );
+              if (performance.now() - announcedAt >= 200) {
+                announcedAt = performance.now();
+                broadcast("automix:componentStatus", snapshot(), true);
+              }
+              yield chunk;
+            }
+          })();
+          await pipeline(source, createWriteStream(archive), { signal });
+          if (hash.digest("hex") !== asset.sha256) throw new Error("组件校验失败");
+          failure = undefined;
+          break;
+        } catch (error) {
+          signal.throwIfAborted();
+          failure = error;
+          playerLog.warn(`AutoMix 组件下载失败: ${mirror}`, error);
         }
-      })();
-      await pipeline(source, createWriteStream(archive), { signal });
+      }
+      if (failure) throw failure;
       await extractAutoMixPackage(archive, staging, signal);
       await rm(archive);
       for (const file of asset.files) {
@@ -123,7 +139,7 @@ export const installAutoMixComponents = (
       if (id === "runtime" && process.platform !== "win32")
         await chmod(path.join(staging, AUTOMIX_WORKER), 0o755);
       signal.throwIfAborted();
-      const destination = path.join(automixDir, id);
+      const destination = AUTOMIX_DIRS[id];
       await rm(destination, { recursive: true, force: true });
       // Windows 刚解压的运行库可能短暂被占用，只重试目录移动且允许取消
       for (let attempt = 0; ; attempt++) {
