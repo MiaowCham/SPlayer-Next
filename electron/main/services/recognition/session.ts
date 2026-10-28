@@ -95,8 +95,13 @@ const normalizeLevel = (pcm: Float32Array): Float32Array => {
   return out;
 };
 
-/** 结束会话并恢复播放 */
-const finishSession = (): void => {
+/**
+ * 仅结束所属会话，作废后续回调并恢复播放
+ * @param token - 待结束的会话令牌
+ */
+const finishSession = (token = sessionToken): void => {
+  if (token !== sessionToken) return;
+  sessionToken++;
   activeSession = null;
   if (wasPlaying) {
     wasPlaying = false;
@@ -106,10 +111,17 @@ const finishSession = (): void => {
   }
 };
 
-const emitError = (code: RecognitionErrorCode, message: string): void => {
+/**
+ * 推送当前会话错误并清理状态
+ * @param code - 错误码
+ * @param message - 错误说明
+ * @param token - 产生错误的会话令牌
+ */
+const emitError = (code: RecognitionErrorCode, message: string, token = sessionToken): void => {
+  if (token !== sessionToken) return;
   recognitionLog.warn(`识别失败 [${code}]: ${message}`);
   emit({ phase: "error", error: { code, message } });
-  finishSession();
+  finishSession(token);
 };
 
 /**
@@ -138,50 +150,58 @@ export const startRecognition = (config: RecognitionConfig): void => {
   if (wasPlaying) getPlayer().pause();
 
   activeSession = inst;
-  sessionToken++;
+  const token = ++sessionToken;
   emit({ phase: "capturing" });
   try {
     inst.start(
       { source: config.source, durationMs: config.durationMs },
       (event: JsCaptureEvent) => {
-        void handleCaptureEvent(event);
+        if (token !== sessionToken || activeSession !== inst) return;
+        void handleCaptureEvent(event, token);
       },
     );
   } catch (error) {
-    emitError("capture-failed", error instanceof Error ? error.message : String(error));
+    emitError("capture-failed", error instanceof Error ? error.message : String(error), token);
   }
 };
 
-/** 处理原生采集事件 */
-const handleCaptureEvent = async (event: JsCaptureEvent): Promise<void> => {
+/**
+ * 处理所属会话的原生事件
+ * @param event - 原生采集事件
+ * @param token - 注册回调时的会话令牌
+ */
+const handleCaptureEvent = async (event: JsCaptureEvent, token: number): Promise<void> => {
+  if (token !== sessionToken) return;
   if (event.eventType === "level") {
     emit({ phase: "capturing", level: event.level ?? 0 });
     return;
   }
   if (event.eventType === "error") {
-    emitError(mapErrorCode(event.errorCode), event.error ?? "未知采集错误");
+    emitError(mapErrorCode(event.errorCode), event.error ?? "未知采集错误", token);
     return;
   }
   // done
   if (!event.data) {
     // 取消或异常结束，无数据
-    finishSession();
+    finishSession(token);
     return;
   }
   const pcm = new Float32Array(event.data.buffer, event.data.byteOffset, event.data.length / 4);
-  void recognizePcm(pcm);
+  activeSession = null;
+  void recognizePcm(pcm, token);
 };
 
 /**
  * 识别一段 8 kHz 单声道 PCM：按 3 秒窗口 / 1 秒步长滑动，顺序匹配，首个有候选的窗口即停止
  * 供原生采集 done 事件与渲染进程麦克风提交共用
  * @param pcm - 8 kHz 单声道样本
+ * @param token - 启动识别的会话令牌
  */
-const recognizePcm = async (pcm: Float32Array): Promise<void> => {
-  const token = sessionToken;
+const recognizePcm = async (pcm: Float32Array, token: number): Promise<void> => {
+  if (token !== sessionToken) return;
   const normalized = normalizeLevel(pcm);
   if (rms(normalized) < SILENCE_RMS_THRESHOLD) {
-    emitError("silent-input", "没有采集到声音，请检查音频输出");
+    emitError("silent-input", "没有采集到声音，请检查音频输出", token);
     return;
   }
   emit({ phase: "fingerprinting" });
@@ -201,6 +221,7 @@ const recognizePcm = async (pcm: Float32Array): Promise<void> => {
       emitError(
         fingerprint.error === "afp-unavailable" ? "afp-unavailable" : "unknown",
         fingerprint.error,
+        token,
       );
       return;
     }
@@ -208,7 +229,7 @@ const recognizePcm = async (pcm: Float32Array): Promise<void> => {
     const match = await matchAudio(fingerprint.fingerprint, WINDOW_SAMPLES / 8000);
     if (token !== sessionToken) return;
     if (!match.ok) {
-      emitError("network", "音频匹配服务不可用");
+      emitError("network", "音频匹配服务不可用", token);
       return;
     }
     if (match.songs.length === 0) continue;
@@ -224,7 +245,7 @@ const recognizePcm = async (pcm: Float32Array): Promise<void> => {
   }
   recognitionLog.info(`识别完成，候选 ${candidates.length} 个`);
   emit({ phase: "done", candidates });
-  finishSession();
+  finishSession(token);
 };
 
 /**
@@ -232,6 +253,7 @@ const recognizePcm = async (pcm: Float32Array): Promise<void> => {
  * @param pcm - 8 kHz 单声道样本
  */
 export const submitPcm = (pcm: Float32Array): void => {
+  cancelRecognition();
   if (!(pcm instanceof Float32Array) || pcm.length === 0) {
     emitError("capture-failed", "渲染进程提交了无效的 PCM");
     return;
@@ -240,9 +262,9 @@ export const submitPcm = (pcm: Float32Array): void => {
     emitError("afp-unavailable", "音频指纹库不可用");
     return;
   }
-  sessionToken++;
+  const token = ++sessionToken;
   emit({ phase: "capturing" });
-  void recognizePcm(pcm);
+  void recognizePcm(pcm, token);
 };
 
 /**

@@ -18,7 +18,7 @@ env:
   NODE_VERSION: 24.x
 
 jobs:
-  # 智能检查 dev 分支自上次发布以来是否有新提交
+  # 定时构建默认分支，手动构建用户选择的分支
   check-commits:
     name: Check for new commits
     runs-on: ubuntu-latest
@@ -27,10 +27,20 @@ jobs:
       build_sha: ${{ steps.check.outputs.build_sha }}
       prev_sha: ${{ steps.check.outputs.prev_sha }}
     steps:
-      - name: Check out dev branch
+      - name: Check out target branch
         uses: actions/checkout@v5
         with:
-          ref: dev
+          ref: ${{ github.ref }}
+
+      - name: Validate Nightly target
+        shell: bash
+        run: |
+          for file in scripts/gen-nightly-version.cjs scripts/gen-nightly-notes.cjs .github/scripts/prepare-release-assets.cjs .github/scripts/prepare-release-assets.test.cjs; do
+            if [ ! -f "$file" ]; then
+              echo "::error file=$file::Nightly target is missing a required script"
+              exit 1
+            fi
+          done
 
       - name: Compare commit with latest nightly release
         id: check
@@ -39,9 +49,9 @@ jobs:
           echo "build_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           NIGHTLY_TAG="nightly"
           REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$NIGHTLY_TAG" | awk '{print $1}')
-          CURRENT_DEV_SHA=$(git rev-parse HEAD)
+          CURRENT_SHA=$(git rev-parse HEAD)
 
-          echo "当前 dev 最新 Commit: $CURRENT_DEV_SHA"
+          echo "当前构建目标 Commit: $CURRENT_SHA"
           echo "上次 Nightly Tag Commit: $REMOTE_TAG_SHA"
           echo "prev_sha=$REMOTE_TAG_SHA" >> "$GITHUB_OUTPUT"
 
@@ -51,7 +61,7 @@ jobs:
             exit 0
           fi
 
-          if [ -n "$REMOTE_TAG_SHA" ] && [ "$REMOTE_TAG_SHA" = "$CURRENT_DEV_SHA" ]; then
+          if [ -n "$REMOTE_TAG_SHA" ] && [ "$REMOTE_TAG_SHA" = "$CURRENT_SHA" ]; then
             echo "自上次 Nightly 构建以来无新代码提交，跳过本次夜间构建"
             echo "has_new_commits=false" >> "$GITHUB_OUTPUT"
           else
@@ -186,7 +196,7 @@ jobs:
     if: needs.check-commits.outputs.has_new_commits == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Check out dev branch
+      - name: Check out build commit
         uses: actions/checkout@v5
         with:
           ref: ${{ needs.check-commits.outputs.build_sha }}

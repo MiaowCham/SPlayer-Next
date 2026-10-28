@@ -7,7 +7,9 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
 use std::time::Duration;
 
-use crate::strategy::{LayoutParams, LegacyStrategy, TaskbarStrategy, Win11Strategy};
+use crate::strategy::{
+    LayoutParams, LegacyStrategy, TaskbarLayout, TaskbarStrategy, Win11Strategy,
+};
 use crate::utils::{ComApartmentGuard, get_windows_build_number};
 use crate::{JsTaskbarLayout, take_valid_hwnd};
 use napi::{
@@ -20,6 +22,7 @@ use napi_derive::napi;
 type LayoutTsfn =
     ThreadsafeFunction<JsTaskbarLayout, UnknownReturnValue, JsTaskbarLayout, Status, false>;
 
+#[derive(Debug, PartialEq, Eq)]
 enum TaskbarCommand {
     Embed {
         hwnd_ptr: usize,
@@ -87,6 +90,7 @@ impl TaskbarService {
     }
 }
 
+/// 接收任务栏命令，重试中取出的重建或停止命令交回主循环
 fn worker_loop(rx: &Receiver<TaskbarCommand>, tsfn: &LayoutTsfn) {
     // 进入 MTA apartment，作用域结束自动配对 CoUninitialize；失败直接退出线程
     let Some(_com_guard) = ComApartmentGuard::try_init() else {
@@ -98,7 +102,12 @@ fn worker_loop(rx: &Receiver<TaskbarCommand>, tsfn: &LayoutTsfn) {
     let mut last_hwnd: Option<usize> = None;
     let mut last_width: i32 = 0;
 
-    while let Ok(msg) = rx.recv() {
+    let mut pending = None;
+    let emit_layout = |layout: TaskbarLayout| {
+        tsfn.call(layout.into(), ThreadsafeFunctionCallMode::NonBlocking);
+    };
+
+    while let Some(msg) = pending.take().or_else(|| rx.recv().ok()) {
         match msg {
             TaskbarCommand::Embed { hwnd_ptr } => {
                 if let Some(hwnd) = take_valid_hwnd(hwnd_ptr) {
@@ -145,15 +154,25 @@ fn worker_loop(rx: &Receiver<TaskbarCommand>, tsfn: &LayoutTsfn) {
                     do_reinit(&mut strategy, last_hwnd);
                 }
 
-                if !run_update_with_retry(&mut strategy, final_width, tsfn, rx) {
-                    break;
-                }
+                pending = run_update_with_retry(
+                    &mut strategy,
+                    &mut last_width,
+                    &mut last_hwnd,
+                    &emit_layout,
+                    rx,
+                );
             }
 
             TaskbarCommand::Reinit => {
                 do_reinit(&mut strategy, last_hwnd);
-                if last_width > 0 && !run_update_with_retry(&mut strategy, last_width, tsfn, rx) {
-                    break;
+                if last_width > 0 {
+                    pending = run_update_with_retry(
+                        &mut strategy,
+                        &mut last_width,
+                        &mut last_hwnd,
+                        &emit_layout,
+                        rx,
+                    );
                 }
             }
 
@@ -186,52 +205,148 @@ fn do_reinit(strategy: &mut Option<Box<dyn TaskbarStrategy>>, last_hwnd: Option<
 /// 注意：`update_layout` 返回 `Some(layout)`（含"两侧空间都 0"这种合法的"无空间"情况）会立即 emit 并返回——
 /// 这种是真·无位置展示，不该被当成失败；只有真·扫描失败（UIA 树冷启拿不到内容）才会走重试。
 ///
-/// 返回 false 表示接收到 Stop，上层应退出 worker_loop
+/// 返回未处理的 Reinit 或 Stop，由主循环处理；宽度和窗口更新保留到后续重建
 fn run_update_with_retry(
     strategy: &mut Option<Box<dyn TaskbarStrategy>>,
-    initial_width: i32,
-    tsfn: &LayoutTsfn,
+    current_width: &mut i32,
+    last_hwnd: &mut Option<usize>,
+    emit_layout: &impl Fn(TaskbarLayout),
     rx: &Receiver<TaskbarCommand>,
-) -> bool {
+) -> Option<TaskbarCommand> {
     const DELAYS_MS: &[u64] = &[0, 50, 150, 300, 600];
-    let mut current_width = initial_width;
 
     for &delay_ms in DELAYS_MS {
         if delay_ms > 0 {
             match rx.recv_timeout(Duration::from_millis(delay_ms)) {
-                Ok(TaskbarCommand::Update { width }) => current_width = width,
+                Ok(TaskbarCommand::Update { width }) => *current_width = width,
                 Ok(TaskbarCommand::Embed { hwnd_ptr }) => {
-                    if let Some(hwnd) = take_valid_hwnd(hwnd_ptr)
-                        && let Some(s) = strategy.as_ref()
-                    {
-                        s.embed_window(hwnd);
+                    if let Some(hwnd) = take_valid_hwnd(hwnd_ptr) {
+                        *last_hwnd = Some(hwnd_ptr);
+                        if let Some(s) = strategy.as_ref() {
+                            s.embed_window(hwnd);
+                        }
                     }
                 }
-                Ok(TaskbarCommand::Reinit) => {
-                    // 重试期间 explorer 重启，策略彻底重建，退出本轮重试由外层走新一轮
-                    return true;
+                Ok(command @ (TaskbarCommand::Reinit | TaskbarCommand::Stop)) => {
+                    return Some(command);
                 }
-                Ok(TaskbarCommand::Stop) => return false,
                 Err(RecvTimeoutError::Timeout) => {}
-                Err(RecvTimeoutError::Disconnected) => return false,
+                Err(RecvTimeoutError::Disconnected) => return Some(TaskbarCommand::Stop),
             }
         }
 
         if let Some(s) = strategy.as_mut() {
             let params = LayoutParams {
-                lyric_width: current_width,
+                lyric_width: *current_width,
             };
             if let Some(layout) = s.update_layout(params) {
-                let js_layout: JsTaskbarLayout = layout.into();
-                tsfn.call(js_layout, ThreadsafeFunctionCallMode::NonBlocking);
-                return true;
+                emit_layout(layout);
+                return None;
             }
         }
     }
 
-    true
+    None
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use windows::Win32::Foundation::HWND;
+
+    struct TestStrategy {
+        widths: Rc<RefCell<Vec<i32>>>,
+        succeed_after: usize,
+    }
+
+    impl TaskbarStrategy for TestStrategy {
+        /// 返回测试策略的可用状态
+        fn init(&mut self) -> bool {
+            true
+        }
+        /// 模拟窗口嵌入结果
+        fn embed_window(&self, _child_hwnd: HWND) -> bool {
+            true
+        }
+        /// 记录宽度并在指定次数后返回布局
+        fn update_layout(&mut self, params: LayoutParams) -> Option<TaskbarLayout> {
+            let mut widths = self.widths.borrow_mut();
+            widths.push(params.lyric_width);
+            (widths.len() > self.succeed_after).then_some(TaskbarLayout {
+                space: Default::default(),
+                extra: crate::strategy::ExtraLayoutInfo {
+                    system_type: crate::strategy::SystemType::Win11,
+                    is_centered: true,
+                    is_light: false,
+                },
+            })
+        }
+        /// 测试策略无需恢复系统状态
+        fn restore(&self) {}
+    }
+
+    #[test]
+    /// 将 Reinit 固定投递到首次扫描失败后的重试等待，验证消息交回主循环
+    fn retry_preserves_reinit_and_latest_width() {
+        let (tx, rx) = mpsc::channel();
+        let widths = Rc::new(RefCell::new(Vec::new()));
+        let mut strategy: Option<Box<dyn TaskbarStrategy>> = Some(Box::new(TestStrategy {
+            widths: widths.clone(),
+            succeed_after: usize::MAX,
+        }));
+        tx.send(TaskbarCommand::Update { width: 240 }).unwrap();
+        tx.send(TaskbarCommand::Reinit).unwrap();
+        let mut width = 120;
+        let mut hwnd = None;
+        let pending = run_update_with_retry(
+            &mut strategy,
+            &mut width,
+            &mut hwnd,
+            &|_| panic!("重建前不应发布布局"),
+            &rx,
+        );
+        assert_eq!(pending, Some(TaskbarCommand::Reinit));
+        assert_eq!(width, 240);
+        assert_eq!(*widths.borrow(), vec![120, 240]);
+    }
+
+    #[test]
+    /// 正常重试使用最新宽度发布布局，停止命令仍可打断等待
+    fn retry_emits_layout_and_preserves_stop() {
+        let (tx, rx) = mpsc::channel();
+        let widths = Rc::new(RefCell::new(Vec::new()));
+        let mut strategy: Option<Box<dyn TaskbarStrategy>> = Some(Box::new(TestStrategy {
+            widths: widths.clone(),
+            succeed_after: 1,
+        }));
+        tx.send(TaskbarCommand::Update { width: 240 }).unwrap();
+        let mut width = 120;
+        let mut hwnd = None;
+        let emitted = RefCell::new(0);
+        assert_eq!(
+            run_update_with_retry(
+                &mut strategy,
+                &mut width,
+                &mut hwnd,
+                &|_| *emitted.borrow_mut() += 1,
+                &rx
+            ),
+            None
+        );
+        assert_eq!(*emitted.borrow(), 1);
+        assert_eq!(*widths.borrow(), vec![120, 240]);
+        strategy = None;
+        tx.send(TaskbarCommand::Stop).unwrap();
+        assert_eq!(
+            run_update_with_retry(&mut strategy, &mut width, &mut hwnd, &|_| {}, &rx),
+            Some(TaskbarCommand::Stop)
+        );
+    }
+}
+
+/// 按当前 Windows 版本选择并初始化可用的任务栏策略
 fn create_strategy() -> Option<Box<dyn TaskbarStrategy>> {
     let build_num = get_windows_build_number();
 

@@ -4,7 +4,7 @@ import { resolveStreamingMediaSource } from "@main/services/streaming/mediaSourc
 import fsp, { type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { app } from "electron";
 import { store } from "@main/store";
@@ -77,6 +77,20 @@ const inFlight = new Map<string, InFlight>();
 const waiting: Array<() => void> = [];
 let activeDownloads = 0;
 let preloadPin: { id: string; filename: string } | null = null;
+/** 已接收但尚未转入数据库统计的字节，包含写入队列和清理失败的临时文件 */
+let reservedBytes = 0;
+let budgetQueue: Promise<unknown> = Promise.resolve();
+
+/**
+ * 串行执行容量预留、淘汰和入库，避免并发下载重复使用同一份余量
+ * @param task - 需要独占容量统计的操作
+ * @returns 操作结果
+ */
+const withBudget = <T>(task: () => Promise<T>): Promise<T> => {
+  const result = budgetQueue.then(task);
+  budgetQueue = result.catch(() => {});
+  return result;
+};
 
 /** sizeLimit 字节数；0/负数视为不限制 */
 const sizeLimitBytes = (): number => {
@@ -158,36 +172,40 @@ export const cancelPreload = (id: string): void => {
 };
 
 /**
- * 启动时孤儿清理
- * 删 .part；删表里有文件不在的；删目录里有表里没的
+ * 启动时清理孤儿，无法删除的文件仍计入容量
  */
 const cleanupOrphans = async (): Promise<void> => {
   let entries: string[];
   try {
     entries = await fsp.readdir(cacheDir);
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      reservedBytes = Number.POSITIVE_INFINITY;
+      songCacheLog.warn("[init] 无法核对缓存目录占用，暂停有限容量缓存", error);
+    }
     return;
   }
 
   let partRemoved = 0;
   let orphanFiles = 0;
-  for (const name of entries) {
-    if (name.endsWith(".part")) {
-      try {
-        await fsp.unlink(path.join(cacheDir, name));
-        partRemoved += 1;
-      } catch {}
-    }
-  }
-
   const known = new Set(listAllFilenames());
   for (const name of entries) {
-    if (name.endsWith(".part")) continue;
-    if (!known.has(name)) {
+    if (!name.endsWith(".part") && known.has(name)) continue;
+    const full = path.join(cacheDir, name);
+    try {
+      await fsp.unlink(full);
+      if (name.endsWith(".part")) partRemoved++;
+      else orphanFiles++;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
       try {
-        await fsp.unlink(path.join(cacheDir, name));
-        orphanFiles += 1;
-      } catch {}
+        reservedBytes += (await fsp.stat(full)).size;
+      } catch (statError) {
+        if ((statError as NodeJS.ErrnoException).code !== "ENOENT") {
+          reservedBytes = Number.POSITIVE_INFINITY;
+        }
+      }
+      songCacheLog.warn(`[init] 保留未删除文件的容量统计：${full}`, error);
     }
   }
 
@@ -206,15 +224,14 @@ const cleanupOrphans = async (): Promise<void> => {
 };
 
 /**
- * LRU 淘汰：超过 cap 时按 last_used_at 升序批量删
- * - 删超过 cap 的
- * - 删表里有文件不在的
- * - 删目录里有表里没的
+ * 为实际接收的字节腾出空间，保留预载文件及尚未删除成功的文件统计
+ * @param incomingBytes - 本次准备写入的字节数
+ * @returns 当前容量是否足以容纳新数据
  */
-const evictIfNeeded = async (): Promise<void> => {
+const evictIfNeeded = async (incomingBytes: number): Promise<boolean> => {
   const cap = sizeLimitBytes();
-  let current = totalSize();
-  if (current <= cap) return;
+  let current = totalSize() + reservedBytes + incomingBytes;
+  if (current <= cap) return true;
 
   let evicted = 0;
   let freed = 0;
@@ -222,12 +239,14 @@ const evictIfNeeded = async (): Promise<void> => {
     const victims = listLruVictims(EVICT_BATCH + 1).filter(
       (row) => row.filename !== preloadPin?.filename,
     );
-    if (victims.length === 0) break;
+    if (victims.length === 0) return false;
     for (const victim of victims) {
       if (victim.filename === preloadPin?.filename) continue;
       try {
         await fsp.unlink(absPath(victim.filename));
-      } catch {}
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
       deleteByKey(victim.cacheKey);
       current -= victim.size;
       freed += victim.size;
@@ -236,6 +255,7 @@ const evictIfNeeded = async (): Promise<void> => {
     }
   }
   if (evicted > 0) songCacheLog.info(`[evict] count=${evicted} freed=${freed}`);
+  return current <= cap;
 };
 
 /**
@@ -256,6 +276,9 @@ const runDownload = async (
   const filename = filenameFor(cacheKey);
   const finalPath = absPath(filename);
   const partPath = `${finalPath}.part`;
+  let receivedBytes = 0;
+  let renamed = false;
+  let committed = false;
 
   try {
     await fsp.mkdir(cacheDir, { recursive: true });
@@ -291,50 +314,86 @@ const runDownload = async (
     }
 
     const nodeStream = Readable.fromWeb(response.body as never);
+    const limiter = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        void withBudget(async () => {
+          controller.signal.throwIfAborted();
+          if (receivedBytes + chunk.length > sizeLimitBytes()) {
+            throw new Error("Song cache response exceeds size limit");
+          }
+          if (!(await evictIfNeeded(chunk.length))) {
+            throw new Error("Song cache has no available capacity");
+          }
+          controller.signal.throwIfAborted();
+          reservedBytes += chunk.length;
+          receivedBytes += chunk.length;
+        }).then(
+          () => callback(null, chunk),
+          (error: Error) => callback(error),
+        );
+      },
+    });
     const writeStream = fs.createWriteStream(partPath);
-    await pipeline(nodeStream, writeStream, { signal: controller.signal });
+    await pipeline(nodeStream, limiter, writeStream, { signal: controller.signal });
 
     const stat = await fsp.stat(partPath);
     if (stat.size === 0) {
-      await fsp.unlink(partPath).catch(() => {});
       songCacheLog.warn(`[fetch] empty key=${cacheKey}`);
       return null;
     }
     if (stat.size > sizeLimitBytes()) {
-      await fsp.unlink(partPath).catch(() => {});
       songCacheLog.warn(`[fetch] post oversize key=${cacheKey} actual=${stat.size}`);
       return null;
     }
     // 拦截首字节看着像音频才放行
     if (!(await looksLikeAudio(partPath))) {
-      await fsp.unlink(partPath).catch(() => {});
       songCacheLog.warn(`[fetch] not audio key=${cacheKey} mime=${mime} size=${stat.size}`);
       return null;
     }
 
-    await fsp.rename(partPath, finalPath);
-    const now = Date.now();
-    upsert({
-      cacheKey,
-      source,
-      filename,
-      size: stat.size,
-      mime,
-      cachedAt: now,
-      lastUsedAt: now,
+    await withBudget(async () => {
+      controller.signal.throwIfAborted();
+      if (!(await evictIfNeeded(0))) throw new Error("Song cache size limit changed");
+      await fsp.rename(partPath, finalPath);
+      renamed = true;
+      const now = Date.now();
+      upsert({
+        cacheKey,
+        source,
+        filename,
+        size: stat.size,
+        mime,
+        cachedAt: now,
+        lastUsedAt: now,
+      });
+      reservedBytes -= receivedBytes;
+      committed = true;
     });
-    await evictIfNeeded();
 
     songCacheLog.info(`[fetch] done key=${cacheKey} size=${stat.size} ms=${Date.now() - start}`);
     return finalPath;
   } catch (err) {
-    await fsp.unlink(partPath).catch(() => {});
     if (controller.signal.aborted) {
       songCacheLog.info(`[fetch] cancel key=${cacheKey}`);
     } else {
       songCacheLog.error(`[fetch] error key=${cacheKey}`, err);
     }
     return null;
+  } finally {
+    controller.abort();
+    if (!committed) {
+      await withBudget(async () => {
+        try {
+          await fsp.unlink(renamed ? finalPath : partPath);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+            songCacheLog.error("[fetch] cleanup failed", error);
+            return;
+          }
+        }
+        reservedBytes -= receivedBytes;
+      });
+    }
   }
 };
 
@@ -342,7 +401,7 @@ const runDownload = async (
 export const init = async (): Promise<void> => {
   cacheDir = getSongCacheDir();
   await fsp.mkdir(cacheDir, { recursive: true });
-  await cleanupOrphans();
+  await withBudget(cleanupOrphans);
   app.on("before-quit", () => {
     for (const entry of inFlight.values()) entry.controller.abort();
   });
@@ -432,8 +491,17 @@ export const invalidate = async (sourcePath: string): Promise<void> => {
   const filename = path.basename(sourcePath);
   const row = findByFilename(filename);
   if (!row) return;
-  deleteByKey(row.cacheKey);
-  await fsp.unlink(absPath(filename)).catch(() => {});
+  await withBudget(async () => {
+    try {
+      await fsp.unlink(absPath(filename));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        songCacheLog.warn(`[invalidate] 无法删除缓存文件：${filename}`, error);
+        return;
+      }
+    }
+    deleteByKey(row.cacheKey);
+  });
   songCacheLog.info(`[invalidate] path=${sourcePath}`);
 };
 
@@ -443,11 +511,27 @@ export const clearAll = async (): Promise<void> => {
   const pending = [...inFlight.values()];
   for (const entry of pending) entry.controller.abort();
   await Promise.allSettled(pending.map((entry) => entry.promise));
-  dbClearAll();
-  try {
-    const entries = await fsp.readdir(cacheDir);
-    await Promise.all(entries.map((name) => fsp.unlink(path.join(cacheDir, name)).catch(() => {})));
-  } catch {}
+  await withBudget(async () => {
+    let removedAll = true;
+    try {
+      const entries = await fsp.readdir(cacheDir);
+      for (const name of entries) {
+        try {
+          await fsp.unlink(path.join(cacheDir, name));
+          const row = findByFilename(name);
+          if (row) deleteByKey(row.cacheKey);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") removedAll = false;
+        }
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") removedAll = false;
+    }
+    if (removedAll && inFlight.size === 0) {
+      dbClearAll();
+      reservedBytes = 0;
+    }
+  });
   songCacheLog.info("[clearAll] done");
 };
 

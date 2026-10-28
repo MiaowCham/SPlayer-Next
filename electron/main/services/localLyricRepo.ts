@@ -7,11 +7,12 @@
  * - 归一化标题 → 候选列表
  * 命中返回文件原文，交由渲染层 parseTTML 解析。
  *
- * 索引以（目录, 目录 mtime）为缓存边界：目录或其 mtime 变化（增删文件）时重建。
+ * 每次查询核对递归文件清单与文件元数据，变化时重建索引
  * 仅保留路径与小键，不驻留文件内容；命中时按需读盘。
  */
 
 import { readdir, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join, extname } from "node:path";
 import { readFileAutoEncoding } from "@main/utils/encoding";
 import { store } from "@main/store";
@@ -37,12 +38,12 @@ interface RepoIndex {
 
 interface IndexCache {
   dir: string;
-  mtimeMs: number;
+  signature: string;
   index: RepoIndex;
 }
 
 let cache: IndexCache | null = null;
-let building: Promise<RepoIndex | null> | null = null;
+let building: { dir: string; promise: Promise<RepoIndex | null> } | null = null;
 
 interface TTMLMeta {
   name?: string;
@@ -68,14 +69,24 @@ export const extractTtmlMeta = (text: string): TTMLMeta => {
   return meta;
 };
 
-/** 递归收集目录下所有 .ttml 文件 */
-const collectTtml = async (dir: string): Promise<string[]> => {
+/**
+ * 递归收集 TTML 路径与元数据摘要，不驻留文件正文
+ * @param dir - 歌词仓库目录
+ * @returns 文件清单及其变更摘要
+ */
+const collectTtml = async (dir: string): Promise<{ files: string[]; signature: string }> => {
   const out: string[] = [];
+  /**
+   * 收集当前目录的文件，跳过不可读子目录以保留其他歌词
+   * @param current - 当前目录
+   */
   const walk = async (current: string): Promise<void> => {
     let entries;
     try {
       entries = await readdir(current, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      if (current === dir) throw error;
+      coreLog.warn(`[localLyric] 跳过不可读目录：${current}`, error);
       return;
     }
     for (const entry of entries) {
@@ -85,13 +96,31 @@ const collectTtml = async (dir: string): Promise<string[]> => {
     }
   };
   await walk(dir);
-  return out;
+  out.sort();
+  const files: string[] = [];
+  const hash = createHash("sha256");
+  for (const file of out) {
+    try {
+      const info = await stat(file, { bigint: true });
+      hash.update(
+        JSON.stringify([file, String(info.size), String(info.mtimeNs), String(info.ctimeNs)]),
+      );
+      files.push(file);
+    } catch (error) {
+      coreLog.warn(`[localLyric] 跳过无法读取元数据的文件：${file}`, error);
+    }
+  }
+  return { files, signature: hash.digest("hex") };
 };
 
-/** 扫描目录建立索引 */
-const buildIndex = async (dir: string): Promise<RepoIndex> => {
+/**
+ * 从本次核对过的文件清单建立索引
+ * @param dir - 歌词仓库目录
+ * @param files - TTML 文件路径
+ * @returns 歌曲元数据索引
+ */
+const buildIndex = async (dir: string, files: string[]): Promise<RepoIndex> => {
   const index: RepoIndex = { byNcm: new Map(), byQq: new Map(), byTitle: new Map() };
-  const files = await collectTtml(dir);
   for (const file of files) {
     let text: string;
     try {
@@ -122,22 +151,24 @@ const buildIndex = async (dir: string): Promise<RepoIndex> => {
   return index;
 };
 
-/** 取当前生效索引；目录或 mtime 变化时懒重建 */
+/**
+ * 核对递归文件元数据后复用或重建索引，同目录的并发查询共享扫描
+ * @returns 当前仓库索引，读取失败时返回 null
+ */
 const getIndex = async (): Promise<RepoIndex | null> => {
   const dir = store.get("localLyric.repoDir") || "";
   if (!dir) return null;
-  let mtimeMs: number;
-  try {
-    mtimeMs = (await stat(dir)).mtimeMs;
-  } catch {
-    return null;
+  if (building) {
+    if (building.dir === dir) return building.promise;
+    await building.promise;
+    return getIndex();
   }
-  if (cache && cache.dir === dir && cache.mtimeMs === mtimeMs) return cache.index;
-  if (building) return building;
-  building = (async () => {
+  const promise = (async () => {
     try {
-      const index = await buildIndex(dir);
-      cache = { dir, mtimeMs, index };
+      const { files, signature } = await collectTtml(dir);
+      if (cache?.dir === dir && cache.signature === signature) return cache.index;
+      const index = await buildIndex(dir, files);
+      cache = { dir, signature, index };
       return index;
     } catch (err) {
       coreLog.warn("[localLyric] 索引构建失败：", err);
@@ -146,7 +177,8 @@ const getIndex = async (): Promise<RepoIndex | null> => {
       building = null;
     }
   })();
-  return building;
+  building = { dir, promise };
+  return promise;
 };
 
 /** 按优先级读取候选；格式化文件缺少显式空格时继续下一份，不让坏文件截断回退链。 */
