@@ -108,6 +108,7 @@
     "lint-staged": "^17.6.0",
     "localforage": "^1.10.0",
     "lyric-dom": "^0.2.1",
+    "markdown-it-mathjax3": "^4.3.2",
     "marked": "^18.1.1",
     "pinia": "^4.1.0",
     "pinia-plugin-persistedstate": "^4.7.1",
