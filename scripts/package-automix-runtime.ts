@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { copyFile, mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -55,7 +55,13 @@ const main = async (): Promise<void> => {
   );
   if (process.platform === "darwin")
     execFileSync("codesign", ["--force", "--sign", "-", path.join(staging, AUTOMIX_WORKER)]);
-  const archiveName = `onnxruntime-${process.platform === "darwin" ? "osx" : "linux"}-${process.arch === "arm64" ? (process.platform === "linux" ? "aarch64" : "arm64") : process.platform === "darwin" ? "x86_64" : "x64"}-${version}.tgz`;
+  const archiveTarget: Record<string, string> = {
+    "darwin-arm64": "osx-arm64",
+    "darwin-x64": "osx-x86_64",
+    "linux-arm64": "linux-aarch64",
+    "linux-x64": "linux-x64",
+  };
+  const archiveName = `onnxruntime-${archiveTarget[identity]}-${version}.tgz`;
   const sources =
     process.platform === "win32"
       ? [
@@ -80,10 +86,14 @@ const main = async (): Promise<void> => {
       const response = await fetch(source.url);
       if (!response.ok || !response.body)
         throw new Error(`下载失败 ${response.status}: ${source.url}`);
-      await pipeline(Readable.from(response.body), createWriteStream(archive));
+      // 先写临时文件，下载中断不会留下被当作已缓存的半个文件
+      await pipeline(Readable.from(response.body), createWriteStream(archive + ".part"));
+      await rename(archive + ".part", archive);
     }
-    if ((await digest(archive)) !== hashes[source.file])
+    if ((await digest(archive)) !== hashes[source.file]) {
+      await rm(archive, { force: true });
       throw new Error(`官方源文件校验失败 ${source.file}`);
+    }
     const unpacked = await mkdtemp(path.join(target, source.file + "-"));
     try {
       if (source.file.endsWith(".nupkg")) {

@@ -470,6 +470,7 @@
     "prev": "上一首",
     "next": "下一首",
     "transitioning": "过渡",
+    "automixing": "AutoMix",
     "heartMode": {
       "needLogin": "登录后才能使用心动模式",
       "noSeed": "暂无可用的心动种子歌曲",
@@ -906,8 +907,8 @@
       "automix": "AutoMix 智能混音"
     },
     "automixCrossfadeFallback": {
-      "label": "差异过大时交叉过渡",
-      "description": "节奏无法对齐的歌曲改用交叉过渡，关闭则直接切歌"
+      "label": "无法混音时交叉过渡",
+      "description": "无法混音时改用交叉过渡"
     },
     "automixComponents": {
       "label": "AutoMix 模型",
@@ -1146,6 +1147,7 @@
       "enableTitle": "确认开启",
       "scrobbleRiskContent": "听歌打卡功能目前仍处于测试阶段，不保证上报记录会计入有效听歌次数，相关风险尚不明确\n开启后可能触发账号风控等账号安全问题，请充分了解潜在风险后谨慎开启",
       "highResourceContent": "开启后可能明显增加内存与 CPU 占用，低配设备上或出现卡顿。确定开启吗？",
+      "transitionHighResourceContent": "播放过渡为高占用功能，请设备性能较高的用户使用\n该功能仍处于测试阶段，部分歌曲的衔接效果目前可能比直接切歌更差\n开启后将同时开启歌曲预载、歌曲缓存和流媒体缓存，会增加内存、CPU、网络流量和磁盘占用。确定开启吗？",
       "restartRequiredTitle": "需要重启应用",
       "restartRequiredContent": "此设置需要重启应用后生效。确定保存并立即重启吗？",
       "testChannelTitle": "切换到测试通道",

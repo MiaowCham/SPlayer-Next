@@ -48,7 +48,7 @@ export const measureBeatPeriod = (
   const unknown = { periodMs: null, stability: 0, gridStartMs: null, gridEndMs: null };
   if (beats.length < 8) return unknown;
   const intervals = beats.slice(1).map((beat, index) => beat - beats[index]);
-  const sorted = [...intervals].sort((a, b) => a - b);
+  const sorted = [...intervals].sort((left, right) => left - right);
   const median = sorted[Math.floor(sorted.length / 2)];
   if (median < 250 || median > 1500) return unknown;
   let start = 0;

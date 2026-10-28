@@ -9,6 +9,10 @@ import { getAutoMixComponentStatus } from "./components";
 import { runAutoMixModel, runAutoMixTask } from "./inference";
 import { createAutoMixProfile } from "./features";
 
+/** 节拍模型的固定输入帧数与梅尔维度 */
+const MODEL_FRAMES = 1488;
+const MEL_BINS = 128;
+
 /** 只复用最近八个紧凑档案，不保留频谱、PCM 或模型张量 */
 const cache = new Map<string, AutoMixProfile>();
 
@@ -64,12 +68,12 @@ export const analyzeAutoMixTracks = (
           track.tail,
         );
         const { mel, ...metadata } = feature;
-        if (mel.length < 1488 * 128) return null;
+        if (mel.length < MODEL_FRAMES * MEL_BINS) return null;
         const input = path.join(directory, `${index}.mel`);
         const output = path.join(directory, `${index}.beats`);
         await writeFile(input, Buffer.from(mel.buffer, mel.byteOffset, mel.byteLength));
         features.push(metadata);
-        windows.push({ input, output, frames: mel.length / 128 });
+        windows.push({ input, output, frames: mel.length / MEL_BINS });
       }
       signal.throwIfAborted();
       await runAutoMixModel("beat", windows, signal);

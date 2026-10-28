@@ -104,6 +104,7 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
       break;
     case "transition":
       status.transitioning = event.data.active;
+      if (event.data.active) status.transitionMode = event.data.mode;
       if (event.data.active) console.info("[player:transition] 实际淡化开始");
       break;
     case "transitionReady":

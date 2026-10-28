@@ -8,7 +8,10 @@ import {
   TRANSITION_LOOKAHEAD_MS,
 } from "@shared/constants/playback";
 import type { AutoMixPlan, AutoMixPrepareOptions } from "@shared/types/automix";
-import { canAutoMix, planAutoMix } from "./automix/planner";
+import { canAutoMix, planAutoMix, planAutoMixBridge } from "./automix/planner";
+import { INCOMING } from "./automix/arrangement";
+import { analyzeAutoMixTracks } from "./automix/analysisHost";
+import { enhanceAutoMixPlan } from "./automix/enhancement";
 
 let prepared: {
   id: string;
@@ -59,13 +62,14 @@ export const getPreparedAutoMixPlan = (id: string): AutoMixPlan | undefined =>
  */
 export const installPreparedAutoMixStems = async (id: string): Promise<boolean> => {
   const task = prepared;
-  const window = task?.automix?.stems.outgoing;
+  const stemWindow = task?.automix?.stems.outgoing;
   const source = currentRange?.source;
-  if (!task || task.id !== id || task.analysis.signal.aborted || !window || !source) return false;
+  if (!task || task.id !== id || task.analysis.signal.aborted || !stemWindow || !source)
+    return false;
   const installed = await task.player.installAutoMixStems(id, source, {
-    path: window.path,
-    startSeconds: window.startMs / 1000,
-    frames: window.frames,
+    path: stemWindow.path,
+    startSeconds: stemWindow.startMs / 1000,
+    frames: stemWindow.frames,
   });
   return installed && !task.analysis.signal.aborted;
 };
@@ -162,8 +166,6 @@ export const prepareNextTrack = async (
       range?.source &&
       canAutoMix(player.getSpeed(), player.getPitch())
     ) {
-      const { analyzeAutoMixTracks } = await import("./automix/analysisHost");
-      if (task.analysis.signal.aborted) return false;
       const tracks = [
         { source: range.source, startMs: range.startMs, endMs: range.endMs, tail: true },
         { source, startMs, endMs: options.endMs, tail: false },
@@ -173,10 +175,16 @@ export const prepareNextTrack = async (
         return null;
       });
       if (task.analysis.signal.aborted) return false;
-      const candidate = profiles && planAutoMix(profiles[0], profiles[1], range.endMs);
-      if (profiles && !candidate) playerLog.info("AutoMix 两曲节奏无法对齐，不做混音");
+      const synced = profiles && planAutoMix(profiles[0], profiles[1], range.endMs);
+      const candidate =
+        profiles && (synced ?? planAutoMixBridge(profiles[0], profiles[1], range.endMs));
+      if (profiles && !synced)
+        playerLog.info(
+          candidate
+            ? "AutoMix 两曲节奏无法对齐，改用原速桥接"
+            : "AutoMix 无法对拍也无法桥接，不做混音",
+        );
       if (candidate) {
-        const { enhanceAutoMixPlan } = await import("./automix/enhancement");
         task.automix = await enhanceAutoMixPlan(
           candidate,
           tracks,
@@ -188,15 +196,16 @@ export const prepareNextTrack = async (
           return undefined;
         });
         if (task.analysis.signal.aborted) return false;
-        if (task.automix) {
+        const arranged = task.automix;
+        if (arranged) {
           playerLog.info(
-            `AutoMix 就绪：对拍 · 分轨 · ${(task.automix.durationMs / 1000).toFixed(1)} 秒`,
+            `AutoMix 就绪：${arranged.strategy === "bridge" ? "原速桥接" : "对拍"} · 分轨 · ${(arranged.durationMs / 1000).toFixed(1)} 秒`,
             {
-              outStartMs: task.automix.outStartMs,
-              inStartMs: task.automix.inStartMs,
-              outgoingRate: task.automix.outgoingRate,
-              overlapMs: task.automix.envelopes.slice(0, 4).map((outgoing, index) => {
-                const incoming = task.automix!.envelopes[index + 4];
+              outStartMs: arranged.outStartMs,
+              inStartMs: arranged.inStartMs,
+              outgoingRate: arranged.outgoingRate,
+              overlapMs: arranged.envelopes.slice(0, INCOMING).map((outgoing, index) => {
+                const incoming = arranged.envelopes[index + INCOMING];
                 return Math.max(0, outgoing.endMs - incoming.startMs);
               }),
             },

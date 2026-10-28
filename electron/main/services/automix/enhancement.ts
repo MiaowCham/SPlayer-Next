@@ -122,7 +122,7 @@ export const enhanceAutoMixPlan = (
     const { plan, vocalLossMs } = refineAutoMixVocals(candidate, profiles, voices);
     if (!plan) {
       await rm(directory, { recursive: true, force: true });
-      playerLog.info("AutoMix 对拍会截断唱句，不做混音", {
+      playerLog.info("AutoMix 交接会截断唱句，不做混音", {
         vocalLossMs: vocalLossMs.map(Math.round),
       });
       return undefined;

@@ -469,7 +469,8 @@
   "player": {
     "prev": "Previous",
     "next": "Next",
-    "transitioning": "Transition",
+    "transitioning": "Crossfade",
+    "automixing": "AutoMix",
     "heartMode": {
       "needLogin": "Sign in to use Heart Mode",
       "noSeed": "No seed track available for Heart Mode",
@@ -906,8 +907,8 @@
       "automix": "AutoMix"
     },
     "automixCrossfadeFallback": {
-      "label": "Crossfade mismatched tracks",
-      "description": "Crossfade tracks whose rhythm cannot be aligned; when off, switch directly"
+      "label": "Crossfade when mixing fails",
+      "description": "Crossfade when tracks can't be mixed"
     },
     "automixComponents": {
       "label": "AutoMix models",
@@ -1146,6 +1147,7 @@
       "enableTitle": "Confirm enabling",
       "scrobbleRiskContent": "Scrobbling is still experimental. Reported listening records are not guaranteed to count as valid plays, and the associated risks are not yet fully understood.\nEnabling it may trigger account risk controls or other account security issues. Consider the potential risks carefully before enabling this feature.",
       "highResourceContent": "Enabling it may noticeably increase memory and CPU usage, and could cause stuttering on lower-end devices. Enable it anyway?",
+      "transitionHighResourceContent": "Playback transitions are resource-intensive and are intended for users with higher-performance devices.\nThis feature is still in testing, and for some tracks the transition may currently sound worse than a plain track change.\nEnabling it also turns on track preloading, song caching and streaming caching, which increases memory, CPU, network and disk usage. Enable it anyway?",
       "restartRequiredTitle": "Restart Required",
       "restartRequiredContent": "This setting requires an app restart. Save and relaunch now?",
       "testChannelTitle": "Switch to a Test Channel",

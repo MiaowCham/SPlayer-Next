@@ -40,9 +40,9 @@ export const runAutoMixModel = <T>(
   signal: AbortSignal,
 ): Promise<T[]> =>
   new Promise((resolve, reject) => {
-    signal = AbortSignal.any([signal, shutdown.signal]);
-    if (signal.aborted) {
-      reject(signal.reason);
+    const combined = AbortSignal.any([signal, shutdown.signal]);
+    if (combined.aborted) {
+      reject(combined.reason);
       return;
     }
     const child = spawn(path.join(AUTOMIX_DIRS.runtime, AUTOMIX_WORKER), [], {
@@ -57,7 +57,7 @@ export const runAutoMixModel = <T>(
     });
     child.once("close", (code) => {
       clearTimeout(timer);
-      signal.removeEventListener("abort", abort);
+      combined.removeEventListener("abort", abort);
       const error =
         failure ?? (code === 0 ? undefined : new Error(stderr || `AutoMix exited: ${code}`));
       if (error) reject(error);
@@ -92,7 +92,7 @@ export const runAutoMixModel = <T>(
     /** 取消当前预载对应的模型进程 */
     const abort = (): void => stop(new Error("AutoMix 分析已取消"));
     const timer = setTimeout(() => stop(new Error("AutoMix 分析超时")), 120_000);
-    signal.addEventListener("abort", abort, { once: true });
+    combined.addEventListener("abort", abort, { once: true });
     child.stdout.on("data", (chunk: Buffer) => {
       stdout += String(chunk);
       if (stdout.length > 256_000) stop(new Error("AutoMix 分析输出超出限制"));

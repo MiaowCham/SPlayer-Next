@@ -1,4 +1,4 @@
-import { arrangeAutoMix } from "./arrangement";
+import { arrangeAutoMix, arrangeAutoMixBridge, INCOMING, STEM } from "./arrangement";
 import type { AutoMixCandidate } from "./planner";
 import type { AutoMixArrangement, AutoMixProfile } from "@shared/types/automix";
 
@@ -20,7 +20,7 @@ export const measureVocalActivity = (
   levels: number[],
   startMs: number,
 ): VocalActivity => {
-  const sorted = [...levels].sort((a, b) => a - b);
+  const sorted = [...levels].sort((left, right) => left - right);
   const reference = Math.max(0.01, sorted[Math.floor(sorted.length * 0.9)] ?? 0);
   const threshold = Math.max(0.003, reference * 0.06);
   const weights = levels.map((level, index) => {
@@ -33,7 +33,10 @@ export const measureVocalActivity = (
   for (let index = 0; index < weights.length; index++) {
     if (weights[index] < 0.08) continue;
     const start = index;
-    while (index + 1 < weights.length && weights.slice(index + 1, index + 4).some((w) => w >= 0.08))
+    while (
+      index + 1 < weights.length &&
+      weights.slice(index + 1, index + 4).some((weight) => weight >= 0.08)
+    )
       index++;
     if (index - start < 2) {
       weights.fill(0, start, index + 1);
@@ -98,8 +101,8 @@ export const arrangeVocalHandoff = (
     if (score < best.score) best = { score, startMs, endMs };
   }
   const envelopes = [...plan.envelopes];
-  envelopes[2] = { startMs: best.startMs, endMs: best.endMs };
-  envelopes[6] = { startMs: best.startMs, endMs: best.endMs };
+  envelopes[STEM.vocals] = { startMs: best.startMs, endMs: best.endMs };
+  envelopes[STEM.vocals + INCOMING] = { startMs: best.startMs, endMs: best.endMs };
   return { ...plan, envelopes };
 };
 
@@ -115,6 +118,17 @@ export const refineAutoMixVocals = (
   profiles: AutoMixProfile[],
   voices: VocalActivity[],
 ): { plan?: AutoMixArrangement; vocalLossMs: number[] } => {
+  if (plan.strategy === "bridge") {
+    const bridged = arrangeVocalHandoff(
+      arrangeAutoMixBridge(plan, profiles[1]),
+      voices[0],
+      voices[1],
+    );
+    const vocalLossMs = measureAutoMixVocalLoss(bridged, voices);
+    return vocalLossMs.some((loss) => loss > 1000)
+      ? { vocalLossMs }
+      : { plan: bridged, vocalLossMs };
+  }
   const beat = Math.max(profiles[0].periodMs! / plan.outgoingRate, profiles[1].periodMs!);
   let result = arrangeVocalHandoff(
     arrangeAutoMix(plan, profiles[0], profiles[1]),
@@ -124,7 +138,7 @@ export const refineAutoMixVocals = (
   );
   const lostTail = vocalExposure(
     voices[0],
-    plan.outStartMs + result.envelopes[2].endMs * plan.outgoingRate,
+    plan.outStartMs + result.envelopes[STEM.vocals].endMs * plan.outgoingRate,
     plan.outStartMs + plan.durationMs * plan.outgoingRate,
   );
   const duration = Math.max(
@@ -163,7 +177,7 @@ export const measureAutoMixVocalLoss = (
   return voices.map((activity, side) => {
     const cue = side ? plan.inStartMs : plan.outStartMs;
     const rate = side ? 1 : plan.outgoingRate;
-    const span = plan.envelopes[side ? 6 : 2];
+    const span = plan.envelopes[STEM.vocals + (side ? INCOMING : 0)];
     return activity.weights.reduce((sum, weight, index) => {
       const sourceAt = activity.startMs + index * 100 + 50;
       const time = (sourceAt - cue) / rate;

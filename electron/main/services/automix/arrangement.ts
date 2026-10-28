@@ -1,6 +1,10 @@
 import type { AutoMixEnvelope, AutoMixArrangement, AutoMixProfile } from "@shared/types/automix";
 import type { AutoMixCandidate } from "./planner";
 
+/** 当前曲各声部在包络数组中的下标，下一曲同名声部再加 INCOMING */
+export const STEM = { drums: 0, bass: 1, vocals: 2, other: 3 } as const;
+export const INCOMING = 4;
+
 /**
  * 将对拍候选转换为按音乐时间错开的鼓、低频、人声与伴奏包络
  * @param plan - 已通过音频边界验证的交接计划
@@ -48,8 +52,43 @@ export const arrangeAutoMix = (
       startMs: Math.max(0, bassAt - beat),
       endMs: Math.min(duration, bassAt + beat),
     };
-    envelopes[3] = melody;
-    envelopes[7] = melody;
+    envelopes[STEM.other] = melody;
+    envelopes[STEM.other + INCOMING] = melody;
   }
   return { ...plan, envelopes };
+};
+
+/**
+ * 原速桥接的声部包络：两套鼓与贝斯在下一曲的重拍上瞬时换手，旋律层交错淡化
+ * @param plan - 原速候选
+ * @param incoming - 下一曲首部证据，用于把节奏换手落在它自己的重拍上
+ * @returns 人声区间待复核的编排
+ */
+export const arrangeAutoMixBridge = (
+  plan: AutoMixCandidate,
+  incoming: AutoMixProfile,
+): AutoMixArrangement => {
+  const duration = plan.durationMs;
+  const target = duration * 0.45;
+  const swap =
+    incoming.downbeats
+      .map((time) => time - plan.inStartMs)
+      .filter((time) => time >= duration * 0.3 && time <= duration * 0.6)
+      .sort((left, right) => Math.abs(left - target) - Math.abs(right - target))[0] ?? target;
+  // 两曲不对拍，节奏声部只允许约四分之一秒的交叠
+  const rhythm = { startMs: swap - 125, endMs: swap + 125 };
+  const vocals = { startMs: swap, endMs: swap + 600 };
+  return {
+    ...plan,
+    envelopes: [
+      rhythm,
+      rhythm,
+      vocals,
+      { startMs: duration * 0.35, endMs: duration },
+      rhythm,
+      rhythm,
+      vocals,
+      { startMs: 0, endMs: duration * 0.6 },
+    ],
+  };
 };

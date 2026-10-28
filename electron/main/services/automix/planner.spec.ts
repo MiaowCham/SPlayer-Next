@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AutoMixProfile } from "@shared/types/automix";
-import { planAutoMix as createPlan } from "./planner";
-import { arrangeAutoMix } from "./arrangement";
+import { planAutoMix as createPlan, planAutoMixBridge } from "./planner";
+import { arrangeAutoMix, arrangeAutoMixBridge } from "./arrangement";
 import { measureBeatPeriod, pickBeatPeaks } from "./beats";
 import { createAutoMixProfile } from "./features";
 
@@ -215,5 +215,31 @@ describe("拍点模型后处理", () => {
     const measured = measureBeatPeriod(beats);
     expect(measured.stability).toBe(1);
     expect(60000 / measured.periodMs!).toBeCloseTo(bpm, 0);
+  });
+});
+
+describe("AutoMix 原速桥接", () => {
+  it("拍速差超出变速范围时不变速，按小节定长并在下一曲重拍上短暂换手", () => {
+    const outgoing = profile(500);
+    const incoming = profile(420);
+    expect(createPlan(outgoing, incoming, 20_000)).toBeNull();
+    const plan = planAutoMixBridge(outgoing, incoming, 20_000)!;
+    expect(plan).toMatchObject({ outgoingRate: 1, durationMs: 8400, strategy: "bridge" });
+    expect(plan.outStartMs + plan.durationMs).toBeLessThanOrEqual(20_000);
+    const { envelopes } = arrangeAutoMixBridge(plan, incoming);
+    const swap = (envelopes[0].startMs + envelopes[0].endMs) / 2;
+    expect(incoming.downbeats).toContain(swap + plan.inStartMs);
+    for (const index of [0, 1, 4, 5])
+      expect(envelopes[index].endMs - envelopes[index].startMs).toBe(250);
+  });
+
+  it("前奏过短、速度相差过大或不可信时不安排桥接", () => {
+    const short = profile(420);
+    short.endMs = 3000;
+    expect(planAutoMixBridge(profile(500), short, 20_000)).toBeNull();
+    expect(planAutoMixBridge(profile(500), profile(350), 20_000)).toBeNull();
+    const unstable = profile(420);
+    unstable.stability = 0.5;
+    expect(planAutoMixBridge(profile(500), unstable, 20_000)).toBeNull();
   });
 });

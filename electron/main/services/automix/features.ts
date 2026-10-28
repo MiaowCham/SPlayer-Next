@@ -9,10 +9,14 @@ import { measureBeatPeriod, pickBeatPeaks } from "./beats";
  * @param endMs - 片段绝对终点
  * @returns 有效电平与归一化音级能量
  */
-export const measureMixWindow = (profile: AutoMixProfile, startMs: number, endMs: number) => {
+export const measureMixWindow = (
+  profile: AutoMixProfile,
+  startMs: number,
+  endMs: number,
+): { level: number; chroma: number[] } => {
   const first = Math.max(0, Math.floor((startMs - profile.startMs) / 100));
   const last = Math.min(profile.levels.length, Math.ceil((endMs - profile.startMs) / 100));
-  const levels = profile.levels.slice(first, last).sort((a, b) => a - b);
+  const levels = profile.levels.slice(first, last).sort((left, right) => left - right);
   const level = Math.max(0.001, levels[Math.floor(levels.length * 0.65)] ?? 0);
   const chroma = Array<number>(12).fill(0);
   for (let index = first; index < last; index++) {
@@ -38,7 +42,7 @@ export const createAutoMixProfile = (
 ): AutoMixProfile => {
   const startMs = features.startSeconds * 1000;
   const levels = Array.from(features.levels);
-  const sorted = [...levels].sort((a, b) => a - b);
+  const sorted = [...levels].sort((left, right) => left - right);
   const threshold = Math.max(0.001, sorted[Math.floor(sorted.length * 0.8)] * 0.25);
   let bodyEnd = -1;
   for (let index = 0; index + 2 < levels.length; index++) {
@@ -51,14 +55,18 @@ export const createAutoMixProfile = (
   );
   const rawDownbeats = pickBeatPeaks(scores.filter((_, index) => index % 2 === 1));
   const period = measureBeatPeriod(beats, tail);
-  const grid = beats.filter((beat) => beat >= period.gridStartMs! && beat <= period.gridEndMs!);
-  // 网格内的重拍落到整段拟合直线上，单拍的帧量化和前奏起音偏差不会传给对拍相位
-  const origin =
-    grid.reduce((sum, beat, index) => sum + beat - index * period.periodMs!, 0) / grid.length;
-  const snap = (beat: number): number =>
-    period.periodMs && beat >= period.gridStartMs! - 1 && beat <= period.gridEndMs! + 1
-      ? origin + Math.round((beat - origin) / period.periodMs) * period.periodMs
-      : beat;
+  let snap = (beat: number): number => beat;
+  const { periodMs, gridStartMs, gridEndMs } = period;
+  if (periodMs && gridStartMs != null && gridEndMs != null) {
+    const grid = beats.filter((beat) => beat >= gridStartMs && beat <= gridEndMs);
+    // 网格内的重拍落到整段拟合直线上，单拍的帧量化和前奏起音偏差不会传给对拍相位
+    const origin =
+      grid.reduce((sum, beat, index) => sum + beat - index * periodMs, 0) / grid.length;
+    snap = (beat) =>
+      beat >= gridStartMs - 1 && beat <= gridEndMs + 1
+        ? origin + Math.round((beat - origin) / periodMs) * periodMs
+        : beat;
+  }
   const downbeats = beats.length
     ? [
         ...new Set(

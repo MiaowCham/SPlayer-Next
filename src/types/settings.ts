@@ -283,7 +283,7 @@ export interface PlayerSettings {
   transitionMode: TransitionMode;
   /** 曲尾交接时机与淡化时长偏好 */
   transitionPreference: TransitionPreference;
-  /** AutoMix 无法对拍的曲目对是否改用交叉过渡，关闭时直接切歌 */
+  /** AutoMix 对拍与原速桥接都不适用时是否改用交叉过渡，关闭时直接切歌 */
   automixCrossfadeFallback: boolean;
   /** 搜索页播放行为 */
   searchPlayBehavior: PlayBehavior;

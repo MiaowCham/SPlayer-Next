@@ -1,23 +1,25 @@
+import { rmSync } from "node:fs";
 import { app, ipcMain } from "electron";
+import { automixCacheDir } from "@main/utils/paths";
+import {
+  cancelAutoMixDownload,
+  getAutoMixComponentStatus,
+  installAutoMixComponents,
+} from "@main/services/automix/components";
 import type { AutoMixComponentId } from "@shared/types/automix";
-
-let components: typeof import("@main/services/automix/components") | undefined;
-
-/**
- * 用户访问组件时才载入下载与解压服务，普通启动不加载压缩库
- * @returns 当前进程复用的组件服务
- */
-const getComponents = async (): Promise<typeof import("@main/services/automix/components")> =>
-  (components ??= await import("@main/services/automix/components"));
 
 /** 注册只在用户操作时下载的 AutoMix 组件管理接口 */
 export const registerAutoMixIpc = (): void => {
-  ipcMain.handle("automix:getStatus", async () =>
-    (await getComponents()).getAutoMixComponentStatus(),
+  ipcMain.handle("automix:getStatus", () => getAutoMixComponentStatus());
+  ipcMain.handle("automix:download", (_event, id: AutoMixComponentId) =>
+    installAutoMixComponents(id),
   );
-  ipcMain.handle("automix:download", async (_event, id: AutoMixComponentId) =>
-    (await getComponents()).installAutoMixComponents(id),
-  );
-  ipcMain.handle("automix:cancelDownload", () => components?.cancelAutoMixDownload());
-  app.on("before-quit", () => components?.cancelAutoMixDownload());
+  ipcMain.handle("automix:cancelDownload", () => cancelAutoMixDownload());
+  app.on("before-quit", () => {
+    cancelAutoMixDownload();
+    // 分轨窗口每对数十 MB，不留到下次会话；引擎仍占用文件或崩溃残留时由下次首次分离清空
+    try {
+      rmSync(automixCacheDir, { recursive: true, force: true });
+    } catch {}
+  });
 };

@@ -24,7 +24,6 @@ const models: AutoMixModelStatus[] = (["beat", "demucs", "runtime"] as const).ma
 let checking: Promise<AutoMixComponentStatus> | undefined;
 let installation: Promise<AutoMixComponentStatus> | undefined;
 let controller: AbortController | undefined;
-let checked = false;
 let activeComponentId: AutoMixComponentId | undefined;
 
 /** 汇总独立组件的紧凑状态，不包含模型或音频数据 */
@@ -40,11 +39,11 @@ const snapshot = (): AutoMixComponentStatus => ({
 });
 
 /**
- * 首次选择 AutoMix 时检查所需文件，普通查询共享结果
+ * 每次查询都重新检查所需文件，用户手动删除组件后立即反映，并发查询共享结果
  * @returns 组件的安装或下载状态
  */
 export const getAutoMixComponentStatus = (): Promise<AutoMixComponentStatus> => {
-  if (installation || checked) return Promise.resolve(snapshot());
+  if (installation) return Promise.resolve(snapshot());
   if (checking) return checking;
   checking = (async () => {
     for (const model of models) {
@@ -55,7 +54,6 @@ export const getAutoMixComponentStatus = (): Promise<AutoMixComponentStatus> => 
       );
       model.state = files.every((file) => file?.isFile() && file.size > 0) ? "ready" : "missing";
     }
-    checked = true;
     return snapshot();
   })().finally(() => {
     checking = undefined;

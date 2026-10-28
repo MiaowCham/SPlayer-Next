@@ -65,8 +65,8 @@ export interface AutoMixPlan {
   levelRatio: number;
   /** 顺序为当前曲与下一曲各自的鼓、贝斯、人声、伴奏，均在音频回调按帧执行 */
   envelopes: AutoMixEnvelope[];
-  /** 对拍乐句或短旋律交接 */
-  strategy: "phrase" | "handoff";
+  /** 对拍乐句、短旋律交接或鼓不重叠的原速桥接 */
+  strategy: "phrase" | "handoff" | "bridge";
   stems: { outgoing: AutoMixStemWindow; incoming: AutoMixStemWindow };
 }
 

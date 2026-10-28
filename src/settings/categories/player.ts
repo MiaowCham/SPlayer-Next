@@ -129,6 +129,7 @@ const playerCategory: SettingCategory = {
     },
     {
       id: "playbackTransition",
+      tag: { text: "Beta" },
       items: [
         {
           key: "transitionMode",
@@ -144,12 +145,9 @@ const playerCategory: SettingCategory = {
           ],
           defaultValue: "none",
           confirm: {
-            when: (next) =>
-              (next === "crossfade" || next === "automix") &&
-              (!useSettingsStore().system.cache.songCache.enabled ||
-                !useSettingsStore().system.cache.songCache.cacheStreaming),
-            titleKey: "settings.confirm.preloadCacheTitle",
-            contentKey: "settings.confirm.preloadCacheContent",
+            when: (next) => next === "crossfade" || next === "automix",
+            titleKey: "settings.confirm.highResourceTitle",
+            contentKey: "settings.confirm.transitionHighResourceContent",
             type: "warning",
           },
           action: async (mode) => {
@@ -176,8 +174,8 @@ const playerCategory: SettingCategory = {
               defaultValue: "standard",
             },
           ],
-          childrenCondition: () => useSettingsStore().player.transitionMode === "crossfade",
-          hideChildren: true,
+          // AutoMix 回退的交叉过渡同样按此倾向决定时机，只在关闭过渡时置灰
+          childrenCondition: () => useSettingsStore().player.transitionMode !== "none",
         },
         {
           key: "automixComponents",
