@@ -24,11 +24,11 @@ export type CoverLayout = "default" | "fullscreen";
 export type TimeFormat = "current-total" | "remaining-total" | "current-remaining";
 
 /**
- * 搜索页播放行为
+ * 列表点击播放的行为
  * - current: 仅播放当前
  * - all: 播放全部
  */
-export type SearchPlayBehavior = "current" | "all";
+export type PlayBehavior = "current" | "all";
 
 /**
  * 歌词来源偏好
@@ -40,6 +40,9 @@ export type LyricSourcePreference = Platform | "auto" | "self";
 
 /** 布局模式 */
 export type LayoutMode = "default" | "sidebar-full" | "floating";
+
+/** 歌曲列表样式 */
+export type SongListStyle = "comfortable" | "compact";
 
 /** 路由切换动效 */
 export type RouteTransition = "none" | "fade" | "slide" | "zoom";
@@ -283,13 +286,17 @@ export interface PlayerSettings {
   /** AutoMix 无法对拍的曲目对是否改用交叉过渡，关闭时直接切歌 */
   automixCrossfadeFallback: boolean;
   /** 搜索页播放行为 */
-  searchPlayBehavior: SearchPlayBehavior;
+  searchPlayBehavior: PlayBehavior;
+  /** 歌曲列表行首播放按钮的行为 */
+  songListPlayBehavior: PlayBehavior;
 }
 
 /** 外观设置 */
 export interface AppearanceSettings {
   /** 布局模式 */
   layoutMode: LayoutMode;
+  /** 歌曲列表样式 */
+  songListStyle: SongListStyle;
   /** 路由切换动效 */
   routeTransition: RouteTransition;
   /** 页面之间的共享元素过渡 */

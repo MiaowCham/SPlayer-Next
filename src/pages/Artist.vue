@@ -374,6 +374,7 @@ const albumItems = computed<CoverItem[]>(() => {
               :show-size="source === 'local'"
               :has-more="hasMoreSongs"
               :loading-more="loadingMore"
+              sort-key="artist"
               enable-sort
               @scroll="handleListScroll"
               @change="loadArtist"

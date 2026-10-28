@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { PlaybackContext, TrackSource } from "@shared/types/player";
 import type { Collection, CollectionType } from "@/types/collection";
+import type { SongListSortKey } from "@/types/list";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { loadCollection as loadCollectionService } from "@/services/collection";
 import { getCollectionShareUrl } from "@/utils/format/shareUrl";
@@ -25,6 +26,9 @@ const { copy } = useCopyText();
 const source = route.params.source as TrackSource;
 const type = route.params.type as CollectionType;
 const id = route.params.id as string;
+
+/** 按合集类型隔离排序偏好 */
+const sortKey = computed<SongListSortKey>(() => `collection.${type}`);
 
 const collection = shallowRef<Collection | null>(null);
 const preview = getCoverPreview(route.fullPath);
@@ -431,6 +435,7 @@ onBeforeUnmount(() => {
           :collection-id="id"
           :playback-context="playbackContext"
           :can-remove="manage.canManage.value"
+          :sort-key="sortKey"
           enable-sort
           @scroll="handleListScroll"
           @change="handleTracksRemoved"
