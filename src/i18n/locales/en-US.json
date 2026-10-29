@@ -911,8 +911,8 @@
       "description": "Crossfade when tracks can't be mixed"
     },
     "automixComponents": {
-      "label": "AutoMix models",
-      "description": "Analyze rhythm and arrange track transitions",
+      "label": "AutoMix model management",
+      "description": "Models for the AutoMix effect; falls back to the default effect when required models aren't ready",
       "configure": "Configure models",
       "download": "Download",
       "ready": "Installed",
@@ -921,7 +921,7 @@
       "error": "Installation failed"
     },
     "transitionPreference": {
-      "label": "Handoff preference",
+      "label": "Mix handoff preference",
       "description": "Adjust when the transition starts and how long songs overlap; Eager starts earlier and lasts longer",
       "conservative": "Conservative",
       "standard": "Standard",

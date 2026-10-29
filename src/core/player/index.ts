@@ -1067,10 +1067,7 @@ export const trySmartTransition = async (
       },
       ...(autoMix ? ["automix" as const] : []),
     );
-    if (token !== trackToken) {
-      if (shouldLog) console.info("[player:transition] 交叉过渡已被新的播放操作取消");
-      return;
-    }
+    if (token !== trackToken) return;
     if (!result.success || !result.data) {
       if (shouldLog) {
         console.warn(
@@ -1090,10 +1087,6 @@ export const trySmartTransition = async (
       await nextTrack();
       return;
     }
-    console.info("[player:transition] 音频交接完成", {
-      trackId: candidate.track.id,
-      title: candidate.track.title,
-    });
     onTrackEnded(false);
     const stopAfterTrack = autoClose.onTrackEnded();
     status.playIndex = candidate.index;

@@ -911,8 +911,8 @@
       "description": "无法混音时改用交叉过渡"
     },
     "automixComponents": {
-      "label": "AutoMix 模型",
-      "description": "分析节奏并智能安排歌曲交接",
+      "label": "AutoMix 模型管理",
+      "description": "AutoMix 效果必要的模型，未就绪时，将回退默认效果",
       "configure": "模型配置",
       "download": "下载",
       "ready": "已安装",
@@ -921,7 +921,7 @@
       "error": "安装失败"
     },
     "transitionPreference": {
-      "label": "交接倾向",
+      "label": "混音交接倾向",
       "description": "调整曲尾交接时机和过渡长度，积极档更早、更长",
       "conservative": "保守",
       "standard": "标准",

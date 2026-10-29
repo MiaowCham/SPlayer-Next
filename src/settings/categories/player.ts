@@ -163,6 +163,19 @@ const playerCategory: SettingCategory = {
           },
           children: [
             {
+              key: "automixComponents",
+              type: "custom",
+              component: AutoMixComponents,
+              visible: () => useSettingsStore().player.transitionMode === "automix",
+            },
+            {
+              key: "automixCrossfadeFallback",
+              type: "switch",
+              binding: { store: "settings", path: "player.automixCrossfadeFallback" },
+              defaultValue: true,
+              visible: () => useSettingsStore().player.transitionMode === "automix",
+            },
+            {
               key: "transitionPreference",
               type: "select",
               binding: { store: "settings", path: "player.transitionPreference" },
@@ -174,21 +187,7 @@ const playerCategory: SettingCategory = {
               defaultValue: "standard",
             },
           ],
-          // AutoMix 回退的交叉过渡同样按此倾向决定时机，只在关闭过渡时置灰
           childrenCondition: () => useSettingsStore().player.transitionMode !== "none",
-        },
-        {
-          key: "automixComponents",
-          type: "custom",
-          component: AutoMixComponents,
-          visible: () => useSettingsStore().player.transitionMode === "automix",
-        },
-        {
-          key: "automixCrossfadeFallback",
-          type: "switch",
-          binding: { store: "settings", path: "player.automixCrossfadeFallback" },
-          defaultValue: true,
-          visible: () => useSettingsStore().player.transitionMode === "automix",
         },
       ],
     },

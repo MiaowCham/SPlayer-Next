@@ -277,10 +277,6 @@ export const scheduleNextTrackPreload = (): void => {
   nativePreloadId = id;
   currentContextKey = contextKey;
   cachedResult = null;
-  console.info("[player:preload] 开始预载下一曲", {
-    trackId: candidateTrack.id,
-    title: candidateTrack.title,
-  });
 
   void (async () => {
     try {
@@ -293,10 +289,6 @@ export const scheduleNextTrackPreload = (): void => {
       });
       if (token !== currentToken) return;
       if (!source) {
-        console.info("[player:preload] 下一曲未找到可用音源", {
-          trackId: candidateTrack.id,
-          title: candidateTrack.title,
-        });
         invalidateNextTrackPreload();
         return;
       }
@@ -335,13 +327,6 @@ export const scheduleNextTrackPreload = (): void => {
         preparedId,
         autoMixStartMs,
       };
-      if (!preparedId) {
-        console.info("[player:preload] 下一曲音源已准备，PCM 未预载", {
-          trackId: candidateTrack.id,
-          title: candidateTrack.title,
-          source: source.provider,
-        });
-      }
     } catch (err) {
       if (token !== currentToken) return;
       console.warn("[player:preload] 下一曲预载失败", {
