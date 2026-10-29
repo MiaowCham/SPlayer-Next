@@ -125,9 +125,8 @@ export const refineAutoMixVocals = (
       voices[1],
     );
     const vocalLossMs = measureAutoMixVocalLoss(bridged, voices);
-    return vocalLossMs.some((loss) => loss > 1000)
-      ? { vocalLossMs }
-      : { plan: bridged, vocalLossMs };
+    if (vocalLossMs.some((loss) => loss > 1000)) return { vocalLossMs };
+    return { plan: bridged, vocalLossMs };
   }
   const beat = Math.max(profiles[0].periodMs! / plan.outgoingRate, profiles[1].periodMs!);
   let result = arrangeVocalHandoff(
@@ -173,8 +172,8 @@ export const refineAutoMixVocals = (
 export const measureAutoMixVocalLoss = (
   plan: AutoMixArrangement,
   voices: VocalActivity[],
-): number[] => {
-  return voices.map((activity, side) => {
+): number[] =>
+  voices.map((activity, side) => {
     const cue = side ? plan.inStartMs : plan.outStartMs;
     const rate = side ? 1 : plan.outgoingRate;
     const span = plan.envelopes[STEM.vocals + (side ? INCOMING : 0)];
@@ -189,4 +188,3 @@ export const measureAutoMixVocalLoss = (
       return sum + weight * (1 - gain * gain) * 100;
     }, 0);
   });
-};

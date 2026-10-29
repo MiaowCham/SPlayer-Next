@@ -152,7 +152,7 @@ const main = async (): Promise<void> => {
       .trim()
       .split(/\r?\n/)
       .filter(Boolean)
-      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+      .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
     if (!found.length) throw new Error(`构建机缺少 ${process.arch} Visual C++ 可再发行组件`);
     // 同一安装可能包含多版 CRT，旧版本缺少新 ONNX Runtime 所需的符号
     const directory = path.dirname(found[0]);

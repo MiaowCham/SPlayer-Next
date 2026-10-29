@@ -6,9 +6,9 @@ const mocks = vi.hoisted(() => ({ spawn: vi.fn() }));
 vi.mock("node:child_process", () => ({ spawn: mocks.spawn, default: { spawn: mocks.spawn } }));
 vi.mock("electron", () => ({ app: { once: vi.fn() } }));
 vi.mock("@main/utils/logger", () => ({ playerLog: { info: vi.fn() } }));
-vi.mock("./assets", () => ({
-  AUTOMIX_WORKER: "automix-worker.exe",
-  AUTOMIX_DIRS: { beat: "beat", demucs: "demucs", runtime: "runtime" },
+vi.mock("./assets", () => ({ AUTOMIX_WORKER: "automix-worker.exe" }));
+vi.mock("@main/utils/paths", () => ({
+  automixDirs: { beat: "beat", demucs: "demucs", runtime: "runtime" },
 }));
 
 const windows = [{ input: "a.mel", output: "a.beats" }];

@@ -121,8 +121,8 @@ def main():
 
         state = torch.load(checkpoint, map_location="cpu", weights_only=True)
         parameters = inspect.signature(BeatThis).parameters
-        model = BeatThis(**{k: v for k, v in state["hyper_parameters"].items() if k in parameters})
-        model.load_state_dict({k.removeprefix("model."): v for k, v in state["state_dict"].items()})
+        model = BeatThis(**{key: value for key, value in state["hyper_parameters"].items() if key in parameters})
+        model.load_state_dict({key.removeprefix("model."): value for key, value in state["state_dict"].items()})
         model.eval()
         del state
         shape, prefix = [1, 1500, 128], "beat-this"

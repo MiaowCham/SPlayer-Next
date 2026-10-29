@@ -9,7 +9,6 @@ import {
 } from "@shared/constants/playback";
 import type { AutoMixPlan, AutoMixPrepareOptions } from "@shared/types/automix";
 import { canAutoMix, planAutoMix, planAutoMixBridge } from "./automix/planner";
-import { INCOMING } from "./automix/arrangement";
 import { analyzeAutoMixTracks } from "./automix/analysisHost";
 import { enhanceAutoMixPlan } from "./automix/enhancement";
 
@@ -175,41 +174,33 @@ export const prepareNextTrack = async (
         return null;
       });
       if (task.analysis.signal.aborted) return false;
-      const synced = profiles && planAutoMix(profiles[0], profiles[1], range.endMs);
-      const candidate =
-        profiles && (synced ?? planAutoMixBridge(profiles[0], profiles[1], range.endMs));
-      if (profiles && !synced)
-        playerLog.info(
-          candidate
-            ? "AutoMix 两曲节奏无法对齐，改用原速桥接"
-            : "AutoMix 无法对拍也无法桥接，不做混音",
-        );
-      if (candidate) {
-        task.automix = await enhanceAutoMixPlan(
-          candidate,
-          tracks,
-          profiles,
-          range.endMs,
-          task.analysis.signal,
-        ).catch((error) => {
-          if (!task.analysis.signal.aborted) playerLog.warn("AutoMix 分轨编排不可用", error);
-          return undefined;
-        });
-        if (task.analysis.signal.aborted) return false;
-        const arranged = task.automix;
-        if (arranged) {
+      if (profiles) {
+        const synced = planAutoMix(profiles[0], profiles[1], range.endMs);
+        const candidate = synced ?? planAutoMixBridge(profiles[0], profiles[1], range.endMs);
+        if (!synced)
           playerLog.info(
-            `AutoMix 就绪：${arranged.strategy === "bridge" ? "原速桥接" : "对拍"} · 分轨 · ${(arranged.durationMs / 1000).toFixed(1)} 秒`,
-            {
-              outStartMs: arranged.outStartMs,
-              inStartMs: arranged.inStartMs,
-              outgoingRate: arranged.outgoingRate,
-              overlapMs: arranged.envelopes.slice(0, INCOMING).map((outgoing, index) => {
-                const incoming = arranged.envelopes[index + INCOMING];
-                return Math.max(0, outgoing.endMs - incoming.startMs);
-              }),
-            },
+            candidate
+              ? "AutoMix 两曲节奏无法对齐，改用原速桥接"
+              : "AutoMix 无法对拍也无法桥接，不做混音",
           );
+        if (candidate) {
+          task.automix = await enhanceAutoMixPlan(
+            candidate,
+            tracks,
+            profiles,
+            range.endMs,
+            task.analysis.signal,
+          ).catch((error) => {
+            if (!task.analysis.signal.aborted) playerLog.warn("AutoMix 分轨编排不可用", error);
+            return undefined;
+          });
+          if (task.automix && !task.analysis.signal.aborted) {
+            const { strategy, durationMs, outStartMs, inStartMs, outgoingRate } = task.automix;
+            playerLog.info(
+              `AutoMix 就绪：${strategy === "bridge" ? "原速桥接" : "对拍"} · ${(durationMs / 1000).toFixed(1)} 秒`,
+              { outStartMs, inStartMs, outgoingRate },
+            );
+          }
         }
       }
     }

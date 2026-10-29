@@ -46,6 +46,7 @@ const buildContextKey = (track: Track): string => {
   const settings = useSettingsStore();
   const streaming = useStreamingStore();
   const plugins = usePluginsStore();
+  const status = useStatusStore();
 
   const parts = [
     track.id,
@@ -61,12 +62,7 @@ const buildContextKey = (track: Track): string => {
     settings.player.transitionMode,
     settings.player.transitionPreference,
     ...(settings.player.transitionMode === "automix"
-      ? [
-          isAutoMixReady(),
-          useStatusStore().speed,
-          useStatusStore().pitch,
-          useStatusStore().currentTrack?.id,
-        ]
+      ? [isAutoMixReady(), status.speed, status.pitch, status.currentTrack?.id]
       : []),
     settings.player.allowTrialPlay,
     streaming.activeServerId ?? "",
@@ -183,7 +179,6 @@ export const beginPreparedTransition = (
   const prepared = peekPreparedTrack(track);
   if (!prepared?.source || (expectedId && prepared.preparedId !== expectedId)) return null;
   if (
-    useSettingsStore().player.transitionMode === "automix" &&
     positionMs != null &&
     prepared.autoMixStartMs != null &&
     positionMs < prepared.autoMixStartMs - AUTOMIX_ARM_LEAD_MS

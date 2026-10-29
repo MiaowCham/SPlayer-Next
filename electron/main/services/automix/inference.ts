@@ -2,7 +2,8 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { app } from "electron";
 import { playerLog } from "@main/utils/logger";
-import { AUTOMIX_DIRS, AUTOMIX_WORKER } from "./assets";
+import { automixDirs } from "@main/utils/paths";
+import { AUTOMIX_WORKER } from "./assets";
 
 let pending: Promise<unknown> = Promise.resolve();
 const shutdown = new AbortController();
@@ -45,7 +46,7 @@ export const runAutoMixModel = <T>(
       reject(combined.reason);
       return;
     }
-    const child = spawn(path.join(AUTOMIX_DIRS.runtime, AUTOMIX_WORKER), [], {
+    const child = spawn(path.join(automixDirs.runtime, AUTOMIX_WORKER), [], {
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -104,7 +105,7 @@ export const runAutoMixModel = <T>(
     child.stdin.end(
       JSON.stringify({
         kind,
-        model: path.join(AUTOMIX_DIRS[kind], kind === "beat" ? "beat-this.onnx" : "htdemucs.onnx"),
+        model: path.join(automixDirs[kind], kind === "beat" ? "beat-this.onnx" : "htdemucs.onnx"),
         windows,
       }),
     );

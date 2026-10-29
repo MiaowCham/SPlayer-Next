@@ -96,18 +96,17 @@ fn run_dsp_loop(shared: &Shared, equalizer: &Mutex<Equalizer>, tempo: &Mutex<Str
                 shared.set_stems(None);
             }
             if let Some(samples) = &mut chunk.stem_samples {
-                for stem in samples.iter_mut() {
-                    for sample in stem {
-                        *sample *= chunk.normalization_gain;
-                    }
-                }
+                let gain = chunk.normalization_gain;
+                samples
+                    .iter_mut()
+                    .flatten()
+                    .for_each(|sample| *sample *= gain);
             }
         }
         source_samples += chunk.source_sample_count;
         if chunk.stem_samples.is_none() {
             state.stems = None;
-        }
-        if chunk.stem_samples.is_some() && state.stems.is_none() {
+        } else if state.stems.is_none() {
             state.stems = Some(StemProcessors::new(shared.sample_rate(), shared.channels()));
         }
         let chunk = process_audio_chunk(

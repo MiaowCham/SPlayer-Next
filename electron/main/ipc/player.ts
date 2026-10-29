@@ -58,18 +58,8 @@ import type {
 import type { MediaEvent } from "@splayer/media-ctrl";
 import { JsPlayerEvent } from "@splayer/audio-engine";
 import type { JsMusicMetadata } from "@splayer/audio-engine";
-import type { AutoMixEnvelope, AutoMixPrepareOptions, TransitionMode } from "@shared/types/automix";
+import type { AutoMixPrepareOptions, TransitionMode } from "@shared/types/automix";
 import { canAutoMix } from "@main/services/automix/planner";
-
-/**
- * 将相对混音起点的毫秒区间转换为原生引擎使用的秒
- * @param span - 毫秒区间
- * @returns 秒区间
- */
-const toSeconds = (span: AutoMixEnvelope) => ({
-  startSeconds: span.startMs / 1000,
-  endSeconds: span.endMs / 1000,
-});
 
 type AudioEngineModule = typeof import("@splayer/audio-engine");
 
@@ -444,9 +434,12 @@ export const registerPlayerIpc = (): void => {
       const current = getPlayer();
       try {
         const automix = mode === "automix" ? getPreparedAutoMixPlan(id) : undefined;
-        if (mode === "automix" && (!automix || !canAutoMix(current.getSpeed(), current.getPitch())))
-          return { success: false };
-        if (mode === "automix" && !(await installPreparedAutoMixStems(id)))
+        if (
+          mode === "automix" &&
+          (!automix ||
+            !canAutoMix(current.getSpeed(), current.getPitch()) ||
+            !(await installPreparedAutoMixStems(id)))
+        )
           return { success: false };
         const streamingSource =
           options.meta?.source === "streaming"
@@ -481,7 +474,10 @@ export const registerPlayerIpc = (): void => {
                 durationSeconds: automix.durationMs / 1000,
                 outgoingRate: automix.outgoingRate,
                 levelRatio: store.get("player.loudnessNormalization") ? 1 : automix.levelRatio,
-                envelopes: automix.envelopes.map(toSeconds),
+                envelopes: automix.envelopes.map((span) => ({
+                  startSeconds: span.startMs / 1000,
+                  endSeconds: span.endMs / 1000,
+                })),
               }
             : undefined,
         );

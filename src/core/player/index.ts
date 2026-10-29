@@ -1003,8 +1003,7 @@ export const trySmartTransition = async (
   const status = useStatusStore();
   if (
     transitionInFlight ||
-    (settings.player.transitionMode !== "crossfade" &&
-      settings.player.transitionMode !== "automix") ||
+    settings.player.transitionMode === "none" ||
     !status.isPlaying ||
     status.trackLoading ||
     status.fmMode ||

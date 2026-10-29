@@ -13,6 +13,8 @@ import type { AutoMixCandidate } from "./planner";
 /** 只保留最近四对交接的磁盘窗口，不缓存 PCM 或模型张量 */
 const completed = new Map<string, { plan: AutoMixPlan; directory: string }>();
 let workspace: Promise<void> | undefined;
+/** 声部分离窗口上限，对应 worker 与引擎的 1_058_444 帧（44.1kHz 下 24 秒） */
+const MAX_SEPARATION_MS = 24_000;
 
 /** 一组分离窗口的磁盘结果 */
 interface Separation {
@@ -55,13 +57,11 @@ const separate = async (
         window.input,
       );
     }
-    signal.throwIfAborted();
     const results = await runAutoMixModel<{ structure: { vocals: number[] }; frames: number }>(
       "demucs",
       windows,
       signal,
     );
-    signal.throwIfAborted();
     return {
       directory,
       windows,
@@ -101,20 +101,23 @@ export const enhanceAutoMixPlan = (
     signal.throwIfAborted();
     const cached = completed.get(key);
     if (cached) return cached.plan;
-    const separation = await separate(
-      tracks,
-      profiles.map((profile, index) => {
-        const start = index ? candidate.inStartMs : candidate.outStartMs;
-        return {
-          startMs: Math.max(profile.startMs, start - 1500),
-          endMs: Math.min(
-            profile.endMs,
-            start + candidate.durationMs * (index ? 1 : candidate.outgoingRate) + 1500,
-          ),
-        };
-      }),
-      signal,
-    );
+    const ranges = profiles.map((profile, index) => {
+      const start = index ? candidate.inStartMs : candidate.outStartMs;
+      // 下一曲从原始入口起分离，入口后移跳过的唱句也要计入损失
+      const entry = index ? Math.min(start, profile.firstAudibleMs - 100) : start;
+      return {
+        startMs: Math.max(profile.startMs, entry - 1500),
+        endMs: Math.min(
+          profile.endMs,
+          start + candidate.durationMs * (index ? 1 : candidate.outgoingRate) + 1500,
+        ),
+      };
+    });
+    if (ranges.some((range) => range.endMs - range.startMs > MAX_SEPARATION_MS)) {
+      playerLog.info("AutoMix 跳过区间超出声部分离窗口，不做混音");
+      return undefined;
+    }
+    const separation = await separate(tracks, ranges, signal);
     const { directory, windows, frames, vocals } = separation;
     const voices = profiles.map((profile, index) =>
       measureVocalActivity(profile, vocals[index], windows[index].startMs),

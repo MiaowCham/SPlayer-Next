@@ -7,12 +7,13 @@ import { setTimeout as delay } from "node:timers/promises";
 import { net } from "electron";
 import { broadcast } from "@main/utils/broadcast";
 import { playerLog } from "@main/utils/logger";
+import { automixDirs } from "@main/utils/paths";
 import type {
   AutoMixComponentId,
   AutoMixComponentStatus,
   AutoMixModelStatus,
 } from "@shared/types/automix";
-import { AUTOMIX_COMPONENTS, AUTOMIX_DIRS, AUTOMIX_MIRRORS, AUTOMIX_WORKER } from "./assets";
+import { AUTOMIX_COMPONENTS, AUTOMIX_MIRRORS, AUTOMIX_WORKER } from "./assets";
 import { extractAutoMixPackage } from "./runtime";
 
 const models: AutoMixModelStatus[] = (["beat", "demucs", "runtime"] as const).map((id) => ({
@@ -50,7 +51,7 @@ export const getAutoMixComponentStatus = (): Promise<AutoMixComponentStatus> => 
       const asset = AUTOMIX_COMPONENTS[model.id];
       if (!asset) continue;
       const files = await Promise.all(
-        asset.files.map((file) => stat(path.join(AUTOMIX_DIRS[model.id], file)).catch(() => null)),
+        asset.files.map((file) => stat(path.join(automixDirs[model.id], file)).catch(() => null)),
       );
       model.state = files.every((file) => file?.isFile() && file.size > 0) ? "ready" : "missing";
     }
@@ -80,7 +81,7 @@ export const installAutoMixComponents = (
   activeComponentId = id;
   const signal = controller.signal;
   installation = (async () => {
-    const staging = AUTOMIX_DIRS[id] + ".part";
+    const staging = automixDirs[id] + ".part";
     try {
       await getAutoMixComponentStatus();
       if (model.state === "ready") return snapshot();
@@ -107,11 +108,13 @@ export const installAutoMixComponents = (
             for await (const chunk of body) {
               hash.update(chunk);
               model.received += chunk.byteLength;
-              model.bytesPerSecond = Math.round(
-                (model.received * 1000) / Math.max(1, performance.now() - startedAt),
-              );
+              // 镜像返回的内容不可信，超过发布包大小立即中断，避免写满磁盘
+              if (model.received > asset.bytes) throw new Error("组件大小超出发布包");
               if (performance.now() - announcedAt >= 200) {
                 announcedAt = performance.now();
+                model.bytesPerSecond = Math.round(
+                  (model.received * 1000) / Math.max(1, announcedAt - startedAt),
+                );
                 broadcast("automix:componentStatus", snapshot(), true);
               }
               yield chunk;
@@ -137,7 +140,7 @@ export const installAutoMixComponents = (
       if (id === "runtime" && process.platform !== "win32")
         await chmod(path.join(staging, AUTOMIX_WORKER), 0o755);
       signal.throwIfAborted();
-      const destination = AUTOMIX_DIRS[id];
+      const destination = automixDirs[id];
       await rm(destination, { recursive: true, force: true });
       // Windows 刚解压的运行库可能短暂被占用，只重试目录移动且允许取消
       for (let attempt = 0; ; attempt++) {
@@ -157,23 +160,21 @@ export const installAutoMixComponents = (
       }
       model.state = "ready";
     } catch (error) {
-      model.state = signal.aborted ? "missing" : "error";
-      model.error = signal.aborted
-        ? undefined
-        : error instanceof Error
-          ? error.message
-          : String(error);
-      if (!signal.aborted) playerLog.warn("AutoMix 组件安装失败", error);
-    } finally {
-      try {
-        await rm(staging, { recursive: true, force: true });
-      } finally {
-        installation = undefined;
-        controller = undefined;
-        activeComponentId = undefined;
-        model.bytesPerSecond = undefined;
-        broadcast("automix:componentStatus", snapshot());
+      if (signal.aborted) {
+        model.state = "missing";
+        model.error = undefined;
+      } else {
+        model.state = "error";
+        model.error = error instanceof Error ? error.message : String(error);
+        playerLog.warn("AutoMix 组件安装失败", error);
       }
+    } finally {
+      await rm(staging, { recursive: true, force: true }).catch(() => {});
+      installation = undefined;
+      controller = undefined;
+      activeComponentId = undefined;
+      model.bytesPerSecond = undefined;
+      broadcast("automix:componentStatus", snapshot());
     }
     return snapshot();
   })();

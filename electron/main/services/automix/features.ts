@@ -45,10 +45,10 @@ export const createAutoMixProfile = (
   const sorted = [...levels].sort((left, right) => left - right);
   const threshold = Math.max(0.001, sorted[Math.floor(sorted.length * 0.8)] * 0.25);
   let bodyEnd = -1;
-  for (let index = 0; index + 2 < levels.length; index++) {
-    if (levels.slice(index, index + 3).every((level) => level >= threshold)) {
-      bodyEnd = index + 3;
-    }
+  let run = 0;
+  for (const [index, level] of levels.entries()) {
+    run = level >= threshold ? run + 1 : 0;
+    if (run >= 3) bodyEnd = index + 1;
   }
   const beats = pickBeatPeaks(scores.filter((_, index) => index % 2 === 0)).map(
     (time) => time + startMs,

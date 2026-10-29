@@ -94,10 +94,7 @@ fn spectral_features(mono: &[f32]) -> (Vec<f32>, Vec<f32>) {
     let mut chroma = vec![0.0_f32; mono.len().div_ceil(SAMPLE_RATE / 10) * 12];
     for frame in 0..frames {
         for (index, sample) in buffer.iter_mut().enumerate() {
-            let mut position = (frame * HOP + index) as isize - (FFT_SIZE / 2) as isize;
-            if position < 0 {
-                position = -position;
-            }
+            let mut position = ((frame * HOP + index) as isize - (FFT_SIZE / 2) as isize).abs();
             if position >= mono.len() as isize {
                 position = 2 * (mono.len() as isize - 1) - position;
             }
@@ -128,10 +125,7 @@ fn spectral_features(mono: &[f32]) -> (Vec<f32>, Vec<f32>) {
     for (frame, cell) in chroma.as_chunks_mut::<12>().0.iter_mut().enumerate() {
         let center = frame * (SAMPLE_RATE / 10) + SAMPLE_RATE / 20;
         for (index, sample) in buffer.iter_mut().enumerate() {
-            let mut position = (center + index) as isize - (CHROMA_FFT_SIZE / 2) as isize;
-            if position < 0 {
-                position = -position;
-            }
+            let mut position = ((center + index) as isize - (CHROMA_FFT_SIZE / 2) as isize).abs();
             if position >= mono.len() as isize {
                 position = 2 * (mono.len() as isize - 1) - position;
             }
@@ -367,7 +361,7 @@ mod tests {
         let peak = mel[50 * MEL_BANDS..51 * MEL_BANDS]
             .iter()
             .enumerate()
-            .max_by(|a, b| a.1.total_cmp(b.1))
+            .max_by(|left, right| left.1.total_cmp(right.1))
             .unwrap()
             .0;
         assert!((14..22).contains(&peak), "{peak}");
@@ -397,12 +391,12 @@ mod tests {
         let shifted = features[0]
             .iter()
             .zip(&features[1])
-            .map(|(a, b)| a * b)
+            .map(|(left, right)| left * right)
             .sum::<f32>();
         let octave = features[0]
             .iter()
             .zip(&features[2])
-            .map(|(a, b)| a * b)
+            .map(|(left, right)| left * right)
             .sum::<f32>();
         assert!(shifted < 0.2, "半音偏移不应被视为同一组音级: {shifted}");
         assert!(octave > 0.98, "八度关系不应改变音级证据: {octave}");

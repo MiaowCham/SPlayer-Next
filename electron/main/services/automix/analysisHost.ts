@@ -75,9 +75,7 @@ export const analyzeAutoMixTracks = (
         features.push(metadata);
         windows.push({ input, output, frames: mel.length / MEL_BINS });
       }
-      signal.throwIfAborted();
       await runAutoMixModel("beat", windows, signal);
-      signal.throwIfAborted();
       for (const [offset, index] of pending.entries()) {
         const data = await readFile(windows[offset].output);
         if (data.byteLength !== windows[offset].frames * 8) throw new Error("节拍预测帧数不匹配");

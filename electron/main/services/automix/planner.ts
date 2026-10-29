@@ -13,6 +13,8 @@ export type AutoMixCandidate = Omit<AutoMixPlan, "envelopes" | "stems">;
 export const canAutoMix = (speed: number, pitch: number): boolean =>
   Math.abs(speed - 1) < 0.0001 && pitch === 0;
 
+/** 原生引擎接受的最长交接 */
+const MAX_MIX_MS = 18_000;
 /** 音级相似度达到此值视为调性相容，可整句融合 */
 const CONSONANT_AFFINITY = 0.7;
 /** 无音级信息时的中性相似度 */
@@ -128,20 +130,18 @@ export const planAutoMix = (
     if (Math.abs(rate - 1) <= 0.08 + 1e-9 && anchor != null) {
       const outgoingLevel = measureMixWindow(outgoing, outgoing.startMs, bodyEnd).level;
       const incomingLevel = measureMixWindow(incoming, entry, incoming.endMs).level;
-      // 对拍路径沿用原有入口优先级，原速融合另行选择小节入口
-      const syncedEntry = anchor > entry + bar ? anchor : entry;
       // 原有入口优先，无法成句时再从首个可靠小节入场
+      const syncedEntry = anchor > entry + bar ? anchor : entry;
       for (const cue of new Set([syncedEntry, anchor])) {
         let bestScore = Infinity;
         for (const bars of [8, 4, 2]) {
           const phraseLength = bars * bar;
           if (
-            phraseLength > 18_000 ||
+            phraseLength > MAX_MIX_MS ||
             phraseLength < 3500 ||
-            cue + phraseLength > incoming.endMs - 300
+            cue + phraseLength > Math.min(incoming.endMs - 300, incoming.gridEndMs + commonBeat)
           )
             continue;
-          if (cue + phraseLength > incoming.gridEndMs + commonBeat) continue;
           for (const beat of downbeats[0]) {
             const start = beat - (anchor - cue) * rate;
             const length = Math.min(phraseLength, (endMs - start) / rate);
@@ -213,6 +213,7 @@ export const planAutoMixBridge = (
   const bar = incoming.periodMs * 4;
   const room = Math.min(
     incoming.periodMs * BRIDGE_BEATS,
+    MAX_MIX_MS,
     endMs - outgoing.startMs - 200,
     incoming.endMs - 300 - entry,
   );

@@ -33,7 +33,6 @@ const install = async (id: AutoMixComponentId): Promise<void> => {
   pending.value = id;
   try {
     const result = await window.api.automix.download(id);
-    status.value = result;
     const error = result.models.find((item) => item.id === id)?.error;
     if (error) toast.error(error);
   } catch (error) {

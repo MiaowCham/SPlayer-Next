@@ -136,12 +136,10 @@ impl InnerPlayer {
         let mut auto_start_sample = None;
         let mut auto_rate = 1.0;
         if let Some(plan) = &automix {
+            // 区间判断已拒绝 NaN 与无穷，起点只参与可能放过 NaN 的比较，需单独校验
             ensure!(
                 plan.out_start.is_finite()
                     && plan.in_start.is_finite()
-                    && plan.duration.is_finite()
-                    && plan.rate.is_finite()
-                    && plan.level_ratio.is_finite()
                     && (0.5..=2.0).contains(&plan.level_ratio)
                     && (0.92..=1.08).contains(&plan.rate)
                     && (1.0..=18.0).contains(&plan.duration),
@@ -149,11 +147,10 @@ impl InnerPlayer {
             );
             ensure!(
                 plan.envelopes.len() == 8
-                    && plan.envelopes.iter().all(|span| span.start.is_finite()
-                        && span.end.is_finite()
-                        && span.start >= 0.0
-                        && span.end <= 1.0
-                        && span.end > span.start),
+                    && plan
+                        .envelopes
+                        .iter()
+                        .all(|span| span.start >= 0.0 && span.end <= 1.0 && span.end > span.start),
                 "无效的混音声部包络"
             );
             if plan.out_start < self.position() + 0.25

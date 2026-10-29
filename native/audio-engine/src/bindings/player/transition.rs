@@ -2,7 +2,9 @@ use super::*;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use crate::decoder::transition_source::MixEnvelope;
+use crate::decoder::transition_source::{
+    MixEnvelope, TRANSITION_DECISION_BEAT, TRANSITION_DECISION_QUIET,
+};
 
 /// 只对持续无播放进展的输出计时，倍速变化和暂停不会耗尽交接预算。
 struct TransitionWatchdog {
@@ -33,17 +35,6 @@ impl TransitionWatchdog {
         self.position = position;
         self.incoming_samples = incoming_samples;
         now.duration_since(self.last_progress) >= Duration::from_secs(10)
-    }
-}
-
-/// 将相对混音起点的秒数区间转换为交接进度
-/// @param span - 秒数区间
-/// @param duration - 交接总秒数
-/// @returns 归一化区间
-fn normalize(span: &JsAutoMixEnvelope, duration: f64) -> MixEnvelope {
-    MixEnvelope {
-        start: (span.start_seconds / duration) as f32,
-        end: (span.end_seconds / duration) as f32,
     }
 }
 
@@ -96,7 +87,10 @@ impl AudioPlayer {
                             envelopes: plan
                                 .envelopes
                                 .iter()
-                                .map(|span| normalize(span, plan.duration_seconds))
+                                .map(|span| MixEnvelope {
+                                    start: (span.start_seconds / plan.duration_seconds) as f32,
+                                    end: (span.end_seconds / plan.duration_seconds) as f32,
+                                })
                                 .collect(),
                         }),
                     )
@@ -126,23 +120,16 @@ impl AudioPlayer {
                         let player = inner.lock();
                         (player.position(), player.state() == PlayerState::Paused)
                     };
-                    if token_handle.load(Ordering::Acquire) != token {
-                        break (0_u8, announced);
-                    }
-                    if cancelled.load(Ordering::Acquire) {
+                    if token_handle.load(Ordering::Acquire) != token
+                        || cancelled.load(Ordering::Acquire)
+                    {
                         break (0_u8, announced);
                     }
                     if !announced && started.load(Ordering::Acquire) {
-                        let reason = if decision.load(Ordering::Acquire)
-                            == crate::decoder::transition_source::TRANSITION_DECISION_QUIET
-                        {
-                            "quiet"
-                        } else if decision.load(Ordering::Acquire)
-                            == crate::decoder::transition_source::TRANSITION_DECISION_BEAT
-                        {
-                            "planned"
-                        } else {
-                            "deadline"
+                        let reason = match decision.load(Ordering::Acquire) {
+                            TRANSITION_DECISION_QUIET => "quiet",
+                            TRANSITION_DECISION_BEAT => "planned",
+                            _ => "deadline",
                         };
                         let player = inner.lock();
                         if !player.is_load_token_current(token) {

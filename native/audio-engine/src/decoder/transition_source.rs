@@ -424,11 +424,11 @@ impl TransitionSource {
             transition.command.decision.store(reason, Ordering::Release);
             transition.command.started.store(true, Ordering::Release);
         }
-        if cancel_requested && transition.cancelling == 0 {
-            transition.cancel_gains = transition.gains;
-            transition.cancel_levels = transition.levels;
-        }
         if cancel_requested {
+            if transition.cancelling == 0 {
+                transition.cancel_gains = transition.gains;
+                transition.cancel_levels = transition.levels;
+            }
             let progress = (transition.cancelling as f32 / self.cancel_samples as f32).min(1.0);
             for side in 0..2 {
                 transition.levels[side] = transition.cancel_levels[side]
@@ -450,9 +450,9 @@ impl TransitionSource {
             // 人声包络不能连带改变已选伴奏的电平曲线
             transition.levels = level_curve(transition.command.level_ratio, progress);
         }
-        let mixed = if transition.command.envelopes.is_some() {
-            let mut mixed = sample * transition.gains[0][3] * transition.levels[0]
-                + b * transition.gains[1][3] * transition.levels[1];
+        let mut mixed = sample * transition.gains[0][3] * transition.levels[0]
+            + b * transition.gains[1][3] * transition.levels[1];
+        if transition.command.envelopes.is_some() {
             for index in 0..3 {
                 mixed += stems_a[index]
                     * (transition.gains[0][index] - transition.gains[0][3])
@@ -465,11 +465,7 @@ impl TransitionSource {
             mixed += transition.command.kick.low(stems_b[0], channel)
                 * (transition.gains[1][4] - transition.gains[1][0])
                 * transition.levels[1];
-            mixed
-        } else {
-            sample * transition.gains[0][3] * transition.levels[0]
-                + b * transition.gains[1][3] * transition.levels[1]
-        };
+        }
         if cancel_requested {
             if transition.cancelling >= self.cancel_samples
                 && transition.cancelling % self.channels == 0

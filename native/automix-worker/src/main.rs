@@ -18,10 +18,17 @@ mod beats;
 mod demucs;
 mod spectral;
 
+#[derive(Deserialize, Clone, Copy, PartialEq)]
+#[serde(rename_all = "lowercase")]
+enum Kind {
+    Beat,
+    Demucs,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Request {
-    kind: String,
+    kind: Kind,
     model: PathBuf,
     windows: Vec<Window>,
     #[serde(default)]
@@ -68,13 +75,13 @@ fn write_samples(path: &std::path::Path, samples: &[f32]) -> Result<()> {
 /// 生成与官方权重导出端一致的固定校验输入
 /// @param kind - 节拍或分离模型
 /// @returns 命名输入张量
-fn probe(kind: &str) -> Result<Vec<(&'static str, DynTensor)>> {
-    let count = if kind == "beat" {
+fn probe(kind: Kind) -> Result<Vec<(&'static str, DynTensor)>> {
+    let count = if kind == Kind::Beat {
         1500 * 128
     } else {
         2 * demucs::FRAMES
     };
-    let scale = if kind == "beat" { 4.0 } else { 0.2 };
+    let scale = if kind == Kind::Beat { 4.0 } else { 0.2 };
     let samples: Vec<f32> = (0..count)
         .map(|index| {
             let value = (index as u32)
@@ -84,7 +91,7 @@ fn probe(kind: &str) -> Result<Vec<(&'static str, DynTensor)>> {
             (value as f32 / 65535.0 - 0.5) * scale
         })
         .collect();
-    if kind == "beat" {
+    if kind == Kind::Beat {
         Ok(vec![(
             "spectrogram",
             Tensor::from_array(([1, 1500, 128], samples))?.upcast(),
@@ -111,7 +118,7 @@ fn probe(kind: &str) -> Result<Vec<(&'static str, DynTensor)>> {
 fn validate(session: &mut Session, request: &Request) -> Result<()> {
     let check: Value =
         serde_json::from_slice(&fs::read(request.model.with_extension("check.json"))?)?;
-    let outputs = session.run(probe(&request.kind)?)?;
+    let outputs = session.run(probe(request.kind)?)?;
     let expected = check["outputs"].as_array().context("模型缺少校验向量")?;
     ensure!(outputs.len() == expected.len(), "模型校验输出数量不符");
     for (index, reference) in expected.iter().enumerate() {
@@ -169,10 +176,6 @@ fn run() -> Result<Value> {
     io::stdin().take(256_001).read_to_string(&mut input)?;
     ensure!(input.len() <= 256_000, "分析请求过大");
     let request: Request = serde_json::from_str(&input)?;
-    ensure!(
-        matches!(request.kind.as_str(), "beat" | "demucs"),
-        "未知模型类型"
-    );
     let executable = std::env::current_exe()?;
     let directory = executable.parent().context("分析进程路径无效")?;
     let library = if cfg!(windows) {
@@ -190,7 +193,7 @@ fn run() -> Result<Value> {
     let (mut session, backend) = loop {
         let candidate = (|| -> Result<Session> {
             // 分离模型在 CPU 使用两条执行流及时释放张量，节拍模型仍按顺序执行
-            let parallel = !gpu && request.kind == "demucs";
+            let parallel = !gpu && request.kind == Kind::Demucs;
             let mut builder = Session::builder()?
                 .with_intra_threads(4)?
                 .with_inter_threads(if parallel { 2 } else { 1 })?
@@ -223,7 +226,7 @@ fn run() -> Result<Value> {
     let mut results = Vec::new();
     for window in request.windows {
         let samples = read_samples(&window.input)?;
-        if request.kind == "beat" {
+        if request.kind == Kind::Beat {
             let output = beats::run(&mut session, &samples)?;
             write_samples(&window.output, &output)?;
             results.push(json!({"frames": samples.len() / 128}));

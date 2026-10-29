@@ -1,7 +1,5 @@
 import type { AutoMixComponentId } from "@shared/types/automix";
 import { release } from "node:os";
-import path from "node:path";
-import { modelsDir } from "@main/utils/paths";
 
 /** 独立组件的发布文件、校验值与所需文件 */
 interface AutoMixAsset {
@@ -15,13 +13,6 @@ interface AutoMixAsset {
 export const AUTOMIX_MIRRORS = ["https://gh-proxy.com/", "https://ghfast.top/", ""].map(
   (prefix) => `${prefix}https://github.com/SPlayer-Dev/SPlayer-Next/releases/download/AutoMix/`,
 );
-
-/** 各组件独立的安装目录，升级某组件只改它的目录，其余组件已安装的文件继续有效 */
-export const AUTOMIX_DIRS: Record<AutoMixComponentId, string> = {
-  beat: path.join(modelsDir, "automix-v2", "beat"),
-  demucs: path.join(modelsDir, "automix-v2", "demucs"),
-  runtime: path.join(modelsDir, "automix-v2", "runtime"),
-};
 
 const runtimeDigests: Record<string, [number, string]> = {
   "darwin-arm64": [10566937, "2d8109e818bbd8ee0faed50fdcb9b87879ff734788ee23b59f64cbfd781da83f"],

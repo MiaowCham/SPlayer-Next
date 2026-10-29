@@ -30,7 +30,6 @@ pub enum PopResult {
 
 /// 解码线程与播放迭代器之间的共享状态
 pub struct Shared {
-    stems_enabled: AtomicBool,
     stems: Mutex<Option<Arc<super::stems::StemWindow>>>,
     decoded_buffer: Mutex<VecDeque<AudioChunk>>,
     decoded_capacity: AtomicUsize,
@@ -82,17 +81,12 @@ impl Shared {
     /// 替换当前解码会话唯一的有限分离窗口
     /// @param window - 已在控制线程载入的只读数据
     pub fn set_stems(&self, window: Option<Arc<super::stems::StemWindow>>) {
-        let enabled = window.is_some();
         *self.stems.lock() = window;
-        self.stems_enabled.store(enabled, Ordering::Release);
     }
 
     /// 获取当前解码块所用的分离窗口
     /// @returns 当前会话的只读窗口
     pub fn stems(&self) -> Option<Arc<super::stems::StemWindow>> {
-        if !self.stems_enabled.load(Ordering::Acquire) {
-            return None;
-        }
         self.stems.lock().clone()
     }
 
@@ -106,7 +100,6 @@ impl Shared {
             "sample_rate/channels 必须为正"
         );
         Arc::new(Self {
-            stems_enabled: AtomicBool::new(false),
             stems: Mutex::new(None),
             decoded_buffer: Mutex::new(VecDeque::with_capacity(FRAME_BUFFER_CAPACITY)),
             decoded_capacity: AtomicUsize::new(FRAME_BUFFER_CAPACITY),
