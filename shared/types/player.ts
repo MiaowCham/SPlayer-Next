@@ -128,8 +128,10 @@ export interface Track {
   artists: Artist[];
   /** 专辑 */
   album?: Album;
-  /** 碟号或碟片名称 */
-  disc?: string;
+  /** 碟号，从 1 开始 */
+  disc?: number;
+  /** 碟片名称 */
+  discTitle?: string;
   /** 曲目编号 */
   track?: number;
   /** 时长（毫秒） */

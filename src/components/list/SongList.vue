@@ -202,20 +202,37 @@ const filteredItems = computed(() => {
   });
 });
 
-/** 默认顺序下按碟片分组，搜索仍保留原专辑的分碟结构 */
-const discGroups = computed(() => {
-  if (
-    props.collectionType !== "album" ||
-    (props.enableSort && sortField.value !== "none") ||
-    new Set(props.items.map((track) => track.disc ?? "1")).size < 2
-  )
-    return [];
-  return [...Map.groupBy(filteredItems.value, (track) => track.disc ?? "1")];
+/** 多碟专辑的碟片与碟内曲序，基于完整专辑计算，搜索过滤时保持不变 */
+const albumDiscs = computed(() => {
+  if (props.collectionType !== "album") return null;
+  const groups = Map.groupBy(props.items, (track) => track.disc ?? 1);
+  if (groups.size < 2) return null;
+  const trackNumbers = new Map<string, number>();
+  for (const tracks of groups.values()) {
+    tracks.forEach((track, position) => trackNumbers.set(track.id, position + 1));
+  }
+  return { groups, trackNumbers };
+});
+
+/** 默认顺序下按碟号排列的列表，碟片标题附在每碟首曲上以保持播放与多选索引一致 */
+const discLayout = computed(() => {
+  const discs = albumDiscs.value;
+  if (!discs || (props.enableSort && sortField.value !== "none")) return null;
+  const items: Track[] = [];
+  const headers = new Map<number, { disc: number; title?: string; count: number }>();
+  const visible = Map.groupBy(filteredItems.value, (track) => track.disc ?? 1);
+  for (const [disc, tracks] of [...visible].sort(([left], [right]) => left - right)) {
+    const albumTracks = discs.groups.get(disc) ?? tracks;
+    const title = albumTracks.find((track) => track.discTitle)?.discTitle;
+    headers.set(items.length, { disc, title, count: albumTracks.length });
+    items.push(...tracks);
+  }
+  return { items, headers };
 });
 
 /** 排序后列表 */
 const sortedItems = computed(() => {
-  if (discGroups.value.length) return discGroups.value.flatMap(([, tracks]) => tracks);
+  if (discLayout.value) return discLayout.value.items;
   if (!props.enableSort || sortField.value === "none") return filteredItems.value;
   const result = [...filteredItems.value];
   const field = sortField.value;
@@ -245,27 +262,6 @@ const sortedItems = computed(() => {
   result.sort(compare);
   return result;
 });
-
-/** 标题附在每碟第一首歌上，歌曲索引和播放队列保持一致 */
-const discHeaders = computed(() => {
-  const headers: Record<number, { disc: string; count: number }> = {};
-  let index = 0;
-  for (const [disc, tracks] of discGroups.value) {
-    headers[index] = { disc, count: tracks.length };
-    index += tracks.length;
-  }
-  return headers;
-});
-
-/** 使用完整专辑计算碟内曲序，搜索时保持原编号 */
-const discTrackNumbers = computed(
-  () =>
-    new Map(
-      [...Map.groupBy(props.items, (track) => track.disc ?? "1").values()].flatMap((tracks) =>
-        tracks.map((track, index) => [track.id, index + 1] as const),
-      ),
-    ),
-);
 
 /** 当前播放歌曲在过滤后列表中的索引 */
 const playingIndex = computed(() => {
@@ -305,6 +301,21 @@ const { deleteConfirmOpen, deleteDialogTitle, deleteDialogContent } = batch;
 
 /** 是否使用紧凑列表样式 */
 const isCompactList = computed(() => settings.appearance.songListStyle === "compact");
+
+/** 歌曲行高度 */
+const rowHeight = computed(() => (isCompactList.value ? 56 : 88));
+
+/** 碟片标题行高度 */
+const DISC_HEADER_HEIGHT = 40;
+
+/** 分碟时每行的精确高度，碟片首曲额外包含标题行 */
+const discItemHeights = computed(() => {
+  const layout = discLayout.value;
+  if (!layout) return undefined;
+  return layout.items.map(
+    (_track, index) => rowHeight.value + (layout.headers.has(index) ? DISC_HEADER_HEIGHT : 0),
+  );
+});
 
 /**
  * 计算歌曲行样式
@@ -451,13 +462,11 @@ defineExpose({
       <SVirtualList
         ref="virtualListRef"
         :items="sortedItems"
-        :item-height="isCompactList ? 56 : 88"
+        :item-height="rowHeight"
+        :item-fixed="!discLayout"
+        :exact-item-heights="discItemHeights"
         :padding-bottom="isFloatingPlayerBar ? PLAYER_BAR_GAP : 80"
         :get-item-key="(item: Track) => item.id"
-        :item-fixed="!discGroups.length"
-        :get-item-height="
-          (_item: Track, index: number) => (isCompactList ? 56 : 88) + (discHeaders[index] ? 40 : 0)
-        "
         height="100%"
         @scroll="onScroll"
         @reach-bottom="emit('reachBottom')"
@@ -655,7 +664,7 @@ defineExpose({
         <!-- 列表项 -->
         <template #default="{ item, index }: { item: Track; index: number }">
           <div
-            v-if="discHeaders[index]"
+            v-if="discLayout?.headers.has(index)"
             class="mx-6 h-10 flex items-center gap-3 text-on-surface-variant"
             :class="!isCompactList && index > 0 ? 'pb-3' : ''"
           >
@@ -665,12 +674,18 @@ defineExpose({
             />
             <h2
               class="min-w-0 flex-1 truncate text-sm font-semibold"
-              :title="discHeaders[index].disc"
+              :title="discLayout.headers.get(index)!.title"
             >
-              {{ t("collection.disc", { disc: discHeaders[index].disc }) }}
+              {{ t("collection.disc", { disc: discLayout.headers.get(index)!.disc }) }}
+              <span
+                v-if="discLayout.headers.get(index)!.title"
+                class="font-normal text-on-surface-variant/70"
+              >
+                · {{ discLayout.headers.get(index)!.title }}
+              </span>
             </h2>
             <span class="shrink-0 text-xs tabular-nums text-on-surface-variant/50">
-              {{ t("common.totalSongs", { count: discHeaders[index].count }) }}
+              {{ t("common.totalSongs", { count: discLayout.headers.get(index)!.count }) }}
             </span>
           </div>
           <div :class="isCompactList ? 'px-3' : 'px-3 pb-3'">
@@ -709,7 +724,7 @@ defineExpose({
                     class="font-bold tabular-nums group-hover:opacity-0 transition-opacity duration-300"
                     :class="isCompactList ? 'text-xs' : 'text-sm'"
                   >
-                    {{ discGroups.length ? discTrackNumbers.get(item.id) : index + 1 }}
+                    {{ discLayout ? albumDiscs?.trackNumbers.get(item.id) : index + 1 }}
                   </span>
                   <IconLucideMusic
                     v-else
