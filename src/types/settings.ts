@@ -3,6 +3,8 @@ import type { LyricFormat } from "@shared/types/lyrics";
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
 import type { TransitionPreference } from "@shared/types/player";
+import type { TransitionMode } from "@shared/types/automix";
+
 import type { QualityLevel } from "@/utils/quality";
 import type { LyricAlignment } from "lyric-dom";
 
@@ -321,9 +323,11 @@ export interface PlayerSettings {
   /** 播放时提前获取下一首的播放数据 */
   preloadNextTrack: boolean;
   /** 相邻曲目的播放过渡方式 */
-  transitionMode: "none" | "crossfade";
+  transitionMode: TransitionMode;
   /** 曲尾交接时机与淡化时长偏好 */
   transitionPreference: TransitionPreference;
+  /** AutoMix 对拍与原速桥接都不适用时是否改用交叉过渡，关闭时直接切歌 */
+  automixCrossfadeFallback: boolean;
   /** 搜索页播放行为 */
   searchPlayBehavior: PlayBehavior;
   /** 歌曲列表行首播放按钮的行为 */
