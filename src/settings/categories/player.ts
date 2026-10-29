@@ -1,3 +1,4 @@
+import DeviceLatencyControl from "@/components/settings/custom/DeviceLatencyControl.vue";
 import { useSettingsStore } from "@/stores/settings";
 import type { SettingCategory } from "@/types/settings-schema";
 import DeviceSelector from "@/components/settings/custom/DeviceSelector.vue";
@@ -260,6 +261,7 @@ const playerCategory: SettingCategory = {
           type: "custom",
           component: DeviceSelector,
         },
+        { key: "deviceLatency", type: "custom", component: DeviceLatencyControl },
         {
           key: "rememberDeviceVolume",
           type: "switch",

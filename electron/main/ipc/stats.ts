@@ -9,7 +9,7 @@ import {
   getTopAlbums,
   getTopArtists,
 } from "@main/database/playStats";
-import { getLibraryStats } from "@main/database";
+import { getMediaStats } from "@main/database/mediaStats";
 import type { PlayEventInput, FavoriteEventInput } from "@shared/types/stats";
 
 /** 播放统计 IPC */
@@ -22,7 +22,7 @@ export const registerStatsIpc = (): void => {
   });
   ipcMain.handle("stats:getStatsSummary", () => getStatsSummary());
   ipcMain.handle("stats:getTopTracks", (_event, limit: number) => getTopTracks(limit));
-  ipcMain.handle("stats:getLibraryStats", () => getLibraryStats());
+  ipcMain.handle("stats:getLibraryStats", () => getMediaStats());
   ipcMain.handle("stats:getPlayHistoryDaily", (_event, days: number) => getPlayHistoryDaily(days));
   ipcMain.handle("stats:getPlayHistoryHourly", () => getPlayHistoryHourly());
   ipcMain.handle("stats:getTopAlbums", (_event, limit: number) => getTopAlbums(limit));

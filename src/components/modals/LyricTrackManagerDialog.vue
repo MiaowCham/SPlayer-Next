@@ -18,8 +18,6 @@ import type { Track } from "@shared/types/player";
 import type { LyricMatchCandidate, TrackLyricPreference } from "@shared/types/lyrics";
 import { isPlatform } from "@shared/types/platform";
 import { normalizeTtml } from "@shared/utils/ttml";
-import IconExternalLink from "~icons/lucide/external-link";
-import IconWrench from "~icons/lucide/wrench";
 import LyricOptimizeDialog from "./LyricOptimizeDialog.vue";
 
 const { t } = useI18n();
@@ -30,7 +28,10 @@ const settings = useSettingsStore();
 const managed = ref<Awaited<ReturnType<typeof window.api.lyrics.getManaged>>>(null);
 const loading = ref(false);
 const matchLoading = ref(false);
-const candidates = ref<LyricMatchCandidate[]>([]);
+const candidates = shallowRef<LyricMatchCandidate[]>([]);
+const focusedCandidateId = ref<string | null>(null);
+const onlineLoading = ref(false);
+const isDatabase = computed(() => lyricManager.context.value === "database");
 const candidateActionId = ref<string | null>(null);
 const preference = ref<TrackLyricPreference>({ source: "auto" });
 let refreshToken = 0;
@@ -50,14 +51,20 @@ const artistNames = computed(() =>
 const currentTrack = (): Track | null =>
   lyricManager.track.value ? (toRaw(lyricManager.track.value) as Track) : null;
 
+/**
+ * 刷新当前曲目的歌词版本，切换曲目后忽略旧请求
+ * @param scanDirectory - 是否先扫描手动歌词目录
+ */
 const refresh = async (scanDirectory = true): Promise<void> => {
+  const token = ++refreshToken;
   const track = currentTrack();
   if (!track) {
     managed.value = null;
     candidates.value = [];
+    matchLoading.value = false;
+    onlineLoading.value = false;
     return;
   }
-  const token = ++refreshToken;
   matchLoading.value = true;
   try {
     if (scanDirectory) await window.api.lyrics.refreshManaged(track);
@@ -72,6 +79,7 @@ const refresh = async (scanDirectory = true): Promise<void> => {
     preference.value = nextPreference;
     candidates.value = localCandidates;
     matchLoading.value = false;
+    onlineLoading.value = true;
     // 异步补全在线候选（平台/AM），完成后再叠加到列表
     const fullCandidates = await window.api.lyrics.getTrackCandidates(track);
     if (token !== refreshToken || !lyricManager.open.value) return;
@@ -79,7 +87,10 @@ const refresh = async (scanDirectory = true): Promise<void> => {
   } catch {
     if (token === refreshToken) toast.error(t("lyricManager.refreshFailed"));
   } finally {
-    if (token === refreshToken) matchLoading.value = false;
+    if (token === refreshToken) {
+      matchLoading.value = false;
+      onlineLoading.value = false;
+    }
   }
 };
 
@@ -136,6 +147,29 @@ const visibleCandidates = computed(() => {
   };
   return [...filtered].sort((a, b) => indexOf(a) - indexOf(b));
 });
+const focusedCandidate = computed(
+  () =>
+    visibleCandidates.value.find((candidate) => candidate.id === focusedCandidateId.value) ??
+    usedCandidate.value ??
+    visibleCandidates.value[0] ??
+    null,
+);
+const candidateGroups = computed(() => [
+  {
+    name: t("lyricManager.localVersion"),
+    items: visibleCandidates.value.filter((candidate) => candidate.local),
+  },
+  {
+    name: t("lyricManager.onlineAndCached"),
+    items: visibleCandidates.value.filter((candidate) => !candidate.local),
+  },
+]);
+const missingSources = computed(() =>
+  (settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER).filter(
+    (origin) => !visibleCandidates.value.some((candidate) => candidate.origin === origin),
+  ),
+);
+
 const isCurrentTrack = computed(() => {
   const track = lyricManager.track.value;
   return !!track && media.track?.source === track.source && media.track.id === track.id;
@@ -434,6 +468,7 @@ watch(
   }),
   ({ open }) => {
     if (open) {
+      focusedCandidateId.value = null;
       managed.value = null;
       candidates.value = [];
       preference.value = { source: "auto" };
@@ -448,6 +483,8 @@ watch(
       return;
     }
     refreshToken++;
+    onlineLoading.value = false;
+    focusedCandidateId.value = null;
     matchLoading.value = false;
     managed.value = null;
     candidates.value = [];
@@ -466,199 +503,212 @@ watch(
 <template>
   <SDialog
     :open="lyricManager.open.value"
-    :title="t('lyricManager.trackTitle')"
+    :title="t(isDatabase ? 'lyricManager.databaseTitle' : 'lyricManager.trackTitle')"
+    :description="isDatabase ? t('lyricManager.databaseDescription') : undefined"
     title-tag="Beta"
     variant="settings"
-    width="620px"
+    :width="isDatabase ? 'min(1480px,96vw)' : 'min(1100px,94vw)'"
+    height="min(850px,88vh)"
+    :content-style="{
+      padding: '0 16px 16px',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+    }"
+    destroy-on-close
     @update:open="lyricManager.setOpen"
   >
-    <div v-if="lyricManager.track.value" class="flex flex-col gap-4">
-      <div
-        class="flex gap-3 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 p-3"
+    <div
+      v-if="lyricManager.open.value"
+      class="lyric-manager-workspace"
+      :class="{ 'with-tracks': isDatabase }"
+    >
+      <LyricManagerTracks
+        v-if="isDatabase"
+        :selected="lyricManager.track.value"
+        @select="lyricManager.show($event, 'database')"
+      />
+      <section
+        class="flex min-h-0 min-w-0 flex-col gap-3 rounded-xl border border-solid border-outline-variant/15 bg-surface-panel p-3"
       >
-        <img
-          v-if="lyricManager.track.value.cover"
-          :src="lyricManager.track.value.cover"
-          class="size-18 rounded-lg object-cover shrink-0"
-          decoding="async"
-        />
-        <div v-else class="size-18 rounded-lg bg-surface flex items-center justify-center shrink-0">
-          <IconLucideDisc3 class="size-7 text-on-surface-variant/45" />
-        </div>
-        <div class="min-w-0 flex-1 py-0.5">
-          <div class="text-base font-medium truncate">{{ lyricManager.track.value.title }}</div>
-          <div class="mt-1 text-sm text-on-surface-variant/70 truncate">
-            {{ artistNames || t("lyricManager.unknownArtist") }}
-          </div>
-          <div class="mt-1 text-xs text-on-surface-variant/55 truncate">
-            {{ t("lyricManager.trackId") }}：{{ lyricManager.track.value.source }} ·
-            {{ lyricManager.track.value.id }}
-          </div>
-        </div>
-        <SButton
-          v-if="showPlayShortcut"
-          variant="secondary"
-          circle
-          :title="t('songList.context.play')"
-          @click="playManagedTrack"
+        <div
+          v-if="lyricManager.track.value"
+          class="flex shrink-0 items-center gap-3 border-b border-solid border-outline-variant/15 pb-3"
         >
-          <template #icon><IconLucidePlay /></template>
-        </SButton>
-      </div>
-
-      <div
-        class="rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3"
-      >
-        <div class="text-sm font-medium">{{ t("lyricManager.currentLyric") }}</div>
-        <div class="mt-1 text-sm text-on-surface-variant/75 break-all">
-          {{ currentLyricDescription }}
-        </div>
-        <div v-if="smartSelection" class="mt-1 text-xs text-primary">
-          {{ t("lyricManager.smartSelectionHint") }}
-        </div>
-      </div>
-
-      <div class="flex flex-wrap justify-end gap-2">
-        <SButton variant="secondary" @click="openTrackLyricDirectory">
-          {{ t("lyricManager.openDirectory") }}
-        </SButton>
-        <SButton variant="secondary" :loading="loading" @click="refreshCurrentLyric">
-          {{ t("lyricManager.refreshLyric") }}
-        </SButton>
-        <SButton v-if="managed" variant="secondary" @click="syncOpen = true">
-          {{ t("lyricManager.syncToTracks") }}
-        </SButton>
-        <SButton variant="secondary" :loading="loading" @click="importLyric">
-          {{ t("lyricManager.import") }}
-        </SButton>
-        <SButton variant="secondary" @click="lyricManager.hide">
-          {{ t("common.close") }}
-        </SButton>
-      </div>
-
-      <div class="flex flex-col gap-2.5">
-        <div class="flex items-center gap-3 px-1">
+          <img
+            v-if="lyricManager.track.value.cover"
+            :src="lyricManager.track.value.cover"
+            class="size-12 shrink-0 rounded-lg object-cover"
+            decoding="async"
+          />
+          <IconLucideDisc3 v-else class="size-10 shrink-0 text-on-surface-variant/40" />
           <div class="min-w-0 flex-1">
-            <div class="text-base font-medium">{{ t("lyricManager.matchResults") }}</div>
+            <div class="truncate font-semibold">{{ lyricManager.track.value.title }}</div>
+            <div class="mt-1 truncate text-xs text-on-surface-variant/65">{{ artistNames }}</div>
           </div>
+          <SButton
+            v-if="showPlayShortcut"
+            variant="ghost"
+            circle
+            :title="t('songList.context.play')"
+            @click="playManagedTrack"
+          >
+            <template #icon><IconLucidePlay /></template>
+          </SButton>
+        </div>
+        <div class="flex shrink-0 items-center justify-between gap-2">
+          <h3 class="m-0 text-base font-semibold">{{ t("lyricManager.sources") }}</h3>
           <SButton
             variant="ghost"
             circle
-            :title="t('lyricManager.customSearch')"
-            @click="openCustomSearch"
+            size="small"
+            :loading="matchLoading || onlineLoading"
+            :title="t('lyricManager.refreshLyric')"
+            :disabled="!lyricManager.track.value"
+            @click="refresh(false)"
           >
-            <template #icon><IconLucideSearch /></template>
-          </SButton>
-          <SButton variant="ghost" circle :loading="matchLoading" @click="refresh">
             <template #icon><IconLucideRefreshCw /></template>
           </SButton>
         </div>
-        <div
-          class="flex items-center gap-3 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5"
-          :class="smartSelection ? 'border-primary/50! bg-primary/5!' : ''"
-        >
-          <IconLucideSparkles class="size-4 shrink-0 text-primary" />
-          <div class="min-w-0 flex-1">
-            <div class="text-sm font-medium">{{ t("lyricManager.smartSelection") }}</div>
-            <div class="mt-0.5 text-xs text-on-surface-variant/60">
-              {{ t("lyricManager.smartSelectionDescription") }}
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          <div v-for="group in candidateGroups" :key="group.name">
+            <template v-if="group.items.length">
+              <div class="mb-2 mt-2 flex justify-between px-1 text-xs text-on-surface-variant/60">
+                <span>{{ group.name }}</span>
+                <span>{{ t("lyricManager.versionCount", { count: group.items.length }) }}</span>
+              </div>
+              <button
+                v-for="candidate in group.items"
+                :key="candidate.id"
+                class="mb-2 w-full cursor-pointer rounded-xl border border-solid p-3 text-left transition-colors"
+                :class="
+                  focusedCandidate?.id === candidate.id
+                    ? 'border-primary/50 bg-primary/8'
+                    : isCandidateVisuallySelected(candidate)
+                      ? 'border-primary/25 bg-surface'
+                      : 'border-outline-variant/15 bg-transparent hover:bg-on-surface/5'
+                "
+                @click="focusedCandidateId = candidate.id"
+                @contextmenu.prevent="candidate.local && deleteCandidate(candidate)"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <span class="truncate text-sm font-semibold text-on-surface">
+                    {{ candidateSourceLabel(candidate) }}
+                  </span>
+                  <STag v-if="usedCandidate?.id === candidate.id" type="primary" size="tiny">
+                    {{ t("lyricManager.inUse") }}
+                  </STag>
+                  <STag v-else-if="isCandidateSmartSelected(candidate)" size="tiny">
+                    {{ t("lyricManager.smartSelected") }}
+                  </STag>
+                </div>
+                <div class="my-2 truncate text-xs text-on-surface-variant/65">
+                  {{ candidate.filename }}
+                </div>
+                <div class="flex flex-wrap gap-1">
+                  <STag size="tiny">{{ candidate.format.toUpperCase() }}</STag>
+                  <STag v-if="candidate.translation" type="primary" size="tiny">
+                    {{ t("lyricManager.translationTag") }}
+                  </STag>
+                  <STag v-if="candidate.romaji" size="tiny">
+                    {{ t("lyricManager.pronunciationTag") }}
+                  </STag>
+                </div>
+              </button>
+            </template>
+          </div>
+          <div v-if="lyricManager.track.value && missingSources.length" class="mt-3">
+            <div class="mb-2 text-xs text-on-surface-variant/60">
+              {{ t("lyricManager.notRetrieved") }}
+            </div>
+            <div
+              v-for="origin in missingSources"
+              :key="origin"
+              class="mb-2 flex items-center justify-between gap-2 rounded-xl border border-solid border-outline-variant/15 px-3 py-3"
+            >
+              <span class="text-sm text-on-surface-variant/70">
+                {{ t(`lyricManager.matchSource.${origin}`) }}
+              </span>
+              <SButton
+                variant="ghost"
+                size="small"
+                :loading="onlineLoading"
+                @click="refresh(false)"
+              >
+                {{ t("lyricManager.retrieve") }}
+              </SButton>
             </div>
           </div>
+          <div v-if="!lyricManager.track.value" class="p-6 text-center text-on-surface-variant/60">
+            {{ t("lyricManager.chooseTrack") }}
+          </div>
+        </div>
+        <div
+          v-if="lyricManager.track.value"
+          class="shrink-0 flex flex-col gap-2 border-t border-solid border-outline-variant/15 pt-3"
+        >
+          <div class="truncate text-xs text-on-surface-variant/60" :title="currentLyricDescription">
+            {{ currentLyricDescription }}
+          </div>
           <SButton
-            type="primary"
             variant="secondary"
-            size="small"
             :disabled="smartSelection"
             :loading="candidateActionId === 'smart'"
             @click="selectSmart"
           >
-            {{ t(smartSelection ? "lyricManager.selected" : "lyricManager.select") }}
+            <template #icon><IconLucideSparkles /></template>
+            {{ t(smartSelection ? "lyricManager.smartSelection" : "lyricManager.useAutomatic") }}
           </SButton>
-        </div>
-        <div v-if="visibleCandidates.length" class="max-h-72 overflow-y-auto flex flex-col gap-2.5">
-          <div
-            v-for="candidate in visibleCandidates"
-            :key="candidate.id"
-            class="flex items-center gap-3 rounded-xl bg-surface-panel border border-solid border-outline-variant/15 px-4 py-3.5"
-            :class="
-              isCandidateVisuallySelected(candidate) ? 'border-primary/50! bg-primary/5!' : ''
-            "
-            :title="
-              candidate.local
-                ? usedCandidate?.id === candidate.id
-                  ? t('lyricManager.inUseDeleteHint')
-                  : t('lyricManager.deleteVersionHint')
-                : undefined
-            "
-            @contextmenu.prevent="deleteCandidate(candidate)"
-          >
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-medium truncate">
-                  {{ candidateSourceLabel(candidate) }}
-                </span>
-                <STag v-if="candidate.local" size="tiny">
-                  {{ t("lyricManager.localVersion") }}
-                </STag>
-                <STag v-if="isCandidateSmartSelected(candidate)" size="tiny" type="primary">
-                  {{ t("lyricManager.smartSelected") }}
-                </STag>
-              </div>
-              <div class="mt-0.5 text-xs text-on-surface-variant/60 truncate">
-                {{
-                  candidate.status && candidate.status !== "available"
-                    ? t(`lyricManager.appleMusicStatus.${candidate.status}`)
-                    : `${candidate.format.toUpperCase()} · ${candidate.filename}`
-                }}
-              </div>
-            </div>
-            <SButton
-              v-if="candidateSourceUrl(candidate)"
-              type="primary"
-              variant="secondary"
-              size="small"
-              :title="t('lyricManager.openSource')"
-              @click="openCandidateSourceUrl(candidate)"
-            >
-              <template #icon>
-                <IconExternalLink />
+          <div class="flex gap-2">
+            <SButton type="primary" class="flex-1" :loading="loading" @click="importLyric">
+              <template #icon><IconLucidePlus /></template>
+              {{ t("lyricManager.import") }}
+            </SButton>
+            <SPopover side="top" align="end">
+              <template #trigger>
+                <SButton variant="secondary" circle :title="t('lyricManager.moreActions')">
+                  <template #icon><IconLucideEllipsis /></template>
+                </SButton>
               </template>
-            </SButton>
-            <SButton
-              type="primary"
-              variant="secondary"
-              size="small"
-              :title="t('lyricManager.optimize')"
-              @click="openOptimize(candidate)"
-            >
-              <template #icon>
-                <IconWrench />
-              </template>
-            </SButton>
-            <SButton
-              type="primary"
-              variant="secondary"
-              size="small"
-              :disabled="
-                isCandidateExplicitlySelected(candidate) ||
-                !!(candidate.status && candidate.status !== 'available')
-              "
-              :loading="candidateActionId === candidate.id"
-              @click="selectCandidate(candidate)"
-            >
-              {{
-                t(
-                  isCandidateExplicitlySelected(candidate)
-                    ? "lyricManager.selected"
-                    : "lyricManager.select",
-                )
-              }}
-            </SButton>
+              <div class="flex min-w-36 flex-col gap-1">
+                <SButton variant="ghost" @click="openTrackLyricDirectory">
+                  {{ t("lyricManager.openDirectory") }}
+                </SButton>
+                <SButton variant="ghost" @click="refreshCurrentLyric">
+                  {{ t("lyricManager.refreshLyric") }}
+                </SButton>
+                <SButton v-if="managed" variant="ghost" @click="syncOpen = true">
+                  {{ t("lyricManager.syncToTracks") }}
+                </SButton>
+              </div>
+            </SPopover>
           </div>
         </div>
-        <div v-else class="py-8 text-center text-sm text-on-surface-variant/60">
-          {{ matchLoading ? t("lyricManager.matching") : t("lyricManager.noMatchResults") }}
-        </div>
+      </section>
+      <LyricCandidateDetails
+        v-if="focusedCandidate && lyricManager.track.value"
+        :key="lyricManager.track.value.source + ':' + lyricManager.track.value.id"
+        :candidate="focusedCandidate"
+        :track="lyricManager.track.value"
+        :source-label="candidateSourceLabel(focusedCandidate)"
+        :in-use="usedCandidate?.id === focusedCandidate.id"
+        :selected="isCandidateExplicitlySelected(focusedCandidate)"
+        :loading="candidateActionId === focusedCandidate.id"
+        :can-delete="focusedCandidate.local && usedCandidate?.id !== focusedCandidate.id"
+        :source-url="candidateSourceUrl(focusedCandidate)"
+        @confirm="selectCandidate(focusedCandidate)"
+        @search="openCustomSearch"
+        @edit="openOptimize(focusedCandidate)"
+        @remove="deleteCandidate(focusedCandidate)"
+        @source="openCandidateSourceUrl(focusedCandidate)"
+      />
+      <div
+        v-else
+        class="flex min-h-0 items-center justify-center rounded-xl border border-solid border-outline-variant/15 bg-surface-panel p-8 text-center text-on-surface-variant/60"
+      >
+        {{
+          t(matchLoading || onlineLoading ? "lyricManager.matching" : "lyricManager.chooseVersion")
+        }}
       </div>
     </div>
   </SDialog>
@@ -710,8 +760,8 @@ watch(
         >
           <div class="flex items-center gap-2 min-w-0">
             <img
-              v-if="track.cover || track.coverOriginal"
-              :src="track.cover || track.coverOriginal"
+              v-if="track.cover"
+              :src="track.cover"
               class="size-9 rounded object-cover shrink-0"
               decoding="async"
             />
@@ -746,3 +796,38 @@ watch(
 
   <LyricOptimizeDialog />
 </template>
+
+<style scoped>
+.lyric-manager-workspace {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.4fr);
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+.lyric-manager-workspace.with-tracks {
+  grid-template-columns: minmax(230px, 0.8fr) minmax(250px, 0.9fr) minmax(0, 1.4fr);
+}
+@media (max-width: 1000px) {
+  .lyric-manager-workspace.with-tracks {
+    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+    grid-template-rows: 300px minmax(560px, 1fr);
+    overflow-y: auto;
+  }
+  .lyric-manager-workspace.with-tracks > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 620px) {
+  .lyric-manager-workspace,
+  .lyric-manager-workspace.with-tracks {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-auto-rows: minmax(560px, auto);
+    overflow-y: auto;
+  }
+  .lyric-manager-workspace.with-tracks > :first-child {
+    min-height: 360px;
+  }
+}
+</style>

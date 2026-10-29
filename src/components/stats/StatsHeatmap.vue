@@ -174,7 +174,7 @@ const hourlyLinePath = computed(() => {
 const hourlyAreaPath = computed(() => `${hourlyLinePath.value} L 240 124 L 0 124 Z`);
 
 const codecs = computed(() => (props.stats?.codecs ?? []).filter((item) => item.codec.trim()));
-const chartCodecs = computed(() => codecs.value.slice(0, 4));
+const chartCodecs = computed(() => codecs.value);
 const totalCodecCount = computed(() =>
   chartCodecs.value.reduce((sum, item) => sum + item.count, 0),
 );
@@ -190,20 +190,34 @@ const codecVisuals = computed<CodecVisual[]>(() => {
 });
 
 const losslessCount = computed(() =>
-  chartCodecs.value.reduce((sum, item) => sum + (isLosslessCodec(item.codec) ? item.count : 0), 0),
+  chartCodecs.value.reduce(
+    (sum, item) => sum + (isLosslessCodec(item.codec.split(" · ")[0]) ? item.count : 0),
+    0,
+  ),
 );
 
 const losslessPercent = computed(() =>
   totalCodecCount.value ? (losslessCount.value / totalCodecCount.value) * 100 : 0,
 );
 
+/**
+ * 计算当前格式与音质在全部曲目中的占比
+ * @param count - 分组曲目数
+ * @returns 百分比文案
+ */
 const codecPercent = (count: number): string => {
   if (!totalCodecCount.value) return "0%";
   return `${((count / totalCodecCount.value) * 100).toFixed(1)}%`;
 };
 
+/**
+ * 显示格式及音质标签
+ * @param codec - 聚合标签
+ * @returns 标签文案
+ */
 const codecLabel = (codec: string): string => {
-  return codec ? codec.toUpperCase() : t("stats.unknown");
+  const [format, ...quality] = codec.split(" · ");
+  return format ? [format.toUpperCase(), ...quality].join(" · ") : t("stats.unknown");
 };
 </script>
 
@@ -376,7 +390,7 @@ const codecLabel = (codec: string): string => {
           </span>
         </StatsDonutChart>
 
-        <div class="grid min-w-0 flex-1 grid-cols-2 gap-x-3 gap-y-3">
+        <div class="grid max-h-full min-w-0 flex-1 grid-cols-2 gap-x-3 gap-y-3 overflow-y-auto">
           <div
             v-for="codec in codecVisuals"
             :key="codec.codec"

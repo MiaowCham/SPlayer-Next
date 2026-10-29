@@ -151,6 +151,8 @@ export const useSettingsStore = defineStore(
       outputDevice: null,
       pauseOnDeviceSwitch: false,
       rememberDeviceVolume: false,
+      deviceLatencyDefault: 0,
+      deviceLatencies: {},
       enableSpectrum: false,
       spectrumBarWidth: 4,
       reverseSpectrum: false,

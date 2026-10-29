@@ -9,6 +9,7 @@ import type {
   TopArtist,
   TopTrack,
 } from "@shared/types/stats";
+import { useSettingsStore } from "@/stores/settings";
 import { useFloatingPlayerBar } from "@/composables/useFloatingPlayerBar";
 
 const { isFloatingBar } = useFloatingPlayerBar();
@@ -21,7 +22,12 @@ const topAlbums = shallowRef<TopAlbum[]>([]);
 const topArtists = shallowRef<TopArtist[]>([]);
 const loading = ref(true);
 
-onMounted(async () => {
+const settings = useSettingsStore();
+let requestId = 0;
+/** 按当前来源范围加载统计，忽略已过期的请求 */
+const load = async (): Promise<void> => {
+  const token = ++requestId;
+  loading.value = true;
   try {
     const [library, history, hourlyHistory, songs, albums, artists] = await Promise.all([
       window.api.stats.getLibraryStats(),
@@ -31,15 +37,26 @@ onMounted(async () => {
       window.api.stats.getTopAlbums(10),
       window.api.stats.getTopArtists(10),
     ]);
+    if (token !== requestId) return;
     libraryStats.value = library;
     daily.value = history;
     hourly.value = hourlyHistory;
     topSongs.value = songs;
     topAlbums.value = albums;
     topArtists.value = artists;
+  } catch (error) {
+    console.error("[stats] load failed", error);
   } finally {
-    loading.value = false;
+    if (token === requestId) loading.value = false;
   }
+};
+onMounted(load);
+onActivated(() => {
+  if (!loading.value) void load();
+});
+watch(() => settings.system.mediaSource.includeRemoteStats, load);
+onBeforeUnmount(() => {
+  requestId++;
 });
 </script>
 

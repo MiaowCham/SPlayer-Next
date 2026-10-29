@@ -95,6 +95,16 @@ export const installPlayStats = (): void => {
     },
   );
 
+  // 解码后更新实际格式和音质，不保留歌词等详情
+  watch(
+    () => media.detail?.quality,
+    (quality) => {
+      if (session && media.track && trackKey(session.track) === trackKey(media.track) && quality) {
+        session.track = { ...media.track, quality: { ...quality } };
+      }
+    },
+  );
+
   // 退出前刷出最后一首
   window.addEventListener("beforeunload", finalize);
 };

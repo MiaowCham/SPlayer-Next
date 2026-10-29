@@ -186,6 +186,11 @@ const navItems = computed<SMenuItem[]>(() => {
       const entry = SIDEBAR_NAV_META[key];
       if (!entry) continue;
       if (key === "/download" && !systemSettings.download.enabled) continue;
+      if (
+        !systemSettings.mediaSource.localEnabled &&
+        ["/library", "/artists/local", "/albums/local", "/folders"].includes(key)
+      )
+        continue;
       if (key === "/streaming" && !systemSettings.streaming.enabled) continue;
       const item: SMenuItem = { key, label: t(entry.labelKey), icon: markRaw(entry.icon) };
       if (key === "/liked") item.trailing = renderHeartModeTrailing;

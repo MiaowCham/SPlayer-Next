@@ -192,7 +192,7 @@ overrides:
 
 patchedDependencies:
   '@applemusic-like-lyrics/core@0.6.0': b3534c78a5cd2c01d6df81b52a739a343f71366c40f574f9c5baa790eaa9cff8
-  lyric-dom@0.2.1: 3ba6187dbcafed1ff637830c384bd479b4e276eeda006a8c8251b2f046d26bf9
+  lyric-dom@0.2.1: 719ca70d65631f50bcedf724d5108c0262b36d95cb578fbb85f92eb058949cfd
   lyric-kit@0.6.1: 2a3c5ad2a63d385b2d2a57f117b836608ab7e16d237e4420033e57eb88766122
 
 importers:
@@ -358,7 +358,7 @@ importers:
         version: 1.10.0
       lyric-dom:
         specifier: ^0.2.1
-        version: 0.2.1(patch_hash=3ba6187dbcafed1ff637830c384bd479b4e276eeda006a8c8251b2f046d26bf9)
+        version: 0.2.1(patch_hash=719ca70d65631f50bcedf724d5108c0262b36d95cb578fbb85f92eb058949cfd)
       markdown-it-mathjax3:
         specifier: ^4.3.2
         version: 4.3.2
@@ -9428,7 +9428,7 @@ snapshots:
     dependencies:
       yallist: 4.0.0
 
-  lyric-dom@0.2.1(patch_hash=3ba6187dbcafed1ff637830c384bd479b4e276eeda006a8c8251b2f046d26bf9): {}
+  lyric-dom@0.2.1(patch_hash=719ca70d65631f50bcedf724d5108c0262b36d95cb578fbb85f92eb058949cfd): {}
 
   lyric-kit@0.6.1(patch_hash=2a3c5ad2a63d385b2d2a57f117b836608ab7e16d237e4420033e57eb88766122): {}
 

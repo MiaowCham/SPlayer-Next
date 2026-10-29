@@ -698,6 +698,10 @@ const api = {
     },
   },
   nowPlaying: {
+    setDeviceLatency: (latencyMs: number) =>
+      ipcRenderer.send("nowPlaying:setDeviceLatency", latencyMs),
+    onDeviceLatencyChange: (callback: (data: number) => void) =>
+      subscribe("nowPlaying:device-latency-change", callback),
     // 渲染进程同步当前播放状态到主进程
     update: (payload: unknown) => ipcRenderer.send("nowPlaying:update", payload),
     // 拉取当前完整快照

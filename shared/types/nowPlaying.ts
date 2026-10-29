@@ -22,6 +22,8 @@ export interface NowPlayingSnapshot {
   speed: number;
   /** 当前曲目的歌词偏移（ms，正值为歌词提前） */
   lyricOffsetMs: number;
+  /** 当前输出设备延迟，旧快照缺省为零 */
+  deviceLatencyMs?: number;
   /** position 真实成立的主进程时钟（Date.now 毫秒），接收端用于补偿其过期时长 */
   sendTimestamp: number;
 }
@@ -53,6 +55,10 @@ export interface NowPlayingApi {
   requestSnapshot: () => Promise<NowPlayingSnapshot>;
   /** 写入指定曲目的歌词偏移（ms）；0 视为清除 */
   setLyricOffset: (trackId: string, offsetMs: number) => void;
+  /** 主窗口同步当前设备的实际延迟 */
+  setDeviceLatency: (latencyMs: number) => void;
+  /** 订阅当前设备延迟变化 */
+  onDeviceLatencyChange: (callback: (latencyMs: number) => void) => () => void;
   /** 订阅歌曲切换 */
   onTrackChange: (callback: (data: { track: Track | null }) => void) => () => void;
   /** 订阅歌词内容变化 */

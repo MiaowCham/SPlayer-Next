@@ -1,10 +1,10 @@
 <script setup lang="ts">
+import { useDeviceLatencyDialog } from "@/composables/useDeviceLatencyDialog";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import { formatLyricOffset } from "@/utils/time";
-import IconLucideLanguages from "~icons/lucide/languages";
 
 defineProps<{
   /** 是否处于沉浸模式 */
@@ -21,6 +21,7 @@ const media = useMediaStore();
 const settings = useSettingsStore();
 const status = useStatusStore();
 const settingsDialog = useSettingsDialog();
+const deviceLatencyDialog = useDeviceLatencyDialog();
 
 /** 歌词偏移步长（ms） */
 const LYRIC_OFFSET_STEP = 500;
@@ -48,6 +49,11 @@ const hasPronunciation = computed(() =>
       line.romanLyric.trim().length > 0 ||
       line.words.some((word) => (word.romanWord?.trim().length ?? 0) > 0),
   ),
+);
+
+/** 当前歌词是否包含词内假名注音 */
+const hasRuby = computed(() =>
+  media.parsedLyric.some((line) => line.words.some((word) => word.ruby?.length)),
 );
 
 /** 复制歌词弹窗是否打开 */
@@ -161,6 +167,17 @@ const resetLyricOffset = (): void => writeOffset(0);
         >
           {{ t("common.reset") }}
         </SButton>
+        <SButton
+          type="cover"
+          variant="secondary"
+          size="tiny"
+          @click="
+            offsetPopoverOpen = false;
+            deviceLatencyDialog.show();
+          "
+        >
+          {{ t("deviceLatency.title") }}
+        </SButton>
       </div>
     </SPopover>
     <SButton
@@ -202,6 +219,18 @@ const resetLyricOffset = (): void => writeOffset(0);
               settings.lyric.showRomanization
                 ? 'player.lyricActions.hidePronunciation'
                 : 'player.lyricActions.showPronunciation',
+            )
+          "
+        />
+        <SCheckbox
+          v-model:checked="settings.lyric.showRuby"
+          size="small"
+          :disabled="!hasRuby"
+          :label="
+            t(
+              settings.lyric.showRuby
+                ? 'player.lyricActions.hideRuby'
+                : 'player.lyricActions.showRuby',
             )
           "
         />

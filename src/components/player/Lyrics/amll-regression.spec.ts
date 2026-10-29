@@ -120,6 +120,27 @@ afterEach(() => {
 });
 
 describe("AMLL 独立发音遮罩", () => {
+  it("暂停时开关注音不改原数据，重建歌词沿用父组件的展示时间", async () => {
+    const source = makeLine();
+    source.words[0].ruby = [{ word: "に", startTime: 0, endTime: 1000 }];
+    const setLines = vi.spyOn(LyricPlayer.prototype, "setLyricLines");
+    wrapper = mount(AMLLLyrics, {
+      props: { lyricLines: [source], playing: false, showRuby: true },
+    });
+    await vi.waitFor(() =>
+      expect(wrapper!.find(".amll-lyrics-container").classes()).toContain("is-visible"),
+    );
+    const exposed = wrapper.vm as unknown as { setCurrentTime(time: number, seek?: boolean): void };
+    exposed.setCurrentTime(2500, true);
+    await wrapper.setProps({ showRuby: false });
+    expect(setLines.mock.calls.at(-1)?.[0][0].words[0].ruby).toBeUndefined();
+    expect(setLines.mock.calls.at(-1)?.[1]).toBe(2500);
+    await wrapper.setProps({ showRuby: true });
+    expect(setLines.mock.calls.at(-1)?.[0][0].words[0].ruby).toEqual(source.words[0].ruby);
+    expect(source.words[0].ruby[0].word).toBe("に");
+    expect(setLines.mock.calls.at(-1)?.[1]).toBe(2500);
+  });
+
   it("遮罩绘制留白不计入正文与发音的推进宽度", () => {
     maskPadding = "8px";
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(56);

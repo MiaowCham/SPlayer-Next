@@ -326,9 +326,21 @@ index f5bf8dc5306a382564d87e43708b4f6aad6176b2..5399d816a8696fa81a66c62b4d8bca1a
  		});
  	};
 diff --git a/dist/style.css b/dist/style.css
-index 4352faae655bc45a85dc76a82b6566fb43f245d0..5ecc2a6a5b94f084ac3d1f979392caf0014294ef 100644
+index 4352faae655bc45a85dc76a82b6566fb43f245d0..7cc46d6b70c6baff0ba3fc86559a7dca051de5fe 100644
 --- a/dist/style.css
 +++ b/dist/style.css
+@@ -152,9 +152,9 @@
+ 
+   & > span.lp-word-roman {
+     vertical-align: bottom;
+-    text-align: center;
++    text-align: left;
+     flex-direction: column;
+-    align-items: center;
++    align-items: flex-start;
+     margin-inline-end: var(--lp-word-roman-gap, .3em);
+     display: inline-flex;
+ 
 @@ -302,3 +302,6 @@
      }
    }

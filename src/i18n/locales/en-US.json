@@ -496,7 +496,9 @@
       "showTranslation": "Show Translation",
       "hideTranslation": "Hide Translation",
       "showPronunciation": "Show Pronunciation",
-      "hidePronunciation": "Hide Pronunciation"
+      "hidePronunciation": "Hide Pronunciation",
+      "showRuby": "Show Furigana",
+      "hideRuby": "Hide Furigana"
     },
     "locateCurrentLyric": "Locate Current Lyric",
     "lyricCredit": "Written by:",
@@ -551,7 +553,7 @@
     "overwriteDescription": "“{filename}” already exists in this track's lyric folder. Overwrite it? The active version will not switch automatically.",
     "refreshLyric": "Refresh Lyrics",
     "openDatabase": "Open Management Panel",
-    "databaseTitle": "Manually Imported Lyrics Management",
+    "databaseTitle": "Tracks and lyrics",
     "migrateDirectory": "Migrate Lyric Folder",
     "migrateDirectoryDescription": "Move existing manually imported lyrics to \"{directory}\". Files with the same name will be replaced.",
     "importNeteaseTtml": "Import Netease TTML",
@@ -561,7 +563,7 @@
     "manageTrack": "Manage Track",
     "syncToTracks": "Sync to Other Tracks",
     "syncTitle": "Sync Custom Lyrics",
-    "searchTrackPlaceholder": "Search local or Netease tracks by title, artist, or ID",
+    "searchTrackPlaceholder": "Search tracks, artists, albums or IDs",
     "searchTrackHint": "Search and choose local or online tracks to receive these lyrics",
     "applyToTracks": "Apply to {count} Tracks",
     "syncFailed": "Failed to sync lyrics. Import a manually managed lyric for the current track first.",
@@ -638,7 +640,41 @@
       "netease": "From Netease",
       "qqmusic": "From QQ",
       "kugou": "From Kugou"
-    }
+    },
+    "tracks": "Tracks",
+    "allTracks": "All tracks",
+    "withVersions": "With local versions",
+    "withoutVersions": "Without local versions",
+    "recentFirst": "Recently updated",
+    "titleOrder": "By title",
+    "versionCount": "{count} versions",
+    "unmatched": "Unlinked track",
+    "noTracks": "No matching tracks",
+    "sources": "Lyric sources",
+    "onlineAndCached": "Online and cached",
+    "inUse": "In use",
+    "notRetrieved": "Not retrieved",
+    "retrieve": "Fetch",
+    "chooseTrack": "Choose a track to manage its lyrics",
+    "chooseVersion": "Choose a lyric version to view details",
+    "useAutomatic": "Use automatic selection",
+    "sourceDetails": "Version details",
+    "filename": "File",
+    "updatedAt": "Updated",
+    "preview": "Lyrics preview",
+    "effectPreview": "Playback preview",
+    "confirmVersion": "Use this version",
+    "moreActions": "More actions",
+    "copySource": "Copy lyric source",
+    "copyFailed": "Copy failed",
+    "previewFailed": "This version could not be parsed",
+    "pausePreview": "Pause preview",
+    "playPreview": "Play preview",
+    "translationTag": "Translation",
+    "pronunciationTag": "Pronunciation",
+    "wordTiming": "Word timing",
+    "lineTiming": "Line timing",
+    "databaseDescription": "Manage tracks, lyric sources and imported versions"
   },
   "song": {
     "unknownArtist": "Unknown Artist"
@@ -931,7 +967,8 @@
       "backupReset": "Backup & Reset",
       "debug": "Debug",
       "preset": "OCD Settings",
-      "envInfo": "Environment Info"
+      "envInfo": "Environment Info",
+      "mediaStatistics": "Statistics scope"
     },
     "about": {
       "checkUpdate": "Check for Updates",
@@ -1507,8 +1544,8 @@
       "description": "Calculate each word-pronunciation mask from its own text, including when pronunciation is the main lyric; excludes layout whitespace"
     },
     "showRuby": {
-      "label": "Show Ruby",
-      "description": "Display ruby annotation text (furigana/pinyin) above words"
+      "label": "Show Furigana",
+      "description": "Show ruby readings above lyric words, independently of word pronunciation"
     },
     "showWordRomanization": {
       "label": "Show Word Romanization",
@@ -2578,6 +2615,18 @@
       "runtime": {
         "label": "Analysis runtime"
       }
+    },
+    "deviceLatency": {
+      "label": "Device latency",
+      "description": "Set output latency per device and apply it automatically on switching"
+    },
+    "localMediaEnabled": {
+      "label": "Enable local media",
+      "description": "Show Library, Artists, Albums and Folders in the sidebar"
+    },
+    "includeRemoteStats": {
+      "label": "Include platforms and streaming in statistics",
+      "description": "Include played platform and streaming tracks and synced streaming libraries. Turning this off shows local statistics and keeps playback history"
     }
   },
   "collection": {
@@ -2669,8 +2718,8 @@
     "unknown": "Unknown",
     "less": "Less",
     "more": "More",
-    "audioQuality": "Audio Formats",
-    "formatCount": "{count} formats",
+    "audioQuality": "Format and quality",
+    "formatCount": "{count} format and quality groups",
     "losslessRatio": "Lossless",
     "trackUnit": "tracks",
     "listeningHours": "Listening Hours",
@@ -2727,5 +2776,21 @@
       "discNumber": "Disc No.",
       "lyrics": "Embedded Lyrics"
     }
+  },
+  "deviceLatency": {
+    "title": "Device latency",
+    "manage": "Manage device latency",
+    "description": "Compensate for output latency such as Bluetooth, independently of each song’s lyric offset",
+    "default": "Default latency",
+    "defaultHint": "Used by devices without an override, in milliseconds; defaults to 0",
+    "devices": "Devices",
+    "current": "Current",
+    "inherit": "Default",
+    "custom": "Custom",
+    "disconnected": "Disconnected device",
+    "noDevices": "No output devices available",
+    "effective": "Current latency: {value} ms",
+    "refresh": "Refresh devices",
+    "refreshFailed": "Failed to refresh output devices"
   }
 }

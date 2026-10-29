@@ -1,3 +1,4 @@
+import { getPresentationTime } from "@shared/utils/presentationTime";
 import type { Ref, ShallowRef } from "vue";
 import type { LyricLine } from "@shared/types/lyrics";
 
@@ -11,6 +12,7 @@ const SYNC_DRIFT_THRESHOLD = 300;
 /** 提供给逐字高亮的非响应式当前播放时间 */
 let currentNowPlayingMs = 0;
 
+/** 获取已叠加歌词偏移和设备延迟的展示时间 */
 export const getNowPlayingCurrentMs = (): number => currentNowPlayingMs;
 
 export interface NowPlayingSyncOptions {
@@ -28,8 +30,9 @@ export interface NowPlayingSync {
 }
 
 /**
- * 播放状态同步
- * 拉取 / 订阅快照、维护播放锚点、RAF 高频更新 currentMs 与 primaryIndex
+ * 同步播放快照，以可见窗口的动画循环更新歌词展示时间
+ * @param options - 主行选择算法和日志标识
+ * @returns 曲目、歌词与主行响应状态
  */
 export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSync => {
   const { pickIndex, logTag } = options;
@@ -45,15 +48,21 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
   let rafId: number | null = null;
   /** 当前曲目歌词偏移（ms，正值为歌词提前） */
   let lyricOffsetMs = 0;
+  let deviceLatencyMs = 0;
   /** 当前播放速度倍率，插值时把墙钟时长换算到源时间 */
   let speed = 1.0;
 
+  /**
+   * 更新播放锚点并补偿进程通信耗时
+   * @param positionMs - 原始播放位置
+   * @param sendTimestamp - 主进程发送时间
+   */
   const resetAnchor = (positionMs: number, sendTimestamp: number): void => {
     const ipcDelay = Math.max(0, Date.now() - sendTimestamp);
     anchorPos = positionMs + (playing.value ? ipcDelay * speed : 0);
     anchorPerf = performance.now();
     // currentNowPlayingMs 始终是「叠加 offset 后的歌词时间」，与 syncOnce 保持一致
-    currentNowPlayingMs = anchorPos + lyricOffsetMs;
+    currentNowPlayingMs = getPresentationTime(anchorPos, lyricOffsetMs, deviceLatencyMs, speed);
     anchorInitialized = true;
   };
 
@@ -82,6 +91,10 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
     }
   };
 
+  /**
+   * 应用当前曲目歌词和展示补偿
+   * @param snap - 主进程完整快照
+   */
   const applySnapshot = (snap: NowPlayingSnapshot): void => {
     track.value = snap.track;
     const mainLines = snap.lyric.filter((line) => !line.isBG);
@@ -89,37 +102,52 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
     playing.value = snap.playing;
     speed = snap.speed;
     lyricOffsetMs = snap.lyricOffsetMs;
+    deviceLatencyMs = snap.deviceLatencyMs ?? 0;
     primaryIndex.value = -1;
     resetAnchor(snap.position, snap.sendTimestamp);
   };
 
+  /** 从原始锚点重新计算展示时间与主行 */
   const syncOnce = (): void => {
     const next = playing.value ? anchorPos + (performance.now() - anchorPerf) * speed : anchorPos;
-    currentNowPlayingMs = next + lyricOffsetMs;
+    currentNowPlayingMs = getPresentationTime(next, lyricOffsetMs, deviceLatencyMs, speed);
     const idx = pickIndex(lyric.value, currentNowPlayingMs);
     if (idx !== primaryIndex.value) primaryIndex.value = idx;
   };
 
+  /** 更新可见窗口的动画帧，暂停后停止循环 */
   const tick = (): void => {
     syncOnce();
-    rafId = playing.value ? requestAnimationFrame(tick) : null;
+    rafId = playing.value && !document.hidden ? requestAnimationFrame(tick) : null;
   };
 
+  /** 仅在窗口可见且没有待执行帧时唤醒同步 */
   const kickTick = (): void => {
-    if (rafId !== null) return;
+    if (rafId !== null || document.hidden) return;
     rafId = requestAnimationFrame(tick);
   };
 
+  /** 隐藏窗口停止逐字循环，重新显示后从现有锚点恢复 */
+  const syncVisibility = (): void => {
+    if (document.hidden && rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    } else if (!document.hidden) kickTick();
+  };
+  let disposed = false;
   const unsubscribers: Array<() => void> = [];
 
   onMounted(async () => {
+    document.addEventListener("visibilitychange", syncVisibility);
     try {
       const snap = await window.api.nowPlaying.requestSnapshot();
+      if (disposed) return;
       applySnapshot(snap);
     } catch (error) {
       console.error(`[${logTag}] requestSnapshot failed`, error);
     }
 
+    if (disposed) return;
     unsubscribers.push(
       window.api.nowPlaying.onLyricChange((snap) => {
         applySnapshot(snap);
@@ -129,6 +157,10 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
         playing.value = data.playing;
         applyAnchor(data.position, data.sendTimestamp, data.speed);
         kickTick();
+      }),
+      window.api.nowPlaying.onDeviceLatencyChange((value) => {
+        deviceLatencyMs = value;
+        syncOnce();
       }),
       window.api.nowPlaying.onLyricOffsetChange(({ offsetMs }) => {
         lyricOffsetMs = offsetMs;
@@ -141,6 +173,8 @@ export const useNowPlayingSync = (options: NowPlayingSyncOptions): NowPlayingSyn
   });
 
   onBeforeUnmount(() => {
+    disposed = true;
+    document.removeEventListener("visibilitychange", syncVisibility);
     if (rafId !== null) {
       cancelAnimationFrame(rafId);
       rafId = null;

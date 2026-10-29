@@ -30,6 +30,20 @@ afterEach(() => {
 });
 
 describe("歌词设置升级", () => {
+  it("旧配置自动补全设备延迟，独立配置可持久化恢复", () => {
+    localStorage.setItem("settings", JSON.stringify({ player: { outputDevice: "speaker" } }));
+    const settings = useSettingsStore();
+    expect(settings.player.deviceLatencyDefault).toBe(0);
+    expect(settings.player.deviceLatencies).toEqual({});
+    settings.player.deviceLatencyDefault = 100;
+    settings.player.deviceLatencies = { speaker: { latencyMs: 0, updatedAt: 1 } };
+    settings.$persist();
+    settings.player.deviceLatencyDefault = 50;
+    settings.player.deviceLatencies = {};
+    settings.$hydrate();
+    expect(settings.player.deviceLatencyDefault).toBe(100);
+    expect(settings.player.deviceLatencies.speaker.latencyMs).toBe(0);
+  });
   it.each([
     { master: true, line: false, word: true, expected: [false, true] },
     { master: true, line: true, word: false, expected: [true, false] },

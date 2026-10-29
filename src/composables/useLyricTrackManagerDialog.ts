@@ -13,7 +13,17 @@ export const useLyricTrackManagerDialog = () => ({
   track: readonly(track),
   context: readonly(context),
 
-  /** 打开指定歌曲的歌词管理 */
+  /** 打开全部曲目的歌词工作区 */
+  showDatabase: (): void => {
+    context.value = "database";
+    track.value = null;
+    open.value = true;
+  },
+  /**
+   * 打开指定歌曲的歌词管理
+   * @param nextTrack - 目标曲目
+   * @param nextContext - 管理入口
+   */
   show: (nextTrack: Track, nextContext: LyricTrackManagerContext = "context-menu"): void => {
     track.value = nextTrack;
     context.value = nextContext;

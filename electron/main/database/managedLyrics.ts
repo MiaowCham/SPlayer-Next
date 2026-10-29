@@ -8,6 +8,7 @@ import type {
   ManagedLyricImportResult,
   ManagedLyricOrigin,
   ManagedLyricStats,
+  ManagedLyricSummary,
 } from "@shared/types/lyrics";
 import type { Track } from "@shared/types/player";
 import { defaultManagedLyricsDir } from "@main/utils/paths";
@@ -929,18 +930,32 @@ export const getManagedLyricStats = (): ManagedLyricStats => {
   return { path: lyricDir, size, count };
 };
 
-/** 列出每首歌曲当前活跃的手动歌词，供全局管理器浏览。 */
-export const listManagedLyrics = (): Array<
-  ManagedLyric & { trackSource: string; trackId: string }
-> => {
+/**
+ * 列出管理曲目的轻量摘要，避免全局面板加载全部歌词正文
+ * @returns 曲目信息与版本数量
+ */
+export const listManagedLyrics = (): ManagedLyricSummary[] => {
   const rows = getDb()
-    .prepare("SELECT track_source, track_id FROM managed_lyrics ORDER BY updated_at DESC")
-    .all() as Array<{ track_source: string; track_id: string }>;
-  return rows.flatMap((row) => {
-    const lyric = getManagedLyric({
-      source: row.track_source as Track["source"],
-      id: row.track_id,
-    });
-    return lyric ? [{ ...lyric, trackSource: row.track_source, trackId: row.track_id }] : [];
-  });
+    .prepare(
+      `SELECT m.track_source, m.track_id, m.filename, m.track_json, m.updated_at,
+      json_extract(m.data, '$.format') AS format,
+      (SELECT COUNT(*) FROM managed_lyric_versions v
+       WHERE v.track_source = m.track_source AND v.track_id = m.track_id) AS version_count
+     FROM managed_lyrics m ORDER BY m.updated_at DESC`,
+    )
+    .all() as Array<
+    Pick<ManagedRow, "track_source" | "track_id" | "filename" | "track_json" | "updated_at"> & {
+      format: LyricFormat;
+      version_count: number;
+    }
+  >;
+  return rows.map((row) => ({
+    trackSource: row.track_source,
+    trackId: row.track_id,
+    track: row.track_json ? (JSON.parse(row.track_json) as Track) : undefined,
+    format: row.format,
+    filename: row.filename,
+    importedAt: row.updated_at,
+    versionCount: Math.max(1, row.version_count),
+  }));
 };

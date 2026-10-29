@@ -25,6 +25,8 @@ import * as coverLoader from "@/services/coverLoader";
 import * as abLoop from "@/services/abLoop";
 import * as autoClose from "@/services/autoClose";
 import * as cacheScheduler from "@/services/cacheScheduler";
+import { getDeviceLatency } from "@/services/deviceLatency";
+import { getPresentationTime } from "@shared/utils/presentationTime";
 import { getDeviceVolume, setDeviceVolume } from "@/services/deviceVolume";
 import { resolveTrackSource, type ResolvedTrackSource } from "@/services/audioSource";
 import {
@@ -217,7 +219,14 @@ export const load = async (
       if (result.data.playback) {
         status.speed = result.data.playback.speed;
         status.position = playback.getCurrentTime();
-        media.updateLyricIndex(status.position + status.lyricOffsetMs);
+        media.updateLyricIndex(
+          getPresentationTime(
+            status.position,
+            status.lyricOffsetMs,
+            status.deviceLatencyMs,
+            status.speed,
+          ),
+        );
       }
       return { ok: true, track: enriched };
     }
@@ -1466,12 +1475,31 @@ export const initPlayer = async (): Promise<void> => {
   );
   window.api.nowPlaying.onLyricOffsetChange(({ offsetMs }) => {
     status.lyricOffsetMs = offsetMs;
-    media.updateLyricIndex(playback.getCurrentTime() + offsetMs);
+    media.updateLyricIndex(
+      getPresentationTime(
+        playback.getCurrentTime(),
+        offsetMs,
+        status.deviceLatencyMs,
+        status.speed,
+      ),
+    );
   });
+  window.api.nowPlaying.onDeviceLatencyChange((value) => {
+    status.deviceLatencyMs = value;
+    media.updateLyricIndex(
+      getPresentationTime(playback.getCurrentTime(), status.lyricOffsetMs, value, status.speed),
+    );
+  });
+  watch(
+    () => getDeviceLatency(getActiveDeviceId()),
+    (value) => window.api.nowPlaying.setDeviceLatency(value),
+    { immediate: true },
+  );
   // 获取歌曲偏移
   try {
     const snap = await window.api.nowPlaying.requestSnapshot();
     status.lyricOffsetMs = snap.lyricOffsetMs;
+    status.deviceLatencyMs = snap.deviceLatencyMs ?? 0;
   } catch (error) {
     console.error("[player] requestSnapshot failed", error);
   }

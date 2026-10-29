@@ -1,9 +1,11 @@
 import { ipcMain } from "electron";
+import { getMainWindow } from "@main/window";
 import { broadcast } from "@main/utils/broadcast";
 import { wsBroadcast } from "@main/server/broadcast";
 import * as nowPlaying from "@main/services/nowPlaying";
 import type { NowPlayingUpdatePayload } from "@shared/types/nowPlaying";
 
+/** 注册播放快照、歌词偏移及设备延迟的进程通信 */
 export const registerNowPlayingIpc = (): void => {
   // 渲染进程同步当前播放状态到主进程
   ipcMain.on("nowPlaying:update", (_event, payload: NowPlayingUpdatePayload) => {
@@ -14,6 +16,11 @@ export const registerNowPlayingIpc = (): void => {
   ipcMain.on("nowPlaying:setLyricOffset", (_event, trackId: string, offsetMs: number) => {
     nowPlaying.setLyricOffset(trackId, offsetMs);
   });
+
+  ipcMain.on("nowPlaying:setDeviceLatency", (event, latencyMs: number) => {
+    if (event.sender === getMainWindow()?.webContents) nowPlaying.setDeviceLatency(latencyMs);
+  });
+  nowPlaying.onDeviceLatencyChange((value) => broadcast("nowPlaying:device-latency-change", value));
 
   // 窗口拉取当前完整快照
   ipcMain.handle("nowPlaying:requestSnapshot", () => nowPlaying.snapshot());

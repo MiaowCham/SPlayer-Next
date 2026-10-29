@@ -8,8 +8,6 @@ import type { LyricLine } from "@shared/types/lyrics";
 import type { LargerLyricText, LyricFloatAnimationIntensity } from "@/types/settings";
 import { SPlayerLyricPlayer as CoreLyricPlayer } from "./amll-player";
 import { useSettingsStore } from "@/stores/settings";
-import { useStatusStore } from "@/stores/status";
-import { getCurrentTime } from "@/services/playback";
 import { getOverlapAlignPosition } from "@/utils/lyric/overlapAlign";
 import {
   canPromoteLinePronunciation,
@@ -27,13 +25,13 @@ import "@applemusic-like-lyrics/core/style.css";
  * 消费位置、未迁移字段和验证步骤见根目录 amll-hooks.md。
  */
 type AmlLyricLine = LyricLine & {
-  /** 旧版关闭逐字高亮 hook；当前 0.5.2 补丁未迁移其消费者。 */
+  /** 关闭逐字高亮，由 Core 重建遮罩时消费 */
   __amllDisableWordHighlight?: true;
-  /** 旧版关闭强调 hook；当前 0.5.2 补丁未迁移其消费者。 */
+  /** 关闭强调，由 Core 构建单词时消费 */
   __amllDisableEmphasize?: true;
-  /** 旧版排除 CJK 强调 hook；当前 0.5.2 补丁未迁移其消费者。 */
+  /** 排除 CJK 强调，保留其他词的强调判断 */
   __amllDisableCjkEmphasis?: true;
-  /** 旧版上浮强度 hook；当前 0.5.2 补丁未迁移其消费者。 */
+  /** 上浮强度，由 Core 创建上浮动画时消费 */
   __amllFloatAnimationIntensity?: LyricFloatAnimationIntensity;
   /** 发音提升为主文字时开启双层遮罩；Core.createWord 与遮罩生成器共同消费。 */
   __amllIndependentMainWordMask?: true;
@@ -125,7 +123,7 @@ interface Emits {
 const emit = defineEmits<Emits>();
 
 const settings = useSettingsStore();
-const status = useStatusStore();
+let timelineTime = props.initialTime;
 
 const wrapperRef = ref<HTMLDivElement | null>(null);
 // Core 实例必须保留原始身份：挂载时用它判定异步等待后实例是否已被卸载或替换。
@@ -178,8 +176,13 @@ const syncAlignPosition = (): void => {
   player.calcLayout(LayoutReason.ConfigChange);
 };
 
-/** 同步时间后更新重叠段布局，确保新对齐点立即生效。 */
+/**
+ * 保存父组件提供的展示时间并同步重叠段布局
+ * @param time - 歌词时间毫秒数
+ * @param isSeek - 是否立即定位
+ */
 const syncCurrentTime = (time: number, isSeek?: boolean): void => {
+  timelineTime = time;
   playerRef.value?.setCurrentTime(time, isSeek);
   syncAlignPosition();
 };
@@ -238,7 +241,9 @@ const processedLyrics = computed(() => {
         if (!props.showWordRomanization) {
           delete newWord.romanWord;
         }
-        if (!props.showRuby) {
+        if (props.showRuby && word.ruby) {
+          newWord.ruby = word.ruby.map((span) => ({ ...span }));
+        } else {
           delete newWord.ruby;
         }
         return newWord;
@@ -323,7 +328,7 @@ const { resume: resumeRaf, pause: pauseRaf } = useRafFn(
   { immediate: false },
 );
 
-// 页面隐藏时停止渲染循环，恢复时校准时间线
+/** 隐藏时停止渲染，恢复时使用父组件最近提供的时间 */
 const handleVisibility = () => {
   const hidden = document.hidden;
   isPageHidden.value = hidden; // 更新响应式隐藏状态
@@ -333,7 +338,7 @@ const handleVisibility = () => {
     isPreviousHidden.value = true;
   } else if (isPreviousHidden.value && !isFrozen.value && playerRef.value) {
     // 从隐藏恢复
-    const currentTime = getCurrentTime() + status.lyricOffsetMs;
+    const currentTime = timelineTime;
     syncCurrentTime(currentTime, true);
     isPreviousHidden.value = false;
   }
@@ -451,7 +456,7 @@ watch(processedLyrics, (newLyrics) => {
   if (!initialized.value || isFrozen.value) {
     pendingLyrics = newLyrics;
   } else {
-    const currentTime = getCurrentTime() + status.lyricOffsetMs;
+    const currentTime = timelineTime;
     playerRef.value.setLyricLines(newLyrics, currentTime);
     syncCurrentTime(currentTime, true);
     processLyricLanguage();
@@ -471,7 +476,7 @@ watch(
     if (!playerRef.value) return;
     playerRef.value.setOptimizeOptions(options);
     if (processedLyrics.value.length > 0 && !isFrozen.value) {
-      const currentTime = getCurrentTime() + status.lyricOffsetMs;
+      const currentTime = timelineTime;
       playerRef.value.setLyricLines(processedLyrics.value, currentTime);
       syncCurrentTime(currentTime, true);
       processLyricLanguage();
@@ -480,7 +485,11 @@ watch(
   { deep: true },
 );
 
-// 主播放器事件驱动的时间同步接口
+/**
+ * 接收主播放器或独立预览的时间
+ * @param time - 歌词时间毫秒数
+ * @param isSeek - 是否立即定位
+ */
 const setCurrentTime = (time: number, isSeek?: boolean) => {
   syncCurrentTime(time, isSeek);
 };
@@ -498,14 +507,14 @@ const freeze = () => {
   isFrozen.value = true;
 };
 
-// 恢复播放和滚动测量
+/** 恢复渲染并应用冻结期间的歌词 */
 const resume = () => {
   if (!initialized.value) {
     isFrozen.value = false;
     return;
   }
   if (pendingLyrics) {
-    const currentTime = getCurrentTime() + status.lyricOffsetMs;
+    const currentTime = timelineTime;
     playerRef.value?.setLyricLines(pendingLyrics, currentTime);
     syncCurrentTime(currentTime, true);
     processLyricLanguage();

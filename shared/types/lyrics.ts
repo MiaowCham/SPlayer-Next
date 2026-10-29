@@ -120,6 +120,17 @@ export interface ManagedLyric extends LyricInput {
   track?: Track;
 }
 
+/** 全曲目管理使用的轻量摘要，不携带歌词正文 */
+export interface ManagedLyricSummary {
+  trackSource: string;
+  trackId: string;
+  track?: Track;
+  format: LyricFormat;
+  filename: string | null;
+  importedAt: number;
+  versionCount: number;
+}
+
 /** 手动歌词版本的来源。 */
 export type ManagedLyricOrigin = "manual" | "localTtml" | "amll" | "appleMusic" | Platform;
 
@@ -242,7 +253,7 @@ export interface LyricsApi {
   /** 重新扫描歌曲歌词目录并同步数据库 */
   refreshManaged: (track: Track) => Promise<boolean>;
   /** 列出所有手动管理歌词 */
-  listManaged: () => Promise<Array<ManagedLyric & { trackSource: string; trackId: string }>>;
+  listManaged: () => Promise<ManagedLyricSummary[]>;
   /** 搜索本地曲库曲目，供歌词复制目标选择 */
   searchTracks: (query: string) => Promise<Track[]>;
   /** 搜索在线曲目，供歌词复制目标选择 */

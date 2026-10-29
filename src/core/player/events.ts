@@ -1,3 +1,4 @@
+import { getPresentationTime } from "@shared/utils/presentationTime";
 import { queueEntries } from "@/stores/queue";
 import type { PlayerEvent } from "@shared/types/player";
 import i18n from "@/i18n";
@@ -121,7 +122,9 @@ export const handleEvent = async (event: PlayerEvent): Promise<void> => {
         playback.setDuration(event.data.duration);
       }
       // 歌词索引叠加用户设置的偏移；进度条仍走 adjusted 不受影响
-      useMediaStore().updateLyricIndex(adjusted + status.lyricOffsetMs);
+      useMediaStore().updateLyricIndex(
+        getPresentationTime(adjusted, status.lyricOffsetMs, status.deviceLatencyMs, status.speed),
+      );
       // AB 循环：到达 B 点 seek 回 A
       abLoop.checkLoop(adjusted);
       // 推进延时缓存调度

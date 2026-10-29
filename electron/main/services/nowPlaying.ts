@@ -9,8 +9,10 @@ import type {
   NowPlayingLyricOffsetSync,
 } from "@shared/types/nowPlaying";
 import { store } from "@main/store";
+import { normalizeDeviceLatency } from "@shared/utils/presentationTime";
 
 type NowPlayingEvents = {
+  "device-latency-change": [number];
   /** 歌曲切换 */
   "track-change": [{ track: Track | null }];
   /** 歌词内容变化 */
@@ -53,6 +55,7 @@ let playState: PlayerState = "idle";
 let playSpeed = 1.0;
 /** 当前曲目对应的歌词偏移（ms，正值为歌词提前） */
 let currentLyricOffsetMs = 0;
+let deviceLatencyMs = 0;
 
 /** 内部事件总线 */
 const emitter = new EventEmitter<NowPlayingEvents>();
@@ -216,6 +219,7 @@ export const snapshot = (): NowPlayingSnapshot => ({
   state: playState,
   speed: playSpeed,
   lyricOffsetMs: currentLyricOffsetMs,
+  deviceLatencyMs,
   // 用 position 的成立时刻，接收端据此补偿其过期时长
   sendTimestamp: lastPositionAt || Date.now(),
 });
@@ -228,6 +232,7 @@ export const lightSnapshot = () => ({
   state: playState,
   speed: playSpeed,
   lyricOffsetMs: currentLyricOffsetMs,
+  deviceLatencyMs,
   lyricAvailable: currentLyric.length > 0,
   lyricLineCount: currentLyric.length,
   sendTimestamp: lastPositionAt || Date.now(),
@@ -239,6 +244,7 @@ export const lyricSnapshot = () => ({
   lyric: currentLyric,
   source: currentSource,
   lyricOffsetMs: currentLyricOffsetMs,
+  deviceLatencyMs,
 });
 
 /** 清空 */
@@ -277,4 +283,27 @@ export const onLyricOffsetChange = (
 ): (() => void) => {
   emitter.on("lyric-offset-change", listener);
   return () => emitter.off("lyric-offset-change", listener);
+};
+
+/**
+ * 更新输出设备延迟，单曲歌词偏移保持独立
+ * @param latencyMs - 设备延迟毫秒数
+ */
+export const setDeviceLatency = (latencyMs: number): void => {
+  const next = normalizeDeviceLatency(latencyMs);
+  if (next === deviceLatencyMs) return;
+  deviceLatencyMs = next;
+  emitter.emit("device-latency-change", next);
+};
+
+/**
+ * 订阅当前设备延迟变化
+ * @param listener - 延迟更新回调
+ * @returns 取消订阅函数
+ */
+export const onDeviceLatencyChange = (listener: (latencyMs: number) => void): (() => void) => {
+  emitter.on("device-latency-change", listener);
+  return () => {
+    emitter.off("device-latency-change", listener);
+  };
 };

@@ -47,6 +47,27 @@ describe("默认歌词引擎配置同步", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  it("开关注音只改变展示，逐词发音和原始 ruby 可恢复", async () => {
+    const source = makeLine("寂しい");
+    source.words[0].ruby = [{ word: "さび", startTime: 1000, endTime: 2000 }];
+    source.words[0].romanWord = "sabishii";
+    const wrapper = mount(DefaultLyrics, {
+      props: { lyricLines: [source], showRuby: true, showWordRomanization: true },
+      global: lyricGlobals,
+    });
+    try {
+      expect(wrapper.text()).toContain("さび");
+      await wrapper.setProps({ showRuby: false });
+      expect(wrapper.text()).not.toContain("さび");
+      expect(wrapper.text()).toContain("sabishii");
+      await wrapper.setProps({ showRuby: true });
+      expect(wrapper.text()).toContain("さび");
+      expect(source.words[0].ruby[0].word).toBe("さび");
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
   it("应用歌词设置直接驱动默认引擎的水平对齐", async () => {
     const settings = useSettingsStore();
     const wrapper = mount(Lyrics, {

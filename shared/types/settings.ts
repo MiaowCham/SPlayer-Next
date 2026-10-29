@@ -480,6 +480,8 @@ export interface SystemConfig {
   /** 下载配置 */
   download: DownloadSettings;
   /** 流媒体总开关 */
+  /** 媒体来源展示与统计范围 */
+  mediaSource: { localEnabled: boolean; includeRemoteStats: boolean };
   streaming: StreamingSettings;
   /** Last.fm 集成配置 */
   lastfm: LastfmSettings;

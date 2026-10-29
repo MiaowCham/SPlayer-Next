@@ -46,6 +46,7 @@ import {
   getManagedLyricStats,
   importManagedLyric,
   listManagedLyricVersions,
+  listManagedLyrics,
   moveManagedLyricsDir,
   refreshManagedLyricVersions,
   setManagedLyric,
@@ -91,6 +92,23 @@ describe("managedLyrics 多版本存储", () => {
     runtime.db?.close();
     runtime.db = null;
     fs.rmSync(runtime.lyricDir, { recursive: true, force: true });
+  });
+
+  it("总览仅返回摘要和版本数，不携带歌词正文", () => {
+    setManagedLyric(track, { content: "[00:01]第一版", format: "lrc" }, "first.lrc");
+    setManagedLyric(track, { content: "[00:01]第二版", format: "lrc" }, "second.lrc");
+    const rows = listManagedLyrics();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      trackSource: "local",
+      trackId: "song-1",
+      versionCount: 2,
+      track,
+      format: "lrc",
+    });
+    expect(rows[0]).not.toHaveProperty("content");
+    expect(rows[0]).not.toHaveProperty("translation");
+    expect(rows[0]).not.toHaveProperty("romaji");
   });
 
   it("按来源和歌曲 ID 建目录并保留多个歌词文件", () => {

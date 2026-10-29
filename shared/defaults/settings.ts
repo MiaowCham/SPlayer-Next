@@ -136,6 +136,7 @@ export const defaultSystemConfig: SystemConfig = {
     saveTtml: false,
     lyricFileFormat: "enhanced-lrc",
   },
+  mediaSource: { localEnabled: true, includeRemoteStats: true },
   streaming: {
     enabled: true,
   },

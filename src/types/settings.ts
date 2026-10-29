@@ -298,6 +298,10 @@ export interface PlayerSettings {
   pauseOnDeviceSwitch: boolean;
   /** 是否为不同输出设备独立记忆音量 */
   rememberDeviceVolume: boolean;
+  /** 默认设备输出延迟，单位毫秒 */
+  deviceLatencyDefault: number;
+  /** 独立设备延迟，记录更新时间用于容量淘汰 */
+  deviceLatencies: Record<string, { latencyMs: number; updatedAt: number }>;
   /** 是否启用音乐频谱可视化 */
   enableSpectrum: boolean;
   /** 频谱单条宽度（px） */

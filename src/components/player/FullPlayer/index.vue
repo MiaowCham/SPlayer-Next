@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getPresentationTime } from "@shared/utils/presentationTime";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
@@ -87,18 +88,36 @@ const clearDelayedTrackLocate = (): void => {
   }
 };
 
+/**
+ * 在布局稳定后再次定位歌词
+ * @param trackKey - 需要定位的曲目标识
+ */
 const scheduleDelayedTrackLocate = (trackKey: string): void => {
   clearDelayedTrackLocate();
   if (!trackKey) return;
   delayedTrackLocateTimer = setTimeout(() => {
     delayedTrackLocateTimer = null;
     if (pendingTrackKey !== trackKey || media.parsedLyric.length === 0 || !lyricRef.value) return;
-    lyricRef.value.scrollToTime(getCurrentTime() + status.lyricOffsetMs);
+    lyricRef.value.scrollToTime(
+      getPresentationTime(
+        getCurrentTime(),
+        status.lyricOffsetMs,
+        status.deviceLatencyMs,
+        status.speed,
+      ),
+    );
   }, 250);
   secondDelayedTrackLocateTimer = setTimeout(() => {
     secondDelayedTrackLocateTimer = null;
     if (pendingTrackKey !== trackKey || media.parsedLyric.length === 0 || !lyricRef.value) return;
-    lyricRef.value.scrollToTime(getCurrentTime() + status.lyricOffsetMs);
+    lyricRef.value.scrollToTime(
+      getPresentationTime(
+        getCurrentTime(),
+        status.lyricOffsetMs,
+        status.deviceLatencyMs,
+        status.speed,
+      ),
+    );
   }, 500);
 };
 
@@ -106,7 +125,14 @@ const scheduleDelayedTrackLocate = (trackKey: string): void => {
 const locatePendingTrack = (): void => {
   if (!pendingTrackLocate.value || media.parsedLyric.length === 0 || !lyricRef.value) return;
   pendingTrackLocate.value = false;
-  lyricRef.value.scrollToTime(getCurrentTime() + status.lyricOffsetMs);
+  lyricRef.value.scrollToTime(
+    getPresentationTime(
+      getCurrentTime(),
+      status.lyricOffsetMs,
+      status.deviceLatencyMs,
+      status.speed,
+    ),
+  );
   scheduleDelayedTrackLocate(pendingTrackKey);
 };
 let visualizerIdle = 0;
@@ -122,7 +148,15 @@ const hasTrack = computed(() => !!displayTrack.value);
 const { start: startTick, stop: stopTick } = usePlaybackTime((currentMs) => {
   if (!status.trackLoading && !media.lyricLoading) {
     const lyricTime = resolveLyricProgressTime(currentMs);
-    lyricRef.value?.setCurrentTime(lyricTime.time + status.lyricOffsetMs, lyricTime.isSeek);
+    lyricRef.value?.setCurrentTime(
+      getPresentationTime(
+        lyricTime.time,
+        status.lyricOffsetMs,
+        status.deviceLatencyMs,
+        status.speed,
+      ),
+      lyricTime.isSeek,
+    );
   }
 });
 
@@ -167,11 +201,23 @@ watch(visibility, (value) => {
 const preparePlayerContent = (): void => {
   if (enterPrepared) return;
   enterPrepared = true;
-  initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
+  initialLyricTimeMs.value = getPresentationTime(
+    getCurrentTime(),
+    status.lyricOffsetMs,
+    status.deviceLatencyMs,
+    status.speed,
+  );
   lyricMounted.value = true;
   nextTick(() => {
     if (!isPlayerExpanded.value) return;
-    lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
+    lyricRef.value?.setCurrentTime(
+      getPresentationTime(
+        getCurrentTime(),
+        status.lyricOffsetMs,
+        status.deviceLatencyMs,
+        status.speed,
+      ),
+    );
     lyricRef.value?.resume();
     startTick();
     locatePendingTrack();
@@ -231,7 +277,12 @@ onBeforeUnmount(() => cancelIdleCallback(visualizerIdle));
 watch(hasLyric, (value) => {
   if (!lyricMounted.value) return;
   if (value) {
-    initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
+    initialLyricTimeMs.value = getPresentationTime(
+      getCurrentTime(),
+      status.lyricOffsetMs,
+      status.deviceLatencyMs,
+      status.speed,
+    );
     return;
   }
   onLyricReady();
@@ -241,7 +292,12 @@ watch(hasLyric, (value) => {
 watch(
   () => media.parsedLyric,
   () => {
-    const currentTime = getCurrentTime() + status.lyricOffsetMs;
+    const currentTime = getPresentationTime(
+      getCurrentTime(),
+      status.lyricOffsetMs,
+      status.deviceLatencyMs,
+      status.speed,
+    );
     lyricRef.value?.setCurrentTime(currentTime);
     nextTick(() => {
       locatePendingTrack();
@@ -278,9 +334,21 @@ onBeforeUnmount(clearDelayedTrackLocate);
 watch(
   () => settings.lyric.engine,
   () => {
-    initialLyricTimeMs.value = getCurrentTime() + status.lyricOffsetMs;
+    initialLyricTimeMs.value = getPresentationTime(
+      getCurrentTime(),
+      status.lyricOffsetMs,
+      status.deviceLatencyMs,
+      status.speed,
+    );
     nextTick(() => {
-      lyricRef.value?.setCurrentTime(getCurrentTime() + status.lyricOffsetMs);
+      lyricRef.value?.setCurrentTime(
+        getPresentationTime(
+          getCurrentTime(),
+          status.lyricOffsetMs,
+          status.deviceLatencyMs,
+          status.speed,
+        ),
+      );
       if (isPlaying.value) lyricRef.value?.resume();
     });
   },
@@ -301,7 +369,14 @@ const handleLyricSeek = async (timeMs: number): Promise<void> => {
 
 /** 强制将歌词定位到当前播放位置。 */
 const locateCurrentLyric = (): void => {
-  lyricRef.value?.scrollToTime(getCurrentTime() + status.lyricOffsetMs);
+  lyricRef.value?.scrollToTime(
+    getPresentationTime(
+      getCurrentTime(),
+      status.lyricOffsetMs,
+      status.deviceLatencyMs,
+      status.speed,
+    ),
+  );
 };
 
 const minimizeLyricSpring = computed(

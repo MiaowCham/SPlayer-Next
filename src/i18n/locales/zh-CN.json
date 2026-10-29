@@ -496,7 +496,9 @@
       "showTranslation": "显示翻译",
       "hideTranslation": "隐藏翻译",
       "showPronunciation": "显示发音",
-      "hidePronunciation": "隐藏发音"
+      "hidePronunciation": "隐藏发音",
+      "showRuby": "显示假名注音",
+      "hideRuby": "隐藏假名注音"
     },
     "locateCurrentLyric": "定位当前歌词",
     "lyricCredit": "创作者：",
@@ -551,7 +553,7 @@
     "overwriteDescription": "歌曲目录中已存在“{filename}”，是否覆盖该文件？当前活跃版本不会自动切换。",
     "refreshLyric": "刷新歌词",
     "openDatabase": "打开管理面板",
-    "databaseTitle": "手动导入歌词管理面板",
+    "databaseTitle": "曲目与歌词管理",
     "migrateDirectory": "迁移歌词目录",
     "migrateDirectoryDescription": "将现有手动导入歌词迁移到「{directory}」。同名文件会被替换。",
     "importNeteaseTtml": "导入网易云 TTML",
@@ -561,7 +563,7 @@
     "manageTrack": "管理曲目",
     "syncToTracks": "同步到其他曲目",
     "syncTitle": "同步自定义歌词",
-    "searchTrackPlaceholder": "搜索本地或网易云的歌曲名称、歌手或 ID",
+    "searchTrackPlaceholder": "搜索曲目、歌手、专辑或 ID",
     "searchTrackHint": "搜索后选择要应用同一份歌词的本地或在线曲目",
     "applyToTracks": "应用到 {count} 首歌曲",
     "syncFailed": "同步歌词失败，请先导入当前歌曲的手动歌词",
@@ -638,7 +640,41 @@
       "netease": "来自网易云",
       "qqmusic": "来自 QQ",
       "kugou": "来自酷狗"
-    }
+    },
+    "tracks": "曲目",
+    "allTracks": "全部曲目",
+    "withVersions": "已有本地版本",
+    "withoutVersions": "尚无本地版本",
+    "recentFirst": "最近更新",
+    "titleOrder": "按标题排序",
+    "versionCount": "{count} 个版本",
+    "unmatched": "未关联曲目",
+    "noTracks": "没有符合条件的曲目",
+    "sources": "歌词来源",
+    "onlineAndCached": "在线与缓存",
+    "inUse": "正在使用",
+    "notRetrieved": "尚未获取",
+    "retrieve": "获取",
+    "chooseTrack": "选择曲目以管理歌词",
+    "chooseVersion": "选择一个歌词版本查看详情",
+    "useAutomatic": "恢复智能选择",
+    "sourceDetails": "版本信息",
+    "filename": "文件",
+    "updatedAt": "更新时间",
+    "preview": "歌词预览",
+    "effectPreview": "效果预览",
+    "confirmVersion": "使用此版本",
+    "moreActions": "更多操作",
+    "copySource": "复制歌词原文",
+    "copyFailed": "复制失败",
+    "previewFailed": "该版本无法解析，请检查原文",
+    "pausePreview": "暂停预览",
+    "playPreview": "播放预览",
+    "translationTag": "翻译",
+    "pronunciationTag": "发音",
+    "wordTiming": "逐字",
+    "lineTiming": "逐行",
+    "databaseDescription": "管理曲目、歌词来源与手动导入的版本"
   },
   "song": {
     "unknownArtist": "未知艺术家"
@@ -931,7 +967,8 @@
       "backupReset": "备份与重置",
       "debug": "调试",
       "preset": "强迫症配置",
-      "envInfo": "环境信息"
+      "envInfo": "环境信息",
+      "mediaStatistics": "统计范围"
     },
     "about": {
       "checkUpdate": "检查更新",
@@ -1507,8 +1544,8 @@
       "description": "让逐词发音按照自身文字独立计算滚动遮罩，包括发音作为主歌词时；不包含排版空白"
     },
     "showRuby": {
-      "label": "显示词内注音",
-      "description": "显示歌词中汉字词语的假名或拼音注音"
+      "label": "显示假名注音",
+      "description": "显示歌词正文上方的词内注音，与逐字发音独立控制"
     },
     "showWordRomanization": {
       "label": "显示逐词音译",
@@ -2578,6 +2615,18 @@
       "runtime": {
         "label": "分析运行时"
       }
+    },
+    "deviceLatency": {
+      "label": "设备延迟",
+      "description": "为输出设备分别设置延迟，切换设备时自动应用"
+    },
+    "localMediaEnabled": {
+      "label": "启用本地媒体",
+      "description": "在侧栏显示音乐库、艺术家、专辑和文件夹"
+    },
+    "includeRemoteStats": {
+      "label": "平台与流媒体参与统计",
+      "description": "统计已播放的平台和流媒体曲目及已同步的流媒体曲库，关闭后仅统计本地媒体，保留播放历史"
     }
   },
   "collection": {
@@ -2669,8 +2718,8 @@
     "unknown": "未知",
     "less": "少",
     "more": "多",
-    "audioQuality": "音频格式",
-    "formatCount": "{count} 种格式",
+    "audioQuality": "格式与音质",
+    "formatCount": "{count} 种格式与音质",
     "losslessRatio": "无损占比",
     "trackUnit": "首",
     "listeningHours": "播放时段",
@@ -2727,5 +2776,21 @@
       "discNumber": "碟号",
       "lyrics": "内嵌歌词"
     }
+  },
+  "deviceLatency": {
+    "title": "设备延迟",
+    "manage": "管理设备延迟",
+    "description": "补偿蓝牙等设备的输出延迟，与单曲歌词偏移独立保存",
+    "default": "默认延迟",
+    "defaultHint": "未设置独立值的设备使用此延迟，以毫秒为单位，默认 0",
+    "devices": "设备列表",
+    "current": "当前设备",
+    "inherit": "默认",
+    "custom": "自定义",
+    "disconnected": "未连接的设备",
+    "noDevices": "没有可用的输出设备",
+    "effective": "当前延迟：{value} 毫秒",
+    "refresh": "刷新设备列表",
+    "refreshFailed": "刷新输出设备失败"
   }
 }
