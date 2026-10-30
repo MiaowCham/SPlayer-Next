@@ -4,6 +4,7 @@ import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from 
 import type { Platform } from "@shared/types/platform";
 import type { TransitionPreference } from "@shared/types/player";
 import type { TransitionMode } from "@shared/types/automix";
+import type { PronunciationOptimization } from "@shared/types/lyricEnhancement";
 
 import type { QualityLevel } from "@/utils/quality";
 import type { LyricAlignment } from "lyric-dom";
@@ -140,6 +141,10 @@ export const DEFAULT_SIDEBAR_NAV_GROUPS: SidebarNavGroup[] = [
 
 /** 歌词设置 */
 export interface LyricSettings {
+  /** 是否使用 AI 补充当前语言缺失的歌词翻译 */
+  llmTranslation: boolean;
+  /** 发音优化方式 */
+  pronunciationOptimization: PronunciationOptimization;
   /** 歌词来源偏好 */
   lyricSourcePreference: LyricSourcePreference;
   /** 音源顺序 */

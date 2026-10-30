@@ -17,6 +17,7 @@ import { applyLyricExclude } from "@/utils/lyric/lyricStripper";
 import { normalizeLyricLines } from "@/utils/lyric/normalize";
 import { getValidArtists } from "@shared/utils/track";
 import { applyLyricCjkTransform } from "@/utils/lyric/cjkTransform";
+import { buildLyricEnhancementRequest } from "@/services/lyric/enhancement";
 import { hideChinesePronunciation } from "@/utils/lyric/hideChinesePronunciation";
 
 export const useMediaStore = defineStore("media", () => {
@@ -39,6 +40,10 @@ export const useMediaStore = defineStore("media", () => {
 
   /** 歌词是否正在加载 */
   const lyricLoading = ref(false);
+
+  /** 当前版本的后台增强状态，不阻塞原歌词显示 */
+  const lyricEnhancementPending = ref(false);
+  const lyricEnhancementWarnings = ref<string[]>([]);
 
   /** 当前歌词行索引，-1 表示无匹配 */
   const lyricIndex = ref(-1);
@@ -117,6 +122,8 @@ export const useMediaStore = defineStore("media", () => {
    */
   const setTrack = (newTrack: Track, newDetail?: TrackDetail): void => {
     transformToken++;
+    lyricEnhancementPending.value = false;
+    lyricEnhancementWarnings.value = [];
     creatorToken++;
     creatorRequestKey = "";
     track.value = newTrack;
@@ -183,6 +190,8 @@ export const useMediaStore = defineStore("media", () => {
   /** 重置歌词状态 */
   const resetLyricState = (): void => {
     transformToken++;
+    lyricEnhancementPending.value = false;
+    lyricEnhancementWarnings.value = [];
     activeLyric.value = null;
     lyricContent.value = null;
     parsedLyric.value = [];
@@ -202,6 +211,9 @@ export const useMediaStore = defineStore("media", () => {
     () => [
       useSettingsStore().lyric.chineseScriptPreference,
       useSettingsStore().lyric.hideChinesePronunciation,
+      useSettingsStore().lyric.llmTranslation,
+      useSettingsStore().lyric.pronunciationOptimization,
+      useSettingsStore().locale,
     ],
     () => {
       if (activeLyric.value && lyricContent.value) {
@@ -217,6 +229,8 @@ export const useMediaStore = defineStore("media", () => {
    */
   const setLyric = (source: LyricData, input: LyricInput | null): void => {
     const currentTransformToken = ++transformToken;
+    lyricEnhancementPending.value = false;
+    lyricEnhancementWarnings.value = [];
     let nextLines: LyricLine[] = [];
     const settings = useSettingsStore();
     if (source && input) {
@@ -265,13 +279,30 @@ export const useMediaStore = defineStore("media", () => {
     lyricLoading.value = hasContent && settings.lyric.hideChinesePronunciation;
     syncToMain();
 
-    // 展示过滤先于简繁转换，统一同步给主播放器和独立歌词窗口；原始输入不改写。
+    // 原歌词先展示，较慢的网络增强完成后再替换展示副本
     const chineseScriptPreference = settings.lyric.chineseScriptPreference;
-    if (
-      hasContent &&
-      (settings.lyric.hideChinesePronunciation || chineseScriptPreference !== "default")
-    ) {
-      const displayLines = settings.lyric.hideChinesePronunciation
+    const hidePronunciation = settings.lyric.hideChinesePronunciation;
+    const enhancementRequest = buildLyricEnhancementRequest(
+      nextLines,
+      source,
+      track.value,
+      settings.locale,
+      settings.lyric.llmTranslation,
+      settings.lyric.pronunciationOptimization,
+    );
+    const enhancement = enhancementRequest
+      ? window.api.lyricEnhancement.enhance(enhancementRequest).catch(() => ({
+          lines: nextLines,
+          warnings: [
+            settings.locale.startsWith("zh")
+              ? "歌词增强失败，请检查模型和词典配置"
+              : "Lyric enhancement failed; check model and dictionary settings",
+          ],
+        }))
+      : null;
+    lyricEnhancementPending.value = enhancement !== null;
+    if (hasContent && (hidePronunciation || chineseScriptPreference !== "default" || enhancement)) {
+      const displayLines = hidePronunciation
         ? hideChinesePronunciation(nextLines)
         : Promise.resolve(nextLines);
       displayLines
@@ -280,10 +311,23 @@ export const useMediaStore = defineStore("media", () => {
             ? lines
             : applyLyricCjkTransform(lines, chineseScriptPreference),
         )
-        .then((transformed) => {
+        .then(async (transformed) => {
           if (currentTransformToken !== transformToken) return;
           parsedLyric.value = transformed;
           lyricLoading.value = false;
+          syncToMain();
+          if (!enhancement) return;
+          const result = await enhancement;
+          if (currentTransformToken !== transformToken) return;
+          let enhanced = hidePronunciation
+            ? await hideChinesePronunciation(result.lines)
+            : result.lines;
+          if (chineseScriptPreference !== "default")
+            enhanced = await applyLyricCjkTransform(enhanced, chineseScriptPreference);
+          if (currentTransformToken !== transformToken) return;
+          parsedLyric.value = enhanced;
+          lyricEnhancementWarnings.value = result.warnings;
+          lyricEnhancementPending.value = false;
           syncToMain();
         })
         .catch((error) => {
@@ -291,10 +335,15 @@ export const useMediaStore = defineStore("media", () => {
           console.warn("[media] lyric display transform failed", error);
           parsedLyric.value = nextLines;
           lyricLoading.value = false;
+          lyricEnhancementPending.value = false;
           syncToMain();
         });
     }
   };
+
+  useEventListener(window, "lyric-enhancement:changed", () => {
+    if (activeLyric.value && lyricContent.value) setLyric(activeLyric.value, lyricContent.value);
+  });
 
   /**
    * 根据播放时间更新歌词行索引
@@ -307,6 +356,8 @@ export const useMediaStore = defineStore("media", () => {
   /** 清空所有状态 */
   const clear = (): void => {
     transformToken++;
+    lyricEnhancementPending.value = false;
+    lyricEnhancementWarnings.value = [];
     track.value = null;
     playbackContext.value = undefined;
     detail.value = null;
@@ -334,6 +385,8 @@ export const useMediaStore = defineStore("media", () => {
     lyricAuthors,
     lyricAuthorKind,
     lyricLoading,
+    lyricEnhancementPending,
+    lyricEnhancementWarnings,
     lyricIndex,
     setTrack,
     setPlaybackContext,

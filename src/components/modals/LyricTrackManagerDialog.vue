@@ -711,7 +711,7 @@ watch(
       >
         <div
           v-if="lyricManager.track.value"
-          class="flex shrink-0 items-center gap-3 border-b border-solid border-outline-variant/15 pb-3"
+          class="flex shrink-0 items-center gap-3 border-x-0 border-t-0 border-b border-solid border-outline-variant/15 pb-3"
         >
           <img
             v-if="lyricManager.track.value.cover"

@@ -30,6 +30,25 @@ afterEach(() => {
 });
 
 describe("歌词设置升级", () => {
+  it("补全歌词增强默认值并修复无效发音模式", () => {
+    localStorage.setItem(
+      "settings",
+      JSON.stringify({ lyric: { pronunciationOptimization: "bad" } }),
+    );
+    const settings = useSettingsStore();
+
+    expect(settings.lyric.llmTranslation).toBe(false);
+    expect(settings.lyric.pronunciationOptimization).toBe("off");
+
+    localStorage.setItem(
+      "settings",
+      JSON.stringify({ lyric: { llmTranslation: true, pronunciationOptimization: "dictionary" } }),
+    );
+    settings.$hydrate();
+    expect(settings.lyric.llmTranslation).toBe(true);
+    expect(settings.lyric.pronunciationOptimization).toBe("dictionary");
+  });
+
   it("旧配置自动补全设备延迟，独立配置可持久化恢复", () => {
     localStorage.setItem("settings", JSON.stringify({ player: { outputDevice: "speaker" } }));
     const settings = useSettingsStore();

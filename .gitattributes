@@ -2,3 +2,6 @@
 *.{png,jpg,jpeg,gif,webp,ico,svg} binary
 *.{woff,woff2,ttf,eot} binary
 *.node binary
+
+# 补丁上下文的前导空格后允许原文件制表符
+*.patch whitespace=-space-before-tab

@@ -70,6 +70,10 @@ export interface LyricWord extends LyricSpan {
 
 /** 一行歌词 */
 export interface LyricLine {
+  /** 自动补充的翻译及目标语言，原始歌词文件不改写 */
+  generatedTranslation?: { method: "llm"; language: string };
+  /** 自动补充或重新分词的发音 */
+  generatedPronunciation?: { method: "llm" | "dictionary"; alignment?: "line" | "word" };
   /** 主歌词语言，用于字形选择与 HTML lang */
   language?: LyricLanguage;
   /**

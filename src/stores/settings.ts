@@ -183,6 +183,8 @@ export const useSettingsStore = defineStore(
 
     /** 歌词 */
     const lyric = reactive<LyricSettings>({
+      llmTranslation: false,
+      pronunciationOptimization: "off",
       lyricSourcePreference: "auto",
       lyricSourceOrder: [...DEFAULT_LYRIC_SOURCE_ORDER],
       lyricFormatOrder: [...DEFAULT_LYRIC_FORMAT_ORDER],
@@ -451,6 +453,10 @@ export const useSettingsStore = defineStore(
           player.automixCrossfadeFallback = true;
         if (typeof lyric.detectBackgroundLyrics !== "boolean") {
           lyric.detectBackgroundLyrics = true;
+        }
+        if (typeof lyric.llmTranslation !== "boolean") lyric.llmTranslation = false;
+        if (!(["off", "llm", "dictionary"] as const).includes(lyric.pronunciationOptimization)) {
+          lyric.pronunciationOptimization = "off";
         }
         if (!Array.isArray(preset.skipTrackKeywords)) {
           preset.skipTrackKeywords = [...DEFAULT_SKIP_TRACK_KEYWORDS];

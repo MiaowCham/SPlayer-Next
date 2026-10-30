@@ -6,6 +6,7 @@ import LocalLyricRepoConfig from "@/components/settings/custom/LocalLyricRepoCon
 import LyricSourceOrderConfig from "@/components/settings/custom/LyricSourceOrderConfig.vue";
 import LyricFormatOrderConfig from "@/components/settings/custom/LyricFormatOrderConfig.vue";
 import ExcludeLyricsConfig from "@/components/settings/custom/ExcludeLyricsConfig.vue";
+import LyricEnhancementConfig from "@/components/settings/custom/LyricEnhancementConfig.vue";
 import DbCacheManager from "@/components/settings/custom/DbCacheManager.vue";
 import { desktopLyricSection, dynamicIslandSection, taskbarLyricSection } from "./externalLyric";
 import IconLucideMic2 from "~icons/lucide/mic-2";
@@ -259,6 +260,32 @@ const lyricCategory: SettingCategory = {
     {
       id: "lyricTranslationPronunciation",
       items: [
+        {
+          key: "llmTranslation",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.llmTranslation" },
+          defaultValue: false,
+          tag: { text: "Beta" },
+        },
+        {
+          key: "pronunciationOptimization",
+          type: "select",
+          binding: { store: "settings", path: "lyric.pronunciationOptimization" },
+          options: [
+            { value: "off", labelKey: "settings.pronunciationOptimization.off" },
+            { value: "llm", labelKey: "settings.pronunciationOptimization.llm" },
+            { value: "dictionary", labelKey: "settings.pronunciationOptimization.dictionary" },
+          ],
+          defaultValue: "off",
+          tag: { text: "Beta" },
+        },
+        {
+          key: "lyricEnhancementConfig",
+          type: "custom",
+          component: LyricEnhancementConfig,
+          fullWidth: true,
+          searchable: false,
+        },
         {
           key: "swapTranslationPronunciation",
           type: "switch",

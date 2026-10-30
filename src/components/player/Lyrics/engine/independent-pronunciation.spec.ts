@@ -142,4 +142,52 @@ describe("默认引擎独立发音遮罩 Hook", () => {
     expect(container.classList.contains("lp-independent-word-masks")).toBe(false);
     renderer = undefined;
   });
+
+  it.each([
+    [false, false],
+    [true, false],
+    [false, true],
+    [true, true],
+  ])("连续音节渐变跨越边界且换行和零宽不预亮，独立=%s，强调=%s", (independent, emphasize) => {
+    renderer = new LyricRenderer(container, {
+      playing: false,
+      wordFadeWidth: 0,
+      showWordRomanization: true,
+      independentWordRomanizationProgress: independent,
+      enableFloatAnimation: false,
+      enableEmphasizeEffect: emphasize,
+      enableScrollPreroll: false,
+    });
+    renderer.setLyrics([{ ...line, preserveWordSpacing: true }]);
+    const words = Array.from(container.querySelectorAll<HTMLElement>(".lp-word-roman"));
+    if (emphasize)
+      expect(words.every((word) => word.classList.contains("lp-emp-wrapper"))).toBe(true);
+    const rect = (left: number, top: number) => ({
+      left,
+      top,
+      right: left + 96,
+      bottom: top + 96,
+      width: 96,
+      height: 96,
+      x: left,
+      y: top,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(words[0], "getBoundingClientRect").mockReturnValue(rect(0, 0));
+    const secondRect = vi.spyOn(words[1], "getBoundingClientRect").mockReturnValue(rect(96, 0));
+    renderer.setConfig({ wordFadeWidth: 0.5 });
+    const target = independent ? (words[1].firstElementChild as HTMLElement) : words[1];
+    const position = target.style.maskPosition;
+    expect(position).not.toContain(" - 3000)");
+    if (independent)
+      expect((words[1].lastElementChild as HTMLElement).style.maskPosition).not.toContain(
+        " - 3000)",
+      );
+    secondRect.mockReturnValue(rect(0, 110));
+    renderer.setConfig({ wordFadeWidth: 0.6 });
+    expect(target.style.maskPosition).toContain(" - 3000)");
+    secondRect.mockReturnValue(rect(96, 0));
+    renderer.setConfig({ wordFadeWidth: 0 });
+    expect(target.style.maskPosition).toContain(" - 3000)");
+  });
 });
