@@ -52,13 +52,23 @@ export const collapseToLineLyric = (line: LyricLine): LyricLine => {
   };
 };
 
-/** 根据发音来源把默认渲染器歌词转换为对应的主歌词结构。 */
+/**
+ * 按 AMLL 的可见发音优先级生成默认引擎展示副本
+ * @param lines - 原始歌词
+ * @param forceLinePronunciation - 是否在没有逐词发音时强制逐句提升
+ * @param forceSyllableSpacing - 是否强制音节间距
+ * @param showWord - 是否允许逐词发音提升
+ * @param showLine - 是否允许逐行发音提升
+ * @returns 不改写原始数据的展示歌词
+ */
 export const promoteDefaultPronunciation = (
   lines: LyricLine[],
   forceLinePronunciation: boolean,
   forceSyllableSpacing = false,
+  showWord = true,
+  showLine = true,
 ): LyricLine[] => {
-  if (shouldForceLinePronunciationMode(lines, forceLinePronunciation)) {
+  if (showLine && shouldForceAmlLinePronunciationMode(lines, forceLinePronunciation)) {
     return lines.map((line) =>
       canPromoteLinePronunciation(line, true)
         ? promotePronunciation(line, "line")
@@ -66,8 +76,10 @@ export const promoteDefaultPronunciation = (
     );
   }
   return lines.map((line) => {
-    if (!hasWordTiming(line)) return promotePronunciation(line, "line");
-    if (hasWordRomanization(line)) return promotePronunciation(line, "word", forceSyllableSpacing);
+    if (showWord && hasWordRomanization(line))
+      return promotePronunciation(line, "word", forceSyllableSpacing);
+    if (showLine && canPromoteLinePronunciation(line, false))
+      return promotePronunciation(line, "line");
     return line;
   });
 };

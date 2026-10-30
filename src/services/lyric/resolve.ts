@@ -43,7 +43,7 @@ export const resolveManagedLyric = async (track: Track): Promise<ResolvedLyric |
   const lyric = await window.api.lyrics.getManaged(track);
   if (!lyric?.content.trim()) return null;
   return {
-    source: { source: "managed", format: lyric.format },
+    source: { source: "managed", format: lyric.format, versionId: lyric.versionId },
     input: {
       content: lyric.content,
       translation: lyric.translation,

@@ -102,9 +102,14 @@ const fetchLyric = async (args: {
   }
 };
 
-/** 按 Kugou hash 直取（只有 hash 时用；精度受限） */
-export const getByPlatformId = (hash: string): Promise<LyricMatchResult | null> =>
-  fetchLyric({ hash });
+/**
+ * 按指定 Kugou hash 取词，可附带元数据提升下载匹配精度
+ * @param hash - 平台曲目 hash
+ * @param track - 曲目标题与时长
+ * @returns 对应曲目的歌词
+ */
+export const getByPlatformId = (hash: string, track?: Track): Promise<LyricMatchResult | null> =>
+  fetchLyric({ hash, name: track?.title, durationMs: track?.duration });
 
 /** 按 Track 元数据模糊搜索：search → 挑最佳 → 单次请求歌词 */
 export const getByQuery = async (track: Track): Promise<LyricMatchResult | null> => {
@@ -145,9 +150,22 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
   );
   if (!best) return null;
   setMatchedId(fingerprint, "kugou", best.extra.hash);
-  return fetchLyric({
+  const result = await fetchLyric({
     hash: best.extra.hash,
     name: best.name,
     durationMs: best.duration,
   });
+  if (!result) return null;
+  const enriched = {
+    ...result,
+    sourceTrack: {
+      id: best.extra.hash,
+      title: best.name,
+      artists: [best.artist],
+      album: best.album,
+      duration: best.duration ?? 0,
+    },
+  };
+  setCachedLyric("kugou", best.extra.hash, enriched);
+  return enriched;
 };

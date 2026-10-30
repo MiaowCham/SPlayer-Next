@@ -6,7 +6,17 @@ import { useCopyText } from "@/composables/useCopyText";
 import { toast } from "@/composables/useToast";
 import { createLyricPoster } from "@/utils/lyric/poster";
 
-const props = defineProps<{ open: boolean }>();
+import type { LyricLine } from "@shared/types/lyrics";
+import type { Track } from "@shared/types/player";
+
+const props = defineProps<{
+  open: boolean;
+  lyricLines?: LyricLine[];
+  track?: Track;
+  rawContent?: string;
+}>();
+const copyTrack = computed(() => props.track ?? media.track);
+const rawContent = computed(() => props.rawContent ?? media.lyricContent?.content);
 
 const emit = defineEmits<{ "update:open": [value: boolean] }>();
 
@@ -27,7 +37,7 @@ const selectedLines = ref<number[]>([]);
 
 /** 展示用歌词行 */
 const displayLyrics = computed(() =>
-  media.parsedLyric
+  (props.lyricLines ?? media.parsedLyric)
     .filter((line) => !line.isBG)
     .map((line, index) => ({
       index,
@@ -46,7 +56,7 @@ const showRomaji = computed(() => selectedFilters.value.includes("romaji"));
 const suffix = computed(() => {
   const withSongName = selectedFilters.value.includes("songName");
   const withArtist = selectedFilters.value.includes("artist");
-  const track = media.track;
+  const track = copyTrack.value;
   if ((!withSongName && !withArtist) || !track) return "";
   const songName = track.title;
   const artistName = track.artists.map((artist) => artist.name).join(" / ");
@@ -64,10 +74,11 @@ const isAllSelected = computed(
 
 /** 打开时默认全选 */
 watch(
-  () => props.open,
-  (open) => {
+  [() => props.open, displayLyrics],
+  ([open]) => {
     if (open) selectedLines.value = displayLyrics.value.map((line) => line.index);
   },
+  { immediate: true },
 );
 
 /** 勾选 / 取消某一行 */
@@ -114,7 +125,7 @@ const handleCopy = async (): Promise<void> => {
 
 /** 复制歌词原文 */
 const handleCopyRaw = async (): Promise<void> => {
-  const content = media.lyricContent?.content;
+  const content = rawContent.value;
   if (content) await copy(content);
 };
 
@@ -123,7 +134,7 @@ const exporting = ref(false);
 
 /** 导出歌词图片 */
 const handleExport = async (): Promise<void> => {
-  const track = media.track;
+  const track = copyTrack.value;
   if (exporting.value || !track || !selectedLines.value.length) return;
   exporting.value = true;
   try {
@@ -208,7 +219,7 @@ const handleExport = async (): Promise<void> => {
             variant="secondary"
             size="tiny"
             class="ml-auto shrink-0"
-            :disabled="!media.lyricContent"
+            :disabled="!rawContent"
             @click="handleCopyRaw"
           >
             {{ t("player.copyLyric.copyRaw") }}

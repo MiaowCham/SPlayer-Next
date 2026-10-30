@@ -468,11 +468,39 @@ const pairBackgroundTranslation = (
   }
 };
 
+/** 单调配对的前缀最优结果，数量优先，其次比较起点与终点距离 */
+interface AlignmentRow {
+  count: Int32Array;
+  startCost: Float64Array;
+  endCost: Float64Array;
+}
+
 /**
- * 按主行时间戳配对翻译和发音
- * @param lines - 原始主行
- * @param transLines - 辅助主行
- * @param field - 写入的副行字段
+ * 比较两个配对方案，避免更近的单行挤走完整的正常序列
+ * @param count - 新方案配对数
+ * @param start - 新方案起点距离和
+ * @param end - 新方案终点距离和
+ * @param oldCount - 原方案配对数
+ * @param oldStart - 原方案起点距离和
+ * @param oldEnd - 原方案终点距离和
+ * @returns 新方案是否更优
+ */
+const betterAlignment = (
+  count: number,
+  start: number,
+  end: number,
+  oldCount: number,
+  oldStart: number,
+  oldEnd: number,
+): boolean =>
+  count > oldCount ||
+  (count === oldCount && (start < oldStart || (start === oldStart && end < oldEnd)));
+
+/**
+ * 按容差窗口分组，再以线性空间求单调一对一最优配对
+ * @param lines - 主歌词行
+ * @param transLines - 辅助歌词行
+ * @param field - 待写入的副行字段
  * @param wordRomanization - 是否同步逐字发音
  */
 const pairTranslationByType = (
@@ -482,32 +510,205 @@ const pairTranslationByType = (
   wordRomanization: boolean,
 ): void => {
   const targets = [...lines].sort((a, b) => a.startTime - b.startTime);
-  const trans = [...transLines].sort((a, b) => a.startTime - b.startTime);
-  if (targets[0]?.isBG) {
-    for (let index = 0; index < trans.length && index < targets.length; index++) {
-      const text = lineText(trans[index]);
-      if (isMeaningfulTrans(text)) targets[index][field] = text;
-    }
-    return;
-  }
-  let i = 0;
-  let j = 0;
-  while (i < targets.length && j < trans.length) {
-    const diff = targets[i].startTime - trans[j].startTime;
-    if (Math.abs(diff) <= ALIGN_TOLERANCE_MS) {
-      const text = lineText(trans[j]);
-      if (isMeaningfulTrans(text)) {
-        targets[i][field] = text;
-        if (field === "romanLyric" && wordRomanization) {
-          alignRomanization(targets[i].words, trans[j].words);
+  const trans = [...transLines]
+    .filter((line) => isMeaningfulTrans(lineText(line)))
+    .sort((a, b) => a.startTime - b.startTime);
+
+  /**
+   * 写入已确定的唯一配对，保留正文音节及原始时间
+   * @param target - 主歌词行
+   * @param source - 辅助歌词行
+   */
+  const applyPair = (target: LyricLine, source: LyricLine): void => {
+    target[field] = lineText(source);
+    if (field === "romanLyric" && wordRomanization) alignRomanization(target.words, source.words);
+  };
+
+  /**
+   * 仅保存一个目标前缀的动态规划行，反向计算用于分治回溯
+   * @param targetStart - 主行半开区间起点
+   * @param targetEnd - 主行半开区间终点
+   * @param sourceStart - 辅助行半开区间起点
+   * @param sourceEnd - 辅助行半开区间终点
+   * @param reversed - 是否从区间末尾反向计算
+   * @returns 各目标前缀的最优数量与距离
+   */
+  const alignmentRow = (
+    targetStart: number,
+    targetEnd: number,
+    sourceStart: number,
+    sourceEnd: number,
+    reversed: boolean,
+  ): AlignmentRow => {
+    const length = targetEnd - targetStart;
+    const row: AlignmentRow = {
+      count: new Int32Array(length + 1),
+      startCost: new Float64Array(length + 1),
+      endCost: new Float64Array(length + 1),
+    };
+    for (let sourceOffset = 0; sourceOffset < sourceEnd - sourceStart; sourceOffset++) {
+      const source = trans[reversed ? sourceEnd - 1 - sourceOffset : sourceStart + sourceOffset];
+      let cornerCount = 0;
+      let cornerStart = 0;
+      let cornerEnd = 0;
+      for (let offset = 1; offset <= length; offset++) {
+        const oldCount = row.count[offset];
+        const oldStart = row.startCost[offset];
+        const oldEnd = row.endCost[offset];
+        if (
+          betterAlignment(
+            row.count[offset - 1],
+            row.startCost[offset - 1],
+            row.endCost[offset - 1],
+            oldCount,
+            oldStart,
+            oldEnd,
+          )
+        ) {
+          row.count[offset] = row.count[offset - 1];
+          row.startCost[offset] = row.startCost[offset - 1];
+          row.endCost[offset] = row.endCost[offset - 1];
         }
+        const target = targets[reversed ? targetEnd - offset : targetStart + offset - 1];
+        const difference = Math.abs(target.startTime - source.startTime);
+        const start = cornerStart + difference;
+        const end = cornerEnd + Math.abs(target.endTime - source.endTime);
+        if (
+          difference <= ALIGN_TOLERANCE_MS &&
+          betterAlignment(
+            cornerCount + 1,
+            start,
+            end,
+            row.count[offset],
+            row.startCost[offset],
+            row.endCost[offset],
+          )
+        ) {
+          row.count[offset] = cornerCount + 1;
+          row.startCost[offset] = start;
+          row.endCost[offset] = end;
+        }
+        cornerCount = oldCount;
+        cornerStart = oldStart;
+        cornerEnd = oldEnd;
       }
-      i++;
-      j++;
-    } else if (diff < 0) {
-      i++;
-    } else {
-      j++;
     }
+    return row;
+  };
+
+  /**
+   * 选出保持全局最优的目标分割点，返回前释放前后缀数组引用
+   * @param targetStart - 主行区间起点
+   * @param targetEnd - 主行区间终点
+   * @param sourceStart - 辅助行区间起点
+   * @param sourceMiddle - 辅助行分割点
+   * @param sourceEnd - 辅助行区间终点
+   * @returns 主行分割点
+   */
+  const splitTarget = (
+    targetStart: number,
+    targetEnd: number,
+    sourceStart: number,
+    sourceMiddle: number,
+    sourceEnd: number,
+  ): number => {
+    const forward = alignmentRow(targetStart, targetEnd, sourceStart, sourceMiddle, false);
+    const backward = alignmentRow(targetStart, targetEnd, sourceMiddle, sourceEnd, true);
+    const length = targetEnd - targetStart;
+    let split = 0;
+    let bestCount = -1;
+    let bestStart = Infinity;
+    let bestEnd = Infinity;
+    for (let offset = 0; offset <= length; offset++) {
+      const count = forward.count[offset] + backward.count[length - offset];
+      const start = forward.startCost[offset] + backward.startCost[length - offset];
+      const end = forward.endCost[offset] + backward.endCost[length - offset];
+      if (betterAlignment(count, start, end, bestCount, bestStart, bestEnd)) {
+        split = offset;
+        bestCount = count;
+        bestStart = start;
+        bestEnd = end;
+      }
+    }
+    return targetStart + split;
+  };
+
+  /**
+   * 分治还原单调配对，不保存整曲的二维矩阵或候选边链
+   * @param targetStart - 主行区间起点
+   * @param targetEnd - 主行区间终点
+   * @param sourceStart - 辅助行区间起点
+   * @param sourceEnd - 辅助行区间终点
+   */
+  const alignRange = (
+    targetStart: number,
+    targetEnd: number,
+    sourceStart: number,
+    sourceEnd: number,
+  ): void => {
+    const targetCount = targetEnd - targetStart;
+    const sourceCount = sourceEnd - sourceStart;
+    if (!targetCount || !sourceCount) return;
+    if (
+      targetCount === sourceCount &&
+      targets
+        .slice(targetStart, targetEnd)
+        .every(
+          (target, offset) =>
+            Math.abs(target.startTime - trans[sourceStart + offset].startTime) <=
+            ALIGN_TOLERANCE_MS,
+        )
+    ) {
+      for (let offset = 0; offset < targetCount; offset++)
+        applyPair(targets[targetStart + offset], trans[sourceStart + offset]);
+      return;
+    }
+    if (targetCount === 1 || sourceCount === 1) {
+      let matchedTarget = -1;
+      let matchedSource = -1;
+      let bestStart = ALIGN_TOLERANCE_MS + 1;
+      let bestEnd = Infinity;
+      for (let target = targetStart; target < targetEnd; target++)
+        for (let source = sourceStart; source < sourceEnd; source++) {
+          const start = Math.abs(targets[target].startTime - trans[source].startTime);
+          const end = Math.abs(targets[target].endTime - trans[source].endTime);
+          if (
+            start <= ALIGN_TOLERANCE_MS &&
+            (start < bestStart || (start === bestStart && end < bestEnd))
+          ) {
+            matchedTarget = target;
+            matchedSource = source;
+            bestStart = start;
+            bestEnd = end;
+          }
+        }
+      if (matchedTarget !== -1) applyPair(targets[matchedTarget], trans[matchedSource]);
+      return;
+    }
+    const sourceMiddle = sourceStart + Math.floor(sourceCount / 2);
+    const targetMiddle = splitTarget(targetStart, targetEnd, sourceStart, sourceMiddle, sourceEnd);
+    alignRange(targetStart, targetMiddle, sourceStart, sourceMiddle);
+    alignRange(targetMiddle, targetEnd, sourceMiddle, sourceEnd);
+  };
+
+  let target = 0;
+  let source = 0;
+  while (target < targets.length || source < trans.length) {
+    const targetStart = target;
+    const sourceStart = source;
+    let previous = Math.min(
+      targets[target]?.startTime ?? Infinity,
+      trans[source]?.startTime ?? Infinity,
+    );
+    while (target < targets.length || source < trans.length) {
+      const targetTime = targets[target]?.startTime ?? Infinity;
+      const sourceTime = trans[source]?.startTime ?? Infinity;
+      const next = Math.min(targetTime, sourceTime);
+      if (next - previous > ALIGN_TOLERANCE_MS) break;
+      if (targetTime <= sourceTime) target++;
+      else source++;
+      previous = next;
+    }
+    alignRange(targetStart, target, sourceStart, source);
   }
 };

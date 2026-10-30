@@ -1,3 +1,4 @@
+import { cancelPreviewMainResume, pauseMainForPreview } from "@main/services/lyricPreview";
 import {
   prepareNextTrack,
   cancelPreparedTrack,
@@ -137,6 +138,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
     switch (event.type) {
       case "stateChanged": {
         const state = (event.state ?? "idle") as PlayerState;
+        if (state === "playing" && pauseMainForPreview(inst)) break;
         updatePowerBlocker(state);
         // 更新缩略图工具栏和托盘菜单
         getThumbar()?.updateThumbar(state === "playing");
@@ -544,6 +546,7 @@ export const registerPlayerIpc = (): void => {
   });
   // 加载音频文件
   ipcMain.handle("player:load", async (_event, source: string, options: LoadOptions = {}) => {
+    cancelPreviewMainResume();
     cancelPendingReinit();
     const autoPlay = options.autoPlay ?? true;
     const authoritative = options.meta ?? null;
@@ -686,6 +689,7 @@ export const registerPlayerIpc = (): void => {
 
   // 恢复播放
   ipcMain.handle("player:play", async () => {
+    cancelPreviewMainResume();
     try {
       await getPlayer().play();
       return { success: true };
@@ -696,6 +700,7 @@ export const registerPlayerIpc = (): void => {
 
   // 暂停播放
   ipcMain.handle("player:pause", () => {
+    cancelPreviewMainResume();
     try {
       getPlayer().pause();
       return { success: true };
@@ -706,6 +711,7 @@ export const registerPlayerIpc = (): void => {
 
   // 停止播放并释放资源
   ipcMain.handle("player:stop", () => {
+    cancelPreviewMainResume();
     loadSeq++;
     void streamingPlayback.stopStreamingPlayback();
     try {
@@ -724,6 +730,7 @@ export const registerPlayerIpc = (): void => {
 
   // 跳转到指定播放位置
   ipcMain.handle("player:seek", async (_event, positionMs: number, restartRound = false) => {
+    cancelPreviewMainResume();
     const seq = ++loadSeq;
     try {
       /** 重播时先装配轮次，原生 seek 的播放事件才能启动新的计时 */
@@ -977,7 +984,10 @@ export const registerPlayerIpc = (): void => {
     async (_event, deviceId: string | null, pauseBeforeSwitch = false) => {
       try {
         cancelPendingReinit();
-        if (pauseBeforeSwitch) getPlayer().pauseImmediately();
+        if (pauseBeforeSwitch) {
+          cancelPreviewMainResume();
+          getPlayer().pauseImmediately();
+        }
         await getPlayer().setOutputDevice(deviceId ?? undefined);
         return { success: true };
       } catch (error) {
@@ -1027,12 +1037,15 @@ export const registerPlayerIpc = (): void => {
       const inst = getPlayer();
       switch (event.type) {
         case "Play":
+          cancelPreviewMainResume();
           void inst.play().catch(() => {});
           break;
         case "Pause":
+          cancelPreviewMainResume();
           inst.pause();
           break;
         case "Stop":
+          cancelPreviewMainResume();
           loadSeq++;
           void streamingPlayback.stopStreamingPlayback();
           cancelPreparedTrack();
@@ -1041,6 +1054,7 @@ export const registerPlayerIpc = (): void => {
           break;
         case "Seek":
           if (event.positionMs != null) {
+            cancelPreviewMainResume();
             const seq = ++loadSeq;
             const targetMs = event.positionMs;
             sendToMain("player:event", { type: "seek", data: { position: targetMs } });

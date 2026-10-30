@@ -8,7 +8,7 @@
  * 同 key 的并发请求会被 dedup：连按多次切歌只发一次网络。
  */
 
-import { createHash } from "node:crypto";
+import { lyricVersionId as candidateId } from "@shared/utils/lyricVersion";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { ipcMain, dialog, shell } from "electron";
@@ -16,12 +16,16 @@ import * as netease from "@main/apis/common/lyric/netease";
 import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
 import { callNetease } from "@main/apis/netease";
-import { fetchTTML } from "@main/apis/common/lyric/ttml";
+import { fetchTTML, invalidateTTMLVersion } from "@main/apis/common/lyric/ttml";
+import { setCachedTTML } from "@main/database/lyricTtmlCache";
+import { setCachedLyric, deleteLyricVersionCache } from "@main/database/lyricCache";
 import {
   fetchAppleMusicTTML,
   fetchAppleMusicTTMLResult,
   getCachedAppleMusicTTML,
   verifyAppleMusicTTMLToken,
+  invalidateAppleMusicLyricVersion,
+  refetchAppleMusicLyricVersion,
 } from "@main/services/appleMusicLyrics";
 import {
   getAppleMusicMediaUserTokenStorage,
@@ -57,6 +61,7 @@ import { getTrackById, searchTracks } from "@main/database/queries";
 import { getTracks as getStreamingTracks } from "@main/database/streaming/tracks";
 import type {
   LyricFormat,
+  ManagedLyricOrigin,
   LyricInput,
   LyricMatchCandidate,
   LyricMatchResult,
@@ -69,6 +74,14 @@ import type {
 } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
 import type { Track } from "@shared/types/player";
+import {
+  resolveLyricSourceMatchId,
+  searchSourceTracks,
+  loadSourceVersion,
+  saveSourceVersion,
+} from "@main/services/lyricSourceSearch";
+import { registerLyricPreviewIpc } from "./lyricPreview";
+import { getVersionOffset, setVersionOffset } from "@main/services/nowPlaying";
 import { normalizeTtml } from "@shared/utils/ttml";
 
 /** 进行中请求映射 */
@@ -105,11 +118,16 @@ const dedup = <T>(key: string, run: () => Promise<T>): Promise<T> => {
 
 /**
  * 按 (platform, id) 直取
- * @param platform 平台
- * @param id 平台 id
+ * @param platform - 平台
+ * @param id - 平台曲目 ID
+ * @param prefetch - 是否允许预热附加来源
  * @returns 歌词匹配结果
  */
-const resolveById = async (platform: Platform, id: string): Promise<LyricMatchResponse> => {
+const resolveById = async (
+  platform: Platform,
+  id: string,
+  prefetch = true,
+): Promise<LyricMatchResponse> => {
   try {
     let data: LyricMatchResult | null = null;
     switch (platform) {
@@ -117,7 +135,7 @@ const resolveById = async (platform: Platform, id: string): Promise<LyricMatchRe
         data = await netease.getByPlatformId(id);
         break;
       case "qqmusic":
-        data = await qqmusic.getByPlatformId(id);
+        data = await qqmusic.getByPlatformId(id, undefined, prefetch);
         break;
       case "kugou":
         data = await kugou.getByPlatformId(id);
@@ -133,8 +151,18 @@ const resolveById = async (platform: Platform, id: string): Promise<LyricMatchRe
   }
 };
 
-/** 按 Track 元数据 fuzzy 匹配 */
-const resolveByQuery = async (platform: Platform, track: Track): Promise<LyricMatchResponse> => {
+/**
+ * 根据目标曲目的元数据匹配指定平台
+ * @param platform - 查询平台
+ * @param track - 曲目元数据
+ * @param prefetch - 是否允许预热附加来源
+ * @returns 匹配响应
+ */
+const resolveByQuery = async (
+  platform: Platform,
+  track: Track,
+  prefetch = true,
+): Promise<LyricMatchResponse> => {
   try {
     let data: LyricMatchResult | null = null;
     switch (platform) {
@@ -142,7 +170,7 @@ const resolveByQuery = async (platform: Platform, track: Track): Promise<LyricMa
         data = await netease.getByQuery(track);
         break;
       case "qqmusic":
-        data = await qqmusic.getByQuery(track);
+        data = await qqmusic.getByQuery(track, prefetch);
         break;
       case "kugou":
         data = await kugou.getByQuery(track);
@@ -176,7 +204,11 @@ const resolveTTMLOverlay = async (
       if (v && !ids.includes(v)) ids.push(v);
     };
     // 自定义搜索必须先走标题/歌手匹配，避免当前歌曲 ID 绕过用户输入。
-    if (forceQuery) await resolveByQuery(platform, track);
+    if (
+      forceQuery ||
+      (track.source !== platform && !getMatchedId(buildFingerprint(track), platform))
+    )
+      await resolveLyricSourceMatchId(platform, track);
     const fingerprint = buildFingerprint(track);
     const cached = getMatchedId(fingerprint, platform);
     // QM mid 放前面（AMLL DB 早期 QM 条目以 mid 为文件名的居多）
@@ -186,24 +218,29 @@ const resolveTTMLOverlay = async (
     if (!forceQuery && track.source === platform) push(track.extId);
     push(cached?.platformId);
     if (ids.length === 0) return { ok: true, data: null };
-    return { ok: true, data: await fetchTTML(platform, ids) };
+    for (const id of ids) {
+      const data = await fetchTTML(platform, [id]);
+      if (data) return { ok: true, data, matchedId: id };
+    }
+    return { ok: true, data: null };
   } catch (err) {
     coreLog.warn(`[lyrics] fetchTTMLOverlay(${platform}, ${track.title}) failed:`, err);
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 };
 
-/** 为在线匹配结果生成稳定的候选 ID。 */
-const candidateId = (origin: string, platform: string | undefined, content: string): string =>
-  `${origin}:${platform ?? ""}:${createHash("sha256").update(content).digest("hex").slice(0, 16)}`;
-
-/** 将平台匹配结果转换为单曲管理候选。 */
+/**
+ * 将平台歌词与实际匹配元数据转换为管理候选
+ * @param result - 平台歌词匹配结果
+ * @returns 可供预览的候选版本
+ */
 const platformCandidate = (result: LyricMatchResult): LyricMatchCandidate => ({
   id: candidateId(result.platform, result.platform, result.content),
   origin: result.platform,
   platform: result.platform,
   format: result.format,
   filename: `${result.platform}.${result.format}`,
+  sourceTrack: result.sourceTrack,
   content: result.content,
   translation: result.translation,
   translationFormat: result.translationFormat,
@@ -274,6 +311,9 @@ const getTrackCandidatesLocal = async (track: Track): Promise<LyricMatchCandidat
         origin: version.origin,
         format: version.format,
         filename: version.filename ?? `${version.origin}.${version.format}`,
+        sourceTrack: version.sourceTrack,
+        extra: version.sourceExtra,
+        platform: version.sourcePlatform,
         content: version.content,
         translation: version.translation ?? linkedTrans?.translation,
         translationFormat: version.translationFormat ?? linkedTrans?.translationFormat,
@@ -287,43 +327,60 @@ const getTrackCandidatesLocal = async (track: Track): Promise<LyricMatchCandidat
   );
 };
 
-/** 搜索并返回某曲目的所有候选歌词（本地 + 在线）。 */
-const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> => {
-  refreshManagedLyricVersions(track);
-  const active = getManagedLyric(track);
-  const local = listManagedLyricVersions(track).map((version): LyricMatchCandidate => ({
-    id: version.versionId,
-    origin: version.origin,
-    format: version.format,
-    filename: version.filename ?? `${version.origin}.${version.format}`,
-    content: version.content,
-    translation: version.translation,
-    translationFormat: version.translationFormat,
-    romaji: version.romaji,
-    romajiFormat: version.romajiFormat,
-    active: version.versionId === active?.versionId,
-    local: true,
-    importedAt: version.importedAt,
-  }));
+/**
+ * 获取全部候选或仅补取单个来源
+ * @param track - 目标曲目
+ * @param onlyOrigin - 指定时不扫描本地文件也不获取其他来源
+ * @returns 对应范围的候选版本
+ */
+const getTrackCandidates = async (
+  track: Track,
+  onlyOrigin?: ManagedLyricOrigin,
+): Promise<LyricMatchCandidate[]> => {
+  if (!onlyOrigin) refreshManagedLyricVersions(track);
+  const active = onlyOrigin ? null : getManagedLyric(track);
+  const local = (onlyOrigin ? [] : listManagedLyricVersions(track)).map(
+    (version): LyricMatchCandidate => ({
+      id: version.versionId,
+      origin: version.origin,
+      format: version.format,
+      filename: version.filename ?? `${version.origin}.${version.format}`,
+      sourceTrack: version.sourceTrack,
+      extra: version.sourceExtra,
+      platform: version.sourcePlatform,
+      content: version.content,
+      translation: version.translation,
+      translationFormat: version.translationFormat,
+      romaji: version.romaji,
+      romajiFormat: version.romajiFormat,
+      active: version.versionId === active?.versionId,
+      local: true,
+      importedAt: version.importedAt,
+    }),
+  );
 
   const search = getSearchTrack(track);
   const searchTrack = search.track;
-  const platforms: Platform[] = ["netease", "qqmusic", "kugou"];
+  const platforms = (["netease", "qqmusic", "kugou"] as Platform[]).filter(
+    (platform) => !onlyOrigin || onlyOrigin === platform,
+  );
   const [platformResponses, localTtml] = await Promise.all([
     Promise.all(
       platforms.map(async (platform) => {
         const lookupId = platform === "qqmusic" ? (track.extId ?? track.id) : track.id;
         try {
           return !search.forceQuery && track.source === platform
-            ? await resolveById(platform, lookupId)
-            : await resolveByQuery(platform, searchTrack);
+            ? await resolveById(platform, lookupId, !onlyOrigin)
+            : await resolveByQuery(platform, searchTrack, !onlyOrigin);
         } catch (err) {
           coreLog.warn(`[lyrics] candidate lookup(${platform}) failed:`, err);
           return null;
         }
       }),
     ),
-    matchLocalTTML(searchTrack, search.forceQuery).catch(() => null),
+    !onlyOrigin || onlyOrigin === "localTtml"
+      ? matchLocalTTML(searchTrack, search.forceQuery).catch(() => null)
+      : null,
   ]);
   const remote = platformResponses.flatMap((response) =>
     response?.ok && response.data ? [platformCandidate(response.data)] : [],
@@ -340,10 +397,13 @@ const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> 
     });
   }
 
-  const appleMusic = await fetchAppleMusicTTMLResult(searchTrack);
+  const appleMusic =
+    !onlyOrigin || onlyOrigin === "appleMusic"
+      ? await fetchAppleMusicTTMLResult(searchTrack)
+      : { lyric: null };
   if (appleMusic.lyric) {
     remote.push({
-      id: "appleMusic",
+      id: candidateId("appleMusic", undefined, appleMusic.lyric),
       origin: "appleMusic",
       format: "ttml",
       filename: "apple-music.ttml",
@@ -356,19 +416,22 @@ const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> 
     });
   }
 
-  const overlays = await Promise.all(
-    (["netease", "qqmusic"] as const).map(async (platform) => {
-      try {
-        return {
-          platform,
-          result: await resolveTTMLOverlay(searchTrack, platform, search.forceQuery),
-        };
-      } catch (err) {
-        coreLog.warn(`[lyrics] AMLL candidate lookup(${platform}) failed:`, err);
-        return { platform, result: null };
-      }
-    }),
-  );
+  const overlays =
+    onlyOrigin && onlyOrigin !== "amll"
+      ? []
+      : await Promise.all(
+          (["netease", "qqmusic"] as const).map(async (platform) => {
+            try {
+              return {
+                platform,
+                result: await resolveTTMLOverlay(searchTrack, platform, search.forceQuery),
+              };
+            } catch (err) {
+              coreLog.warn(`[lyrics] AMLL candidate lookup(${platform}) failed:`, err);
+              return { platform, result: null };
+            }
+          }),
+        );
   for (const { platform, result } of overlays) {
     if (!result?.ok || !result.data) continue;
     remote.unshift({
@@ -376,6 +439,7 @@ const getTrackCandidates = async (track: Track): Promise<LyricMatchCandidate[]> 
       origin: "amll",
       platform,
       format: "ttml",
+      extra: result.matchedId ? { id: result.matchedId } : undefined,
       filename: `amll-${platform}.ttml`,
       content: result.data,
       active: false,
@@ -414,9 +478,7 @@ const saveOptimizedLyric = async (
     input = { ...input, content: normalizeTtml(input.content).content };
   }
   const dir = getManagedTrackLyricsDir(track);
-  const baseName = candidate.local
-    ? candidate.filename
-    : `${candidate.origin}.${format}`;
+  const baseName = candidate.local ? candidate.filename : `${candidate.origin}.${format}`;
   const mainPath = path.join(dir, baseName);
   const isLocal = candidate.local;
 
@@ -507,7 +569,158 @@ const enrichTrackCover = async (track: Track): Promise<Track> => {
   }
 };
 
+/**
+ * 清理所选在线版本的本地缓存，返回用于重新下载的精确远端标识
+ * @param track - 原曲目
+ * @param candidate - 待操作的版本
+ * @returns 旧缓存对应的曲目标识
+ */
+const invalidateCandidate = async (
+  track: Track,
+  candidate: LyricMatchCandidate,
+): Promise<string[]> => {
+  if (candidate.origin === "appleMusic") {
+    await invalidateAppleMusicLyricVersion(getSearchTrack(track).track, candidate.content);
+    return [];
+  }
+  if (candidate.origin === "amll" && candidate.platform !== "kugou" && candidate.platform) {
+    return invalidateTTMLVersion(candidate.platform, candidate.content, candidate.extra?.id);
+  }
+  if (
+    candidate.origin === "netease" ||
+    candidate.origin === "qqmusic" ||
+    candidate.origin === "kugou"
+  ) {
+    const id = candidate.extra?.hash ?? candidate.extra?.id;
+    return deleteLyricVersionCache(candidate.origin, candidate.content, id);
+  }
+  return [];
+};
+
+/**
+ * 重新读取或下载单个版本，不切换当前歌曲的歌词来源
+ * @param track - 目标曲目
+ * @param candidate - 当前版本
+ * @returns 刷新后的候选，未获取到新正文时为空
+ */
+const refetchCandidate = async (
+  track: Track,
+  candidate: LyricMatchCandidate,
+): Promise<LyricMatchCandidate | null> => {
+  if (candidate.local)
+    return (await getTrackCandidatesLocal(track)).find((item) => item.id === candidate.id) ?? null;
+  const search = getSearchTrack(track);
+  if (candidate.origin === "localTtml") {
+    const content = await matchLocalTTML(search.track, search.forceQuery);
+    return content
+      ? { ...candidate, content, id: candidateId(candidate.origin, candidate.platform, content) }
+      : null;
+  }
+  if (candidate.origin === "appleMusic") {
+    const result = await refetchAppleMusicLyricVersion(
+      search.track,
+      candidate.content,
+      candidate.extra?.id,
+    );
+    return result.lyric
+      ? {
+          ...candidate,
+          content: result.lyric,
+          id: candidateId("appleMusic", undefined, result.lyric),
+          extra: result.songId ? { id: result.songId } : candidate.extra,
+        }
+      : null;
+  }
+  const ids = await invalidateCandidate(track, candidate);
+  if (candidate.origin === "amll" && candidate.platform && candidate.platform !== "kugou") {
+    const exactIds = candidate.extra?.id ? [candidate.extra.id] : ids;
+    const result = exactIds.length
+      ? { ok: true as const, data: await fetchTTML(candidate.platform, exactIds) }
+      : await resolveTTMLOverlay(search.track, candidate.platform, search.forceQuery);
+    if (!result.ok || !result.data) {
+      for (const id of exactIds) setCachedTTML(candidate.platform, id, candidate.content);
+      return null;
+    }
+    return result.ok && result.data
+      ? {
+          ...candidate,
+          content: result.data,
+          id: candidateId("amll", candidate.platform, result.data),
+        }
+      : null;
+  }
+  const id = candidate.extra?.hash ?? candidate.extra?.id ?? ids[0];
+  if (!id) return null;
+  let result: LyricMatchResult | null = null;
+  if (candidate.origin === "netease") result = await netease.getByPlatformId(id);
+  else if (candidate.origin === "qqmusic")
+    result = await qqmusic.getByPlatformId(id, candidate.extra?.mid, false);
+  else if (candidate.origin === "kugou") result = await kugou.getByPlatformId(id, search.track);
+  if (
+    !result &&
+    (candidate.origin === "netease" ||
+      candidate.origin === "qqmusic" ||
+      candidate.origin === "kugou")
+  ) {
+    setCachedLyric(candidate.origin, id, {
+      platform: candidate.origin,
+      format: candidate.format,
+      content: candidate.content,
+      translation: candidate.translation,
+      translationFormat: candidate.translationFormat,
+      romaji: candidate.romaji,
+      romajiFormat: candidate.romajiFormat,
+      extra: candidate.extra,
+    });
+  }
+  return result
+    ? platformCandidate({ ...result, sourceTrack: result.sourceTrack ?? candidate.sourceTrack })
+    : null;
+};
+
+/** 注册歌词管理、搜索和独立试听通道 */
 export const registerLyricsIpc = (): void => {
+  registerLyricPreviewIpc();
+  ipcMain.handle(
+    "lyrics:searchSourceTracks",
+    (_event, ...args: Parameters<typeof searchSourceTracks>) => searchSourceTracks(...args),
+  );
+  ipcMain.handle(
+    "lyrics:loadSourceVersion",
+    (_event, ...args: Parameters<typeof loadSourceVersion>) => loadSourceVersion(...args),
+  );
+  ipcMain.handle(
+    "lyrics:saveSourceVersion",
+    (_event, ...args: Parameters<typeof saveSourceVersion>) => saveSourceVersion(...args),
+  );
+  ipcMain.handle(
+    "lyrics:getVersionOffset",
+    (_event, track: Track, candidate: LyricMatchCandidate) => getVersionOffset(track, candidate),
+  );
+  ipcMain.handle(
+    "lyrics:setVersionOffset",
+    (_event, track: Track, candidate: LyricMatchCandidate, value: number) =>
+      setVersionOffset(track, candidate, value),
+  );
+  ipcMain.handle(
+    "lyrics:refetchCandidate",
+    async (_event, track: Track, candidate: LyricMatchCandidate) => {
+      await Promise.allSettled([...inflight.values()]);
+      return dedup(`refetch:${track.source}:${track.id}:${candidate.id}`, () =>
+        refetchCandidate(track, candidate),
+      );
+    },
+  );
+  ipcMain.handle(
+    "lyrics:deleteCandidate",
+    async (_event, track: Track, candidate: LyricMatchCandidate) => {
+      if (candidate.local) return deleteManagedLyricVersion(track, candidate.id);
+      if (candidate.origin === "localTtml") return false;
+      await Promise.allSettled([...inflight.values()]);
+      await invalidateCandidate(track, candidate);
+      return true;
+    },
+  );
   const notifyManagedChange = (track: Pick<Track, "source" | "id"> | null): void => {
     getMainWindow()?.webContents.send(
       "lyrics:managedChanged",
@@ -533,7 +746,16 @@ export const registerLyricsIpc = (): void => {
     }
     return changed;
   });
-  ipcMain.handle("lyrics:getTrackCandidates", (_evt, track: Track) => getTrackCandidates(track));
+  ipcMain.handle("lyrics:getTrackCandidates", (_evt, track: Track) =>
+    dedup(`candidates:${track.source}:${track.id}`, () => getTrackCandidates(track)),
+  );
+  ipcMain.handle(
+    "lyrics:getTrackSourceCandidates",
+    (_event, track: Track, origin: ManagedLyricOrigin) =>
+      dedup(`source:${track.source}:${track.id}:${origin}`, () =>
+        getTrackCandidates(track, origin),
+      ),
+  );
   ipcMain.handle("lyrics:getTrackCandidatesLocal", (_evt, track: Track) =>
     getTrackCandidatesLocal(track),
   );

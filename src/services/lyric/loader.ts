@@ -4,6 +4,7 @@
 
 import type { Track, TrackDetail } from "@shared/types/player";
 import type { LyricData, LyricInput, TrackLyricPreference } from "@shared/types/lyrics";
+import { withLyricVersion } from "@shared/utils/lyricVersion";
 import { isPlatform } from "@shared/types/platform";
 import { bestExternalIndex, detectFormat } from "@/utils/lyric/parse";
 import { useMediaStore } from "@/stores/media";
@@ -90,7 +91,10 @@ const readLocal = async (
  */
 const commit = (token: number, source: LyricData, input: LyricInput | null): void => {
   if (token !== currentToken) return;
-  useMediaStore().setLyric(source, input);
+  useMediaStore().setLyric(
+    source && input ? withLyricVersion(source, input.content) : source,
+    input,
+  );
   const media = useMediaStore();
   const desc = source
     ? `${source.source}:${source.format}:${source.platform ?? source.provider ?? ""}`

@@ -1,5 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { Track, PlayerState, LoadResult } from "@shared/types/player";
+import { lyricVersionOffsetKey, normalizeLyricOffset } from "@shared/utils/lyricVersion";
+import type { LyricMatchCandidate } from "@shared/types/lyrics";
 import type { LyricLine } from "@shared/types/lyrics";
 import type { LyricData } from "@shared/types/lyrics";
 
@@ -61,7 +63,7 @@ let deviceLatencyMs = 0;
 const emitter = new EventEmitter<NowPlayingEvents>();
 
 /**
- * 偏移存储 key：按（曲目, 歌词源）区分，各来源时间轴独立，在线歌词按平台再分
+ * 获取旧版来源偏移键，供首次校准前继承已有配置
  * @param trackId - 曲目 ID
  * @param source - 歌词源，null（歌词未加载）时退化为裸 trackId
  */
@@ -74,13 +76,18 @@ const offsetKey = (trackId: string, source: LyricData): string => {
 
 /**
  * 从存储中读取指定曲目当前歌词源的偏移
- * @param trackId - 曲目 ID
+ * @param track - 曲目
  * @param source - 歌词源
  * @returns 偏移值（毫秒），缺省视为 0
  */
-const readOffset = (trackId: string | null | undefined, source: LyricData): number => {
-  if (!trackId) return 0;
-  return store.get("player.lyricOffsets")?.[offsetKey(trackId, source)] ?? 0;
+const readOffset = (track: Track | null, source: LyricData): number => {
+  if (!track) return 0;
+  const map = store.get("player.lyricOffsets") ?? {};
+  return (
+    (source?.versionId ? map[lyricVersionOffsetKey(track, source.versionId)] : undefined) ??
+    map[offsetKey(track.id, source)] ??
+    0
+  );
 };
 
 /** 当前生效偏移对应的存储 key，用于检测曲目/歌词源变化 */
@@ -115,10 +122,14 @@ export const update = (track: Track | null, lyric: LyricLine[], source: LyricDat
     emitter.emit("track-change", { track });
   }
   // 曲目或歌词源任一变化都重读偏移并广播
-  const key = track?.id ? offsetKey(track.id, source) : "";
+  const key = track
+    ? source?.versionId
+      ? lyricVersionOffsetKey(track, source.versionId)
+      : offsetKey(track.id, source)
+    : "";
   if (trackChanged || key !== currentOffsetKey) {
     currentOffsetKey = key;
-    currentLyricOffsetMs = readOffset(track?.id, source);
+    currentLyricOffsetMs = readOffset(track, source);
     emitter.emit("lyric-offset-change", {
       trackId: track?.id ?? null,
       offsetMs: currentLyricOffsetMs,
@@ -181,13 +192,7 @@ export const onSpeedChange = (speed: number): void => {
 };
 
 /**
- * 单曲偏移的合理上限（毫秒）
- * 超过视为误输入，clamp 防止极端值
- */
-const LYRIC_OFFSET_LIMIT_MS = 60_000;
-
-/**
- * 写入指定曲目的歌词偏移；0 视为清除
+ * 写入当前版本歌词偏移；旧来源记录仍按零值清除
  * 偏移跟随当前歌词源，持久化到 store 并在影响当前曲目时广播
  * @param trackId - 目标 Track.id
  * @param offsetMs - 偏移值（毫秒），自动 clamp 到 ±60s
@@ -195,11 +200,14 @@ const LYRIC_OFFSET_LIMIT_MS = 60_000;
 export const setLyricOffset = (trackId: string, offsetMs: number): void => {
   if (!trackId) return;
   // IPC 进来可能是 NaN/Infinity，会污染所有下游时间叠加计算，统一视为清除
-  const normalized = Number.isFinite(offsetMs) ? Math.trunc(offsetMs) : 0;
-  const value = Math.max(-LYRIC_OFFSET_LIMIT_MS, Math.min(LYRIC_OFFSET_LIMIT_MS, normalized));
-  const key = offsetKey(trackId, currentSource);
+  const value = normalizeLyricOffset(offsetMs);
+  const versionKey =
+    currentTrack?.id === trackId && currentSource?.versionId
+      ? lyricVersionOffsetKey(currentTrack, currentSource.versionId)
+      : null;
+  const key = versionKey ?? offsetKey(trackId, currentSource);
   const map = { ...(store.get("player.lyricOffsets") ?? {}) };
-  if (value === 0) delete map[key];
+  if (value === 0 && !versionKey) delete map[key];
   else map[key] = value;
   store.set("player.lyricOffsets", map);
   // 影响当前曲目则更新运行时缓存并广播
@@ -207,6 +215,44 @@ export const setLyricOffset = (trackId: string, offsetMs: number): void => {
     currentLyricOffsetMs = value;
     emitter.emit("lyric-offset-change", { trackId, offsetMs: value });
   }
+};
+
+/**
+ * 读取指定版本的偏移，首次校准前继承该来源的旧偏移
+ * @param track - 目标曲目
+ * @param candidate - 歌词版本
+ * @returns 偏移毫秒数
+ */
+export const getVersionOffset = (track: Track, candidate: LyricMatchCandidate): number => {
+  const source: NonNullable<LyricData> = {
+    source: candidate.local ? "managed" : candidate.origin === "localTtml" ? "external" : "online",
+    format: candidate.format,
+    platform: candidate.platform,
+    versionId: candidate.id,
+  };
+  return readOffset(track, source);
+};
+
+/**
+ * 保存版本偏移并立即同步正在使用此版本的所有歌词窗口
+ * @param track - 目标曲目
+ * @param candidate - 歌词版本
+ * @param offsetMs - 偏移毫秒数，正值使歌词提前
+ * @returns 规范化后的偏移
+ */
+export const setVersionOffset = (
+  track: Track,
+  candidate: LyricMatchCandidate,
+  offsetMs: number,
+): number => {
+  const key = lyricVersionOffsetKey(track, candidate.id);
+  const value = normalizeLyricOffset(offsetMs);
+  store.set("player.lyricOffsets", { ...(store.get("player.lyricOffsets") ?? {}), [key]: value });
+  if (key === currentOffsetKey) {
+    currentLyricOffsetMs = value;
+    emitter.emit("lyric-offset-change", { trackId: track.id, offsetMs: value });
+  }
+  return value;
 };
 
 /** 拉取当前完整状态 */

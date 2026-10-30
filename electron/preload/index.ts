@@ -555,6 +555,17 @@ const api = {
     onUploadProgress: (callback: (progress: CloudUploadProgress) => void) =>
       subscribe<CloudUploadProgress>("cloud:upload-progress", callback),
   },
+  lyricPreview: {
+    open: (sessionId: string, track: unknown, source: string) =>
+      ipcRenderer.invoke("lyricPreview:open", sessionId, track, source),
+    control: (sessionId: string, action: "play" | "pause" | "seek", value?: number) =>
+      ipcRenderer.invoke("lyricPreview:control", sessionId, action, value),
+    close: (sessionId: string) => ipcRenderer.invoke("lyricPreview:close", sessionId),
+    onState: (callback: (state: unknown) => void) => {
+      ipcRenderer.removeAllListeners("lyricPreview:state");
+      return subscribe("lyricPreview:state", callback);
+    },
+  },
   lyrics: {
     // 渲染进程歌词加载日志 → 主进程文件日志
     log: (level: "info" | "warn" | "error", message: string) =>
@@ -604,9 +615,25 @@ const api = {
       ipcRenderer.invoke("lyrics:setTrackPreference", track, preference),
     // 获取单曲的本地版本和在线匹配候选
     getTrackCandidates: (track: unknown) => ipcRenderer.invoke("lyrics:getTrackCandidates", track),
+    getTrackSourceCandidates: (track: unknown, origin: string) =>
+      ipcRenderer.invoke("lyrics:getTrackSourceCandidates", track, origin),
     // 仅获取单曲的本地/managed 候选（不含在线搜索，供面板先显示）
     getTrackCandidatesLocal: (track: unknown) =>
       ipcRenderer.invoke("lyrics:getTrackCandidatesLocal", track),
+    searchSourceTracks: (source: unknown, keyword: string, offset: number) =>
+      ipcRenderer.invoke("lyrics:searchSourceTracks", source, keyword, offset),
+    loadSourceVersion: (source: unknown, song: unknown) =>
+      ipcRenderer.invoke("lyrics:loadSourceVersion", source, song),
+    saveSourceVersion: (track: unknown, candidate: unknown) =>
+      ipcRenderer.invoke("lyrics:saveSourceVersion", track, candidate),
+    refetchCandidate: (track: unknown, candidate: unknown) =>
+      ipcRenderer.invoke("lyrics:refetchCandidate", track, candidate),
+    deleteCandidate: (track: unknown, candidate: unknown) =>
+      ipcRenderer.invoke("lyrics:deleteCandidate", track, candidate),
+    getVersionOffset: (track: unknown, candidate: unknown) =>
+      ipcRenderer.invoke("lyrics:getVersionOffset", track, candidate),
+    setVersionOffset: (track: unknown, candidate: unknown, value: number) =>
+      ipcRenderer.invoke("lyrics:setVersionOffset", track, candidate, value),
     // 保存优化后的歌词（创建/覆盖本地歌词）
     saveOptimizedLyric: (track: unknown, candidate: unknown, input: unknown) =>
       ipcRenderer.invoke("lyrics:saveOptimizedLyric", track, candidate, input),

@@ -15,6 +15,7 @@ import { coreLog } from "@main/utils/logger";
 import { store } from "@main/store";
 import {
   getCachedTTML,
+  deleteTtmlVersionCache,
   setCachedTTML,
   type Platform as TtmlPlatform,
 } from "@main/database/lyricTtmlCache";
@@ -96,4 +97,24 @@ export const fetchTTML = async (
  */
 export const prefetchTTML = (platform: TtmlPlatform, ids: readonly string[]): void => {
   void fetchTTML(platform, ids);
+};
+
+/**
+ * 等待同平台抓取结束后清理目标正文，避免迟到请求重新写入旧缓存
+ * @param platform - TTML 平台
+ * @param content - 目标版本正文
+ * @param id - 已知的精确缓存键
+ * @returns 被清理的远端曲目标识
+ */
+export const invalidateTTMLVersion = async (
+  platform: TtmlPlatform,
+  content: string,
+  id?: string,
+): Promise<string[]> => {
+  await Promise.allSettled(
+    [...inflight.entries()]
+      .filter(([key]) => key.startsWith(platform + ":"))
+      .map(([, request]) => request),
+  );
+  return deleteTtmlVersionCache(platform, content, id);
 };

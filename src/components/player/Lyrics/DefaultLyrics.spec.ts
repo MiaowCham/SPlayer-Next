@@ -70,6 +70,37 @@ describe("默认歌词引擎配置同步", () => {
     }
   });
 
+  it("逐字发音关闭后恢复正文，再开启可恢复提升，并且强制逐句不覆盖已有逐词时间", async () => {
+    const line = makeLine("思");
+    line.words[0].romanWord = "omo ";
+    line.words.push({ word: "い", romanWord: "i", startTime: 2000, endTime: 3000 });
+    line.endTime = 3000;
+    line.romanLyric = "omoi";
+    const wrapper = mount(DefaultLyrics, {
+      props: {
+        lyricLines: [line],
+        largerLyricText: "pronunciation",
+        forceLinePronunciationAsMain: true,
+        showWordRomanization: true,
+        showRomanization: false,
+      },
+      global: lyricGlobals,
+    });
+    try {
+      await flushPromises();
+      expect(wrapper.get(".lp-main").text()).toContain("omo");
+      expect(wrapper.findAll(".lp-word-roman")).toHaveLength(2);
+      expect(wrapper.classes()).toContain("[--lp-word-roman-gap:0em]");
+      await wrapper.setProps({ showWordRomanization: false });
+      expect(wrapper.get(".lp-main").text()).toBe("思い");
+      await wrapper.setProps({ showWordRomanization: true });
+      expect(wrapper.get(".lp-main").text()).toContain("omo");
+      expect(line.words[0].word).toBe("思");
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
   it("应用歌词设置直接驱动默认引擎的水平对齐", async () => {
     const settings = useSettingsStore();
     const wrapper = mount(Lyrics, {

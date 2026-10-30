@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("歌词优化真实 Tab 与保存", () => {
-  it("格式化文件原样进入美化页，切换原始页并保存紧凑 TTML", async () => {
+  it("默认查看原始源文件，切换美化页并保存紧凑 TTML", async () => {
     const content = `<tt xmlns="http://www.w3.org/ns/ttml">\n<body><div><p begin="0s" end="2s">\n<span begin="0s" end="1s">Hello </span>\n<span begin="1s" end="2s">world</span>\n</p></div></body>\n</tt>`;
     const candidate: LyricMatchCandidate = {
       id: "test",
@@ -57,9 +57,11 @@ describe("歌词优化真实 Tab 与保存", () => {
     });
     expect(wrapper.findAll('[role="tab"]')).toHaveLength(2);
     expect(wrapper.get("textarea").element.value).toBe(content);
-    await wrapper.findAll('[role="tab"]')[0].trigger("click");
-    expect(wrapper.get("textarea").element.value).toBe(normalizeTtml(content).content);
     await wrapper.findAll('[role="tab"]')[1].trigger("click");
+    expect(normalizeTtml(wrapper.get("textarea").element.value).content).toBe(
+      normalizeTtml(content).content,
+    );
+    await wrapper.findAll('[role="tab"]')[0].trigger("click");
     await wrapper.findAll("button").at(-1)!.trigger("click");
     await flushPromises();
     expect(save).toHaveBeenCalledOnce();

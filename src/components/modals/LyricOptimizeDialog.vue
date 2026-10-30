@@ -84,14 +84,13 @@ watch(
     mainText.value = c.content ?? "";
     transText.value = c.translation ?? "";
     romajiText.value = c.romaji ?? "";
-    activeTab.value = isTtml.value ? "pretty" : "main";
+    activeTab.value = isTtml.value ? "raw" : "main";
     if (isTtml.value) {
       try {
         const normalized = normalizeTtml(mainText.value);
         prettyTtml.value = normalized.formatted
           ? mainText.value
           : compactTtmlToPretty(mainText.value);
-        mainText.value = normalized.content;
       } catch {
         // 保留无效文本供用户修正，保存时由解析校验阻止写入。
         prettyTtml.value = mainText.value;

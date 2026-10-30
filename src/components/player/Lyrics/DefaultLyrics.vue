@@ -172,10 +172,11 @@ let pendingLyrics: LyricLine[] | null = null;
 /**
  * 推送当前播放时间，驱动歌词滚动与逐字高亮
  * @param time - 当前播放时间（毫秒）
- * @param _isSeeking - 是否处于跳转状态
+ * @param isSeeking - 是否立即恢复跟随并定位
  */
-const setCurrentTime = (time: number, _isSeeking = false) => {
-  renderer?.setCurrentTime(time);
+const setCurrentTime = (time: number, isSeeking = false): void => {
+  if (isSeeking) renderer?.scrollToTime(time);
+  else renderer?.setCurrentTime(time);
 };
 
 const freeze = () => {
@@ -208,6 +209,8 @@ const prepareLyrics = (): LyricLine[] => {
           props.lyricLines,
           props.forceLinePronunciationAsMain,
           props.forceSyllableSpacing,
+          props.showWordRomanization,
+          props.showRomanization,
         )
       : props.lyricLines;
   return lines.map((line) => ({
@@ -264,6 +267,7 @@ watch(
     props.forceLinePronunciationAsMain,
     props.forceSyllableSpacing,
     props.showRomanization,
+    props.showWordRomanization,
   ],
   updateLyrics,
 );
@@ -404,7 +408,7 @@ watch(
 </script>
 
 <template>
-  <div ref="containerRef">
+  <div ref="containerRef" class="[--lp-word-roman-gap:0em]">
     <Teleport v-if="bottomLineEl" :to="bottomLineEl">
       <slot name="bottom">
         <LyricCredit />

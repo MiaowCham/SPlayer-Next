@@ -5,6 +5,7 @@
  * 收敛到一处：引擎直控 + 必要时通知渲染层补记账。
  */
 
+import { cancelPreviewMainResume } from "./lyricPreview";
 import { randomUUID } from "node:crypto";
 import { getMainWindow } from "@main/window";
 import { queueQuerySchema } from "@main/services/music";
@@ -30,6 +31,7 @@ let currentIndex = -1;
  * @param positionMs - 目标位置（毫秒）
  */
 const seek = (positionMs: number): Promise<void> => {
+  cancelPreviewMainResume();
   sendToMain("player:event", { type: "seek", data: { position: positionMs } });
   return getPlayer().seek(positionMs / 1000);
 };
@@ -92,24 +94,47 @@ export const playerControl = {
       ...getTrayPlayMode(),
     };
   },
-  play: (): void =>
+  /** 主动恢复主播放并撤销试听的自动恢复权 */
+  play: (): void => {
+    cancelPreviewMainResume();
     void getPlayer()
       .play()
-      .catch(() => {}),
-  pause: (): void => getPlayer().pause(),
+      .catch(() => {});
+  },
+  /** 主动暂停主播放并撤销试听的自动恢复权 */
+  pause: (): void => {
+    cancelPreviewMainResume();
+    getPlayer().pause();
+  },
+  /** 停止主播放并撤销试听的自动恢复权 */
   stop: (): void => {
+    cancelPreviewMainResume();
     neteaseScrobble.onStopped();
     lastfm.onStopped();
     getPlayer().stop();
   },
-  next: (): void => sendToMain("player:event", { type: "next" }),
-  prev: (): void => sendToMain("player:event", { type: "prev" }),
+  /** 请求下一曲并撤销试听的自动恢复权 */
+  next: (): void => {
+    cancelPreviewMainResume();
+    sendToMain("player:event", { type: "next" });
+  },
+  /** 请求上一曲并撤销试听的自动恢复权 */
+  prev: (): void => {
+    cancelPreviewMainResume();
+    sendToMain("player:event", { type: "prev" });
+  },
   setShuffle: (mode: ShuffleMode): void =>
     sendToMain("player:event", { type: "setShuffle", data: { mode } }),
   setRepeat: (mode: RepeatMode): void =>
     sendToMain("player:event", { type: "setRepeat", data: { mode } }),
-  playTrack: (track: Track): void =>
-    sendToMain("player:event", { type: "playTrack", data: { track } }),
+  /**
+   * 请求播放指定曲目并撤销试听的自动恢复权
+   * @param track - 目标曲目
+   */
+  playTrack: (track: Track): void => {
+    cancelPreviewMainResume();
+    sendToMain("player:event", { type: "playTrack", data: { track } });
+  },
   addToQueue: (tracks: Track[], position: "next" | "end"): void =>
     sendToMain("player:event", { type: "addToQueue", data: { tracks, position } }),
   seek,

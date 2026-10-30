@@ -129,6 +129,9 @@ const storedLyric = (
   lyric: LyricInput & { format: LyricFormat },
 ): LyricInput & { format: LyricFormat } => ({
   content: lyric.content,
+  sourceTrack: lyric.sourceTrack,
+  sourceExtra: lyric.sourceExtra,
+  sourcePlatform: lyric.sourcePlatform,
   format: lyric.format,
   translation: lyric.translation,
   translationFormat: lyric.translationFormat,

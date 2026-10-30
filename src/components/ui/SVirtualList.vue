@@ -61,7 +61,7 @@ const itemRefs = ref<HTMLElement[]>([]);
 const scrollTop = ref(0);
 
 // 测量滚动容器高度
-const { height: scrollViewportHeight } = useElementSize(scrollRef);
+const { height: scrollViewportHeight, width: scrollViewportWidth } = useElementSize(scrollRef);
 
 const containerHeightStyle = computed(() =>
   typeof props.height === "number" ? `${props.height}px` : props.height,
@@ -196,6 +196,7 @@ const measureItemHeights = (): void => {
   if (hasChanges) {
     triggerRef(itemHeights);
     updateTops();
+    calculateVisibleRange(scrollTop.value);
   }
 };
 
@@ -303,8 +304,9 @@ watch(
   },
 );
 
-watch(viewportHeight, () => {
+watch([viewportHeight, scrollViewportWidth], () => {
   calculateVisibleRange(scrollTop.value);
+  if (!props.itemFixed) nextTick(debouncedMeasure);
 });
 
 watch(

@@ -140,5 +140,18 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
   );
   if (!best) return null;
   setMatchedId(fingerprint, "netease", best.extra.id);
-  return getByPlatformId(best.extra.id);
+  const result = await getByPlatformId(best.extra.id);
+  if (!result) return null;
+  const enriched = {
+    ...result,
+    sourceTrack: {
+      id: best.extra.id,
+      title: best.name,
+      artists: [best.artist],
+      album: best.album,
+      duration: best.duration ?? 0,
+    },
+  };
+  setCachedLyric("netease", best.extra.id, enriched);
+  return enriched;
 };

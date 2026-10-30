@@ -46,3 +46,23 @@ export const setCachedTTML = (platform: Platform, id: string, content: string | 
 export const clearLyricTtmlCache = (): void => {
   getDb().prepare("DELETE FROM lyric_ttml_cache").run();
 };
+
+/**
+ * 删除指定 TTML 正文对应的缓存，不影响其他版本
+ * @param platform - TTML 提供平台
+ * @param content - 目标版本正文
+ * @param id - 可选的精确缓存键
+ * @returns 实际被清理的缓存键
+ */
+export const deleteTtmlVersionCache = (
+  platform: Platform,
+  content: string,
+  id?: string,
+): string[] =>
+  (
+    getDb()
+      .prepare(
+        "DELETE FROM lyric_ttml_cache WHERE platform = ? AND content = ? AND (? IS NULL OR id = ?) RETURNING id",
+      )
+      .all(platform, content, id ?? null, id ?? null) as { id: string }[]
+  ).map((row) => row.id);

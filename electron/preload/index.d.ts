@@ -12,6 +12,7 @@ import { LibraryApi } from "@shared/types/library";
 import { NowPlayingApi } from "@shared/types/nowPlaying";
 import { PluginsApi } from "@shared/types/plugin";
 import { ApisApi } from "@shared/types/apis";
+import type { LyricPreviewApi } from "@shared/types/lyricPreview";
 import { LyricsApi } from "@shared/types/lyrics";
 import { DownloadApi } from "@shared/types/download";
 import {
@@ -84,6 +85,7 @@ declare global {
       apis: ApisApi;
       cloud: CloudUploadApi;
       lyrics: LyricsApi;
+      lyricPreview: LyricPreviewApi;
       opencc: OpenccApi;
       comments: CommentsApi;
       download: DownloadApi;

@@ -34,15 +34,17 @@ const pickFormatted = (
  * 按 QQMusic 数字 songID 直取歌词
  * @param id - 数字 songID
  * @param mid - 字符串 mid（用于 AMLL TTML DB 等外部映射）
+ * @param prefetch - 是否预热 AMLL，单独操作 QQ 来源时关闭
  * @returns 歌词及各自的实际格式，未命中时返回 null
  */
 export const getByPlatformId = async (
   id: string,
   mid?: string,
+  prefetch = true,
 ): Promise<LyricMatchResult | null> => {
   // 立刻预热 TTML 抓取，与本接口的 lyric 调用并行
   // AMLL DB 里 QM 条目 mid / 数字 id 都可能是 key，依次试
-  prefetchTTML("qqmusic", mid ? [mid, id] : [id]);
+  if (prefetch) prefetchTTML("qqmusic", mid ? [mid, id] : [id]);
 
   const cached = getCachedLyric("qqmusic", id);
   if (cached) {
@@ -90,11 +92,19 @@ export const getByPlatformId = async (
   }
 };
 
-/** 按 Track 元数据模糊搜索：search → 挑最佳 → 单次请求歌词 */
-export const getByQuery = async (track: Track): Promise<LyricMatchResult | null> => {
+/**
+ * 模糊搜索平台曲目并只下载最佳候选的歌词
+ * @param track - 目标曲目
+ * @param prefetch - 是否允许预热 AMLL，单来源操作时关闭
+ * @returns 带匹配元数据的歌词
+ */
+export const getByQuery = async (
+  track: Track,
+  prefetch = true,
+): Promise<LyricMatchResult | null> => {
   const fingerprint = buildFingerprint(track);
   const cached = getMatchedId(fingerprint, "qqmusic");
-  if (cached) return getByPlatformId(cached.platformId, cached.extra?.mid);
+  if (cached) return getByPlatformId(cached.platformId, cached.extra?.mid, prefetch);
 
   const keyword = buildLyricSearchKeyword(track);
   if (!keyword) return null;
@@ -123,5 +133,18 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
   );
   if (!best) return null;
   setMatchedId(fingerprint, "qqmusic", best.extra.id, { mid: best.extra.mid });
-  return getByPlatformId(best.extra.id, best.extra.mid);
+  const result = await getByPlatformId(best.extra.id, best.extra.mid, prefetch);
+  if (!result) return null;
+  const enriched = {
+    ...result,
+    sourceTrack: {
+      id: best.extra.id,
+      title: best.name,
+      artists: [best.artist],
+      album: best.album,
+      duration: best.duration ?? 0,
+    },
+  };
+  setCachedLyric("qqmusic", best.extra.id, enriched);
+  return enriched;
 };

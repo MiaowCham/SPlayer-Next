@@ -15,8 +15,14 @@ import * as player from "@/core/player";
 import { getLyricSourceUrl } from "@/utils/format/shareUrl";
 import { openExternal } from "@/utils/url";
 import type { Track } from "@shared/types/player";
-import type { LyricMatchCandidate, TrackLyricPreference } from "@shared/types/lyrics";
+import type {
+  LyricMatchCandidate,
+  ManagedLyricOrigin,
+  LyricSearchSource,
+  TrackLyricPreference,
+} from "@shared/types/lyrics";
 import { isPlatform } from "@shared/types/platform";
+import { lyricSourceKey, lyricMatchQuality, lyricSourceOffset } from "@shared/utils/lyricSource";
 import { normalizeTtml } from "@shared/utils/ttml";
 import LyricOptimizeDialog from "./LyricOptimizeDialog.vue";
 
@@ -35,14 +41,17 @@ const isDatabase = computed(() => lyricManager.context.value === "database");
 const candidateActionId = ref<string | null>(null);
 const preference = ref<TrackLyricPreference>({ source: "auto" });
 let refreshToken = 0;
+let onlineCacheKey = "";
+let sourceRequestToken = 0;
+const retrievingSource = ref<ManagedLyricOrigin | null>(null);
 const syncOpen = ref(false);
 const syncQuery = ref("");
 const syncLoading = ref(false);
 const syncResults = ref<Track[]>([]);
 const syncSelected = ref<Track[]>([]);
 const customSearchOpen = ref(false);
-const customSearchTitle = ref("");
-const customSearchArtist = ref("");
+const customSearchMode = ref<"auto" | "search" | "id">("search");
+const searchSource = shallowRef<LyricSearchSource | null>(null);
 
 const artistNames = computed(() =>
   lyricManager.track.value?.artists.map((artist) => artist.name).join(" / "),
@@ -57,6 +66,8 @@ const currentTrack = (): Track | null =>
  */
 const refresh = async (scanDirectory = true): Promise<void> => {
   const token = ++refreshToken;
+  sourceRequestToken++;
+  retrievingSource.value = null;
   const track = currentTrack();
   if (!track) {
     managed.value = null;
@@ -77,13 +88,53 @@ const refresh = async (scanDirectory = true): Promise<void> => {
     if (token !== refreshToken || !lyricManager.open.value) return;
     managed.value = nextManaged;
     preference.value = nextPreference;
-    candidates.value = localCandidates;
+    const key = JSON.stringify([
+      track.source,
+      track.serverId,
+      track.serverRevision,
+      track.id,
+      track.extId,
+      track.title,
+      track.artists.map((artist) => artist.name),
+      track.duration,
+      nextPreference.search,
+    ]);
+    const previous = new Map(candidates.value.map((candidate) => [candidate.id, candidate]));
+    const local = localCandidates.map((candidate) => {
+      const old = previous.get(candidate.id);
+      return old &&
+        old.format === candidate.format &&
+        old.content === candidate.content &&
+        old.translation === candidate.translation &&
+        old.translationFormat === candidate.translationFormat &&
+        old.romaji === candidate.romaji &&
+        old.romajiFormat === candidate.romajiFormat &&
+        old.active === candidate.active &&
+        old.filename === candidate.filename &&
+        old.importedAt === candidate.importedAt
+        ? old
+        : candidate;
+    });
+    const remote =
+      onlineCacheKey === key
+        ? candidates.value.filter(
+            (candidate) =>
+              !candidate.local &&
+              (candidate.origin === "appleMusic" ||
+                !local.some(
+                  (item) => item.origin === candidate.origin && item.content === candidate.content,
+                )),
+          )
+        : [];
+    candidates.value = [...local, ...remote];
     matchLoading.value = false;
+    if (key === onlineCacheKey) return;
     onlineLoading.value = true;
     // 异步补全在线候选（平台/AM），完成后再叠加到列表
     const fullCandidates = await window.api.lyrics.getTrackCandidates(track);
     if (token !== refreshToken || !lyricManager.open.value) return;
     candidates.value = fullCandidates;
+    onlineCacheKey = key;
   } catch {
     if (token === refreshToken) toast.error(t("lyricManager.refreshFailed"));
   } finally {
@@ -91,6 +142,40 @@ const refresh = async (scanDirectory = true): Promise<void> => {
       matchLoading.value = false;
       onlineLoading.value = false;
     }
+  }
+};
+
+/**
+ * 只补取用户指定的来源，并保留其他来源及当前焦点
+ * @param origin - 要获取的来源
+ */
+const retrieveSource = async (origin: ManagedLyricOrigin): Promise<void> => {
+  const track = currentTrack();
+  if (!track || onlineLoading.value || retrievingSource.value) return;
+  const token = ++sourceRequestToken;
+  const refresh = refreshToken;
+  retrievingSource.value = origin;
+  try {
+    const next = await window.api.lyrics.getTrackSourceCandidates(track, origin);
+    if (token !== sourceRequestToken || refresh !== refreshToken || !lyricManager.open.value)
+      return;
+    candidates.value = [
+      ...candidates.value.filter((candidate) => candidate.local || candidate.origin !== origin),
+      ...next.filter(
+        (candidate) =>
+          candidate.origin === "appleMusic" ||
+          !candidates.value.some(
+            (local) =>
+              local.local &&
+              local.origin === candidate.origin &&
+              local.content === candidate.content,
+          ),
+      ),
+    ];
+  } catch {
+    if (token === sourceRequestToken) toast.error(t("lyricManager.refreshFailed"));
+  } finally {
+    if (token === sourceRequestToken) retrievingSource.value = null;
   }
 };
 
@@ -134,7 +219,7 @@ const visibleCandidates = computed(() => {
   const filtered = candidates.value.filter(
     (candidate) =>
       candidate.origin !== "appleMusic" ||
-      (candidate.status === "available" && !!candidate.content.trim()),
+      ((candidate.local || candidate.status === "available") && !!candidate.content.trim()),
   );
   // 按歌词来源排序顺序（lyricSourceOrder）展示候选，便于用户按来源优先级挑选。
   const sourceOrder = settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
@@ -217,6 +302,16 @@ const isCandidateSmartSelected = (candidate: LyricMatchCandidate): boolean =>
 
 const isCandidateVisuallySelected = (candidate: LyricMatchCandidate): boolean =>
   isCandidateExplicitlySelected(candidate) || isCandidateSmartSelected(candidate);
+
+/**
+ * 根据来源的实际元数据生成匹配标签
+ * @param candidate - 当前来源版本
+ * @returns 匹配等级
+ */
+const candidateQuality = (candidate: LyricMatchCandidate) => {
+  const track = currentTrack();
+  return track ? lyricMatchQuality(track, candidate.sourceTrack) : "unknown";
+};
 
 const candidateSourceLabel = (candidate: LyricMatchCandidate): string => {
   const base = t(`lyricManager.matchSource.${candidate.origin}`);
@@ -303,57 +398,135 @@ const selectSmart = async (): Promise<void> => {
   }
 };
 
-/** 保存自定义标题/歌手；两个字段均清空即恢复歌曲原始元数据。 */
-const applyCustomSearch = async (): Promise<void> => {
-  const track = currentTrack();
-  if (!track) return;
-  const title = customSearchTitle.value.trim();
-  const artist = customSearchArtist.value.trim();
-  const search = title || artist ? { title, artist } : undefined;
-  try {
-    await setEffectiveTrackLyricPreference(track, { ...preference.value, search });
-    preference.value = { ...preference.value, search };
-    customSearchOpen.value = false;
-    await refresh(false);
-    if (isCurrentTrack.value) await refreshCurrentLyric();
-  } catch {
-    toast.error(t("lyricManager.refreshFailed"));
-  }
-};
-
-/** 打开自定义搜索时预填已保存内容，便于修改或清空重置。 */
-const openCustomSearch = (): void => {
-  customSearchTitle.value = preference.value.search?.title ?? "";
-  customSearchArtist.value = preference.value.search?.artist ?? "";
+/**
+ * 打开仅针对当前来源的版本搜索或 ID 导入
+ * @param mode - 自动替换、手动选择或 ID 导入
+ */
+const openCustomSearch = (mode: "auto" | "search" | "id"): void => {
+  const candidate = focusedCandidate.value;
+  if (!candidate || candidate.origin === "manual") return;
+  searchSource.value = { origin: candidate.origin, platform: candidate.platform };
+  customSearchMode.value = mode;
   customSearchOpen.value = true;
 };
 
-/** 右键删除未被播放器实际使用的本地歌词版本。 */
+/**
+ * 合并并启用保存的单来源版本，不触发整表在线获取
+ * @param track - 本次搜索所属的原曲目
+ * @param candidate - 已保存的精确版本
+ */
+const applySourceVersion = async (track: Track, candidate: LyricMatchCandidate): Promise<void> => {
+  if (
+    !lyricManager.open.value ||
+    currentTrack()?.source !== track.source ||
+    currentTrack()?.id !== track.id
+  )
+    return;
+  candidates.value = [
+    ...candidates.value.filter(
+      (item) =>
+        item.id !== candidate.id &&
+        (item.local || lyricSourceKey(item) !== lyricSourceKey(candidate)),
+    ),
+    candidate,
+  ];
+  focusedCandidateId.value = candidate.id;
+  if (isCandidateExplicitlySelected(candidate)) await refreshCurrentLyric();
+  else await selectCandidate(candidate);
+};
+
+/**
+ * 重新获取所选版本，失败时保留旧正文且不改变来源选择
+ * @param candidate - 当前版本
+ */
+const refetchCandidate = async (candidate: LyricMatchCandidate): Promise<void> => {
+  const track = currentTrack();
+  if (!track || candidateActionId.value) return;
+  const wasInUse = usedCandidate.value?.id === candidate.id;
+  const token = ++refreshToken;
+  candidateActionId.value = candidate.id;
+  onlineLoading.value = false;
+  matchLoading.value = false;
+  try {
+    const refreshed = await window.api.lyrics.refetchCandidate(track, toRaw(candidate));
+    if (token !== refreshToken || !lyricManager.open.value) return;
+    if (!refreshed) {
+      toast.error(t("lyricManager.refetchFailed"));
+      return;
+    }
+    candidates.value = candidates.value.map((item) =>
+      item.id === candidate.id ? refreshed : item,
+    );
+    focusedCandidateId.value = refreshed.id;
+    toast.success(t("lyricManager.refetched"));
+    if (wasInUse && media.track?.source === track.source && media.track.id === track.id) {
+      await loadForTrack(media.detail);
+    }
+  } catch {
+    if (token === refreshToken) toast.error(t("lyricManager.refetchFailed"));
+  } finally {
+    if (
+      currentTrack()?.source === track.source &&
+      currentTrack()?.id === track.id &&
+      candidateActionId.value === candidate.id
+    )
+      candidateActionId.value = null;
+  }
+};
+
+/**
+ * 删除未被实际使用的版本，在线来源只清理缓存，不立即重新抓取
+ * @param candidate - 待删除的本地或在线版本
+ */
 const deleteCandidate = async (candidate: LyricMatchCandidate): Promise<void> => {
   const track = currentTrack();
-  if (!track || !candidate.local) return;
+  if (!track || candidateActionId.value || (!candidate.local && candidate.origin === "localTtml"))
+    return;
   if (usedCandidate.value?.id === candidate.id) {
     toast.error(t("lyricManager.inUseDeleteHint"));
     return;
   }
   const confirmed = await dialog.confirm({
     title: t("lyricManager.deleteVersionTitle"),
-    content: t("lyricManager.deleteVersionDescription", { filename: candidate.filename }),
+    content: t(
+      candidate.local
+        ? "lyricManager.deleteVersionDescription"
+        : "lyricManager.deleteCachedVersionDescription",
+      { filename: candidate.filename },
+    ),
     type: "error",
   });
-  if (!confirmed) return;
+  if (
+    !confirmed ||
+    currentTrack()?.source !== track.source ||
+    currentTrack()?.id !== track.id ||
+    usedCandidate.value?.id === candidate.id
+  )
+    return;
+  const token = ++refreshToken;
   candidateActionId.value = candidate.id;
+  onlineLoading.value = false;
+  matchLoading.value = false;
   try {
-    const deleted = await window.api.lyrics.deleteManagedVersion(track, candidate.id);
+    const deleted = candidate.local
+      ? await window.api.lyrics.deleteManagedVersion(track, candidate.id)
+      : await window.api.lyrics.deleteCandidate(track, toRaw(candidate));
+    if (token !== refreshToken || !lyricManager.open.value) return;
     if (!deleted) {
       toast.error(t("lyricManager.deleteVersionFailed"));
       return;
     }
-    await refresh();
+    candidates.value = candidates.value.filter((item) => item.id !== candidate.id);
+    if (focusedCandidateId.value === candidate.id) focusedCandidateId.value = null;
   } catch {
-    toast.error(t("lyricManager.deleteVersionFailed"));
+    if (token === refreshToken) toast.error(t("lyricManager.deleteVersionFailed"));
   } finally {
-    candidateActionId.value = null;
+    if (
+      currentTrack()?.source === track.source &&
+      currentTrack()?.id === track.id &&
+      candidateActionId.value === candidate.id
+    )
+      candidateActionId.value = null;
   }
 };
 
@@ -468,17 +641,19 @@ watch(
   }),
   ({ open }) => {
     if (open) {
+      candidateActionId.value = null;
       focusedCandidateId.value = null;
       managed.value = null;
       candidates.value = [];
+      onlineCacheKey = "";
+      retrievingSource.value = null;
+      sourceRequestToken++;
       preference.value = { source: "auto" };
       syncOpen.value = false;
       syncQuery.value = "";
       syncResults.value = [];
       syncSelected.value = [];
       customSearchOpen.value = false;
-      customSearchTitle.value = "";
-      customSearchArtist.value = "";
       void refresh();
       return;
     }
@@ -488,6 +663,9 @@ watch(
     matchLoading.value = false;
     managed.value = null;
     candidates.value = [];
+    onlineCacheKey = "";
+    retrievingSource.value = null;
+    sourceRequestToken++;
     preference.value = { source: "auto" };
     candidateActionId.value = null;
     syncOpen.value = false;
@@ -606,6 +784,15 @@ watch(
                   {{ candidate.filename }}
                 </div>
                 <div class="flex flex-wrap gap-1">
+                  <STag
+                    size="tiny"
+                    :type="candidateQuality(candidate) === 'perfect' ? 'success' : 'default'"
+                  >
+                    {{ t("lyricManager.matchQuality." + candidateQuality(candidate)) }}
+                  </STag>
+                  <STag size="tiny">
+                    {{ t("lyricManager.sourceOffset", { value: lyricSourceOffset(candidate) }) }}
+                  </STag>
                   <STag size="tiny">{{ candidate.format.toUpperCase() }}</STag>
                   <STag v-if="candidate.translation" type="primary" size="tiny">
                     {{ t("lyricManager.translationTag") }}
@@ -632,8 +819,11 @@ watch(
               <SButton
                 variant="ghost"
                 size="small"
-                :loading="onlineLoading"
-                @click="refresh(false)"
+                :loading="retrievingSource === origin"
+                :disabled="
+                  onlineLoading || (retrievingSource !== null && retrievingSource !== origin)
+                "
+                @click="retrieveSource(origin)"
               >
                 {{ t("lyricManager.retrieve") }}
               </SButton>
@@ -649,6 +839,19 @@ watch(
         >
           <div class="truncate text-xs text-on-surface-variant/60" :title="currentLyricDescription">
             {{ currentLyricDescription }}
+          </div>
+          <div
+            v-if="smartSelection"
+            role="status"
+            class="flex items-start gap-2 rounded-xl border border-solid border-primary/30 bg-primary/10 p-3 text-primary"
+          >
+            <IconLucideSparkles class="mt-0.5 size-4 shrink-0" />
+            <div>
+              <div class="text-sm font-semibold">{{ t("lyricManager.smartSelectionActive") }}</div>
+              <div class="mt-1 text-xs opacity-75">
+                {{ t("lyricManager.smartSelectionDescription") }}
+              </div>
+            </div>
           </div>
           <SButton
             variant="secondary"
@@ -693,12 +896,16 @@ watch(
         :source-label="candidateSourceLabel(focusedCandidate)"
         :in-use="usedCandidate?.id === focusedCandidate.id"
         :selected="isCandidateExplicitlySelected(focusedCandidate)"
-        :loading="candidateActionId === focusedCandidate.id"
-        :can-delete="focusedCandidate.local && usedCandidate?.id !== focusedCandidate.id"
+        :loading="candidateActionId !== null"
+        :can-delete="
+          (focusedCandidate.local || focusedCandidate.origin !== 'localTtml') &&
+          usedCandidate?.id !== focusedCandidate.id
+        "
         :source-url="candidateSourceUrl(focusedCandidate)"
         @confirm="selectCandidate(focusedCandidate)"
         @search="openCustomSearch"
         @edit="openOptimize(focusedCandidate)"
+        @refetch="refetchCandidate(focusedCandidate)"
         @remove="deleteCandidate(focusedCandidate)"
         @source="openCandidateSourceUrl(focusedCandidate)"
       />
@@ -713,24 +920,14 @@ watch(
     </div>
   </SDialog>
 
-  <SDialog
+  <LyricSourceSearchDialog
+    v-if="customSearchOpen && searchSource && lyricManager.track.value"
     v-model:open="customSearchOpen"
-    :title="t('lyricManager.customSearch')"
-    variant="settings"
-    width="460px"
-  >
-    <div class="flex flex-col gap-4">
-      <p class="text-sm text-on-surface-variant/70">
-        {{ t("lyricManager.customSearchDescription") }}
-      </p>
-      <SInput v-model="customSearchTitle" :placeholder="t('lyricManager.customSearchTitle')" />
-      <SInput v-model="customSearchArtist" :placeholder="t('lyricManager.customSearchArtist')" />
-    </div>
-    <template #footer="{ close }">
-      <SButton variant="secondary" @click="close">{{ t("common.cancel") }}</SButton>
-      <SButton type="primary" @click="applyCustomSearch">{{ t("common.confirm") }}</SButton>
-    </template>
-  </SDialog>
+    :source="searchSource"
+    :track="lyricManager.track.value"
+    :mode="customSearchMode"
+    @saved="applySourceVersion"
+  />
 
   <SDialog
     v-model:open="syncOpen"

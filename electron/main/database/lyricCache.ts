@@ -45,3 +45,24 @@ export const setCachedLyric = (
 export const clearLyricCache = (): void => {
   getDb().prepare("DELETE FROM lyric_cache").run();
 };
+
+/**
+ * 仅清理指定版本的缓存，保留同平台其他歌曲及已更新的正文
+ * @param platform - 歌词平台
+ * @param content - 要删除的旧正文
+ * @param id - 已知的平台曲目身份
+ * @returns 被清理的曲目身份
+ */
+export const deleteLyricVersionCache = (
+  platform: Platform,
+  content: string,
+  id?: string,
+): string[] => {
+  return (
+    getDb()
+      .prepare(
+        "DELETE FROM lyric_cache WHERE platform = ? AND json_extract(data, '$.content') = ? AND (? IS NULL OR platform_id = ?) RETURNING platform_id",
+      )
+      .all(platform, content, id ?? null, id ?? null) as { platform_id: string }[]
+  ).map((row) => row.platform_id);
+};

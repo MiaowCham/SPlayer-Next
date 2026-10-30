@@ -717,3 +717,68 @@ it.each(["ESM", "CommonJS"])("%s 发音入口都跳过空白和末尾 1ms 交叠
     "i",
   ]);
 });
+
+describe("QRC 音译行首最近匹配", () => {
+  it("保留统一提前 100ms 的密集辅助行并按顺序一对一配对", () => {
+    const lines = parseLyric(
+      {
+        content: "[1000,100]甲(1000,100)\n[1100,100]乙(1100,100)",
+        romaji: "[900,100]a (900,100)\n[1000,100]b (1000,100)",
+        romajiFormat: "qrc",
+      },
+      "qrc",
+    );
+    expect(lines.map((line) => line.romanLyric)).toEqual(["a", "b"]);
+  });
+
+  it("省略空音译署名行后，第一句发音不会被前面的署名抢走", () => {
+    const lines = parseLyric(
+      {
+        content:
+          "[0,202]标题(0,202)\n[203,90]作词(203,90)\n[295,111]作曲(295,111)\n[406,101]编曲(406,101)\n[509,142]制作(509,142)\n[652,1000]歌(652,500)う(1152,500)",
+        romaji: "[652,999]u (652,499)ta (1151,500)",
+        romajiFormat: "qrc",
+      },
+      "qrc",
+    );
+    expect(lines.slice(0, 5).map((line) => line.romanLyric)).toEqual(["", "", "", "", ""]);
+    expect(lines[5].romanLyric).toBe("u ta");
+    expect(lines[5].words.map((word) => word.romanWord)).toEqual(["u", "ta"]);
+  });
+
+  it("缺少中间句发音时跳过该句，而非把后一句拖到前一句", () => {
+    const lines = parseLyric(
+      {
+        content: "[1000,100]甲(1000,100)\n[1200,100]乙(1200,100)\n[1400,200]丙(1400,200)",
+        romaji: "[999,100]a (999,100)\n[1399,200]c (1399,200)",
+        romajiFormat: "qrc",
+      },
+      "qrc",
+    );
+    expect(lines.map((line) => line.romanLyric)).toEqual(["a", "", "c"]);
+  });
+
+  it("多余辅助行不能占用下一条精确匹配的位置", () => {
+    const lines = parseLyric(
+      {
+        content: "[1000,500]甲(1000,500)",
+        romaji: "[900,50]extra (900,50)\n[1000,500]a (1000,500)",
+        romajiFormat: "qrc",
+      },
+      "qrc",
+    );
+    expect(lines[0].romanLyric).toBe("a");
+  });
+
+  it("相同行首用结束时间区分短署名与实际歌词", () => {
+    const lines = parseLyric(
+      {
+        content: "[0,100]标题(0,100)\n[0,1000]歌(0,1000)",
+        romaji: "[0,1000]uta (0,1000)",
+        romajiFormat: "qrc",
+      },
+      "qrc",
+    );
+    expect(lines.map((line) => line.romanLyric)).toEqual(["", "uta"]);
+  });
+});

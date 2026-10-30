@@ -4,10 +4,18 @@
  * 实现参考 am-ttml-fetch（1412，AGPL-3.0-or-later），并改为主进程内置服务。
  */
 import type { Track } from "@shared/types/player";
-import type { AppleMusicTTMLFetchResult } from "@shared/types/lyrics";
+import type {
+  LyricSourceSearchPage,
+  LyricSearchSong,
+  AppleMusicTTMLFetchResult,
+} from "@shared/types/lyrics";
 import { store } from "@main/store";
 import { coreLog } from "@main/utils/logger";
-import { getCachedTTML, setCachedTTML } from "@main/database/lyricTtmlCache";
+import {
+  getCachedTTML,
+  setCachedTTML,
+  deleteTtmlVersionCache,
+} from "@main/database/lyricTtmlCache";
 import { getAppleMusicMediaUserToken } from "./appleMusicLyricsToken";
 import {
   buildAppleMusicLyricQuery,
@@ -293,15 +301,18 @@ const applyReplacementTranslations = (ttml: string): string => {
   processedTtml = processedTtml.replace(/<translations>\s*<\/translations>/gi, "");
 
   // 5. 更新根节点 <tt> 的 xml:lang 声明为目标语言
-  return processedTtml.replace(
-    /(<tt\b[^>]*\bxml:lang=["'])[^"']+([^>]*>)/i,
-    `$1${targetLang}$2`,
-  );
+  return processedTtml.replace(/(<tt\b[^>]*\bxml:lang=["'])[^"']+([^>]*>)/i, `$1${targetLang}$2`);
 };
 
-/** 从 Apple Music 获取当前歌曲的 TTML 歌词；失败时返回 null。 */
+/**
+ * 从当前曲库读取或获取指定歌曲的 TTML
+ * @param track - 匹配及持久化缓存使用的曲目元数据
+ * @param targetSongId - 指定时跳过模糊搜索并直接获取该 catalog 歌曲
+ * @returns 抓取状态、正文与真实歌曲身份
+ */
 const fetchAppleMusicTTMLResultUncached = async (
   track: Track,
+  targetSongId?: string,
 ): Promise<AppleMusicTTMLFetchResult> => {
   const config = store.get("lyric");
   if (!config.enableAppleMusicTTMLLyric) return fetchResult("disabled");
@@ -336,31 +347,37 @@ const fetchAppleMusicTTMLResultUncached = async (
       coreLog.warn("[appleMusicLyrics] 未能读取账号曲库地区");
       return fetchResult("error", null, "storefront");
     }
-    const configuredRegions = String(config.appleMusicSearchRegions ?? "cn,jp,tw,kr")
-      .split(",")
-      .map((region) => region.trim().toLowerCase())
-      .filter(Boolean);
-    const storefronts = [...new Set([accountStorefront, ...configuredRegions])];
-    const artist = track.artists.map((item) => item.name).join(" ");
-    const keywords = [...new Set([`${track.title} ${artist}`.trim(), track.title].filter(Boolean))];
-    const groups = await Promise.all(
-      storefronts.flatMap((storefront) =>
-        keywords.map((keyword) => searchStorefront(storefront, keyword, mediaUserToken)),
-      ),
-    );
-    const candidates = groups.flat();
-    const rawLevel = String(config.appleMusicMatchLevel ?? "standard");
-    const level: AppleMusicMatchLevel =
-      rawLevel === "strict" || rawLevel === "loose" ? rawLevel : "standard";
-    const candidate = pickAppleMusicSong(track, candidates, level);
-    coreLog.info(
-      `[appleMusicLyrics] 搜索完成: storefront=${accountStorefront}, candidates=${candidates.length}, matchLevel=${level}, matched=${candidate?.id ?? "none"}`,
-    );
-    if (!candidate) return noMatch();
-    const songId = await resolveAccountSongId(candidate, accountStorefront, mediaUserToken);
+    let songId = targetSongId;
     if (!songId) {
-      coreLog.info(`[appleMusicLyrics] 未能将候选桥接到账号曲库: ${candidate.id}`);
-      return noMatch("bridge");
+      const configuredRegions = String(config.appleMusicSearchRegions ?? "cn,jp,tw,kr")
+        .split(",")
+        .map((region) => region.trim().toLowerCase())
+        .filter(Boolean);
+      const storefronts = [...new Set([accountStorefront, ...configuredRegions])];
+      const artist = track.artists.map((item) => item.name).join(" ");
+      const keywords = [
+        ...new Set([`${track.title} ${artist}`.trim(), track.title].filter(Boolean)),
+      ];
+      const groups = await Promise.all(
+        storefronts.flatMap((storefront) =>
+          keywords.map((keyword) => searchStorefront(storefront, keyword, mediaUserToken)),
+        ),
+      );
+      const candidates = groups.flat();
+      const rawLevel = String(config.appleMusicMatchLevel ?? "standard");
+      const level: AppleMusicMatchLevel =
+        rawLevel === "strict" || rawLevel === "loose" ? rawLevel : "standard";
+      const candidate = pickAppleMusicSong(track, candidates, level);
+      coreLog.info(
+        `[appleMusicLyrics] 搜索完成: storefront=${accountStorefront}, candidates=${candidates.length}, matchLevel=${level}, matched=${candidate?.id ?? "none"}`,
+      );
+      if (!candidate) return noMatch();
+      songId =
+        (await resolveAccountSongId(candidate, accountStorefront, mediaUserToken)) ?? undefined;
+      if (!songId) {
+        coreLog.info(`[appleMusicLyrics] 未能将候选桥接到账号曲库: ${candidate.id}`);
+        return noMatch("bridge");
+      }
     }
     const memoryCacheKey = `${accountStorefront}:${songId}:${language}:${script}`;
     const cached = lyricCache.get(memoryCacheKey);
@@ -447,3 +464,99 @@ export const getCachedAppleMusicTTML = (track: Track): string | null => {
   }
   return cached;
 };
+
+/**
+ * 清理当前曲目这一版本的持久化和内存缓存
+ * @param track - 应用了自定义搜索的曲目
+ * @param content - 被清理的版本正文
+ */
+export const invalidateAppleMusicLyricVersion = async (
+  track: Track,
+  content: string,
+): Promise<void> => {
+  await Promise.allSettled([...inflight.values()]);
+  const language = String(store.get("lyric.appleMusicTranslationLanguage") ?? "zh-Hans-CN").trim();
+  const script = String(store.get("lyric.appleMusicTranslationScript") ?? "").trim();
+  deleteTtmlVersionCache("appleMusic", content, buildCacheKey(track, language, script));
+  for (const [key, value] of lyricCache) if (value === content) lyricCache.delete(key);
+};
+
+/**
+ * 重新下载选中歌曲的歌词，已知 catalog ID 时不重新匹配歌曲
+ * @param track - 应用了自定义搜索的曲目
+ * @param content - 目标旧正文
+ * @param songId - 已知 catalog ID
+ * @returns 最新歌词及来源身份
+ */
+export const refetchAppleMusicLyricVersion = async (
+  track: Track,
+  content: string,
+  songId?: string,
+): Promise<AppleMusicTTMLFetchResult> => {
+  await invalidateAppleMusicLyricVersion(track, content);
+  const result = await fetchAppleMusicTTMLResultUncached(track, songId);
+  if (!result.lyric) {
+    const language = String(
+      store.get("lyric.appleMusicTranslationLanguage") ?? "zh-Hans-CN",
+    ).trim();
+    const script = String(store.get("lyric.appleMusicTranslationScript") ?? "").trim();
+    setCachedTTML("appleMusic", buildCacheKey(track, language, script), content);
+  }
+  return result;
+};
+
+/**
+ * 搜索当前 Apple Music 曲库的完整候选分页，不套用自动匹配过滤
+ * @param keyword - 搜索关键词
+ * @param offset - 分页起点
+ * @returns 仅含元数据的候选页
+ */
+export const searchAppleMusicLyricVersions = async (
+  keyword: string,
+  offset: number,
+): Promise<LyricSourceSearchPage> => {
+  const token = getAppleMusicMediaUserToken();
+  if (!token) throw new Error("请先配置 Apple Music Media-User-Token");
+  const storefront = await resolveStorefront(
+    token,
+    String(store.get("lyric.appleMusicStorefront") ?? ""),
+  );
+  if (!storefront) throw new Error("无法读取 Apple Music 曲库地区");
+  const params = new URLSearchParams({
+    term: keyword,
+    types: "songs",
+    limit: "50",
+    offset: String(offset),
+  });
+  const response = await requestAppleMusic(`/catalog/${storefront}/search?${params}`, token);
+  if (!response.ok) throw new Error("Apple Music 搜索失败");
+  const payload = await response.json();
+  return {
+    items: toAppleSongs(payload, storefront).map((song): LyricSearchSong => ({
+      id: song.id,
+      title: song.title,
+      artists: [song.artist],
+      duration: song.duration ?? 0,
+    })),
+    hasMore: !!payload?.results?.songs?.next,
+  };
+};
+
+/**
+ * 获取已选 catalog 歌曲的精确 TTML，不重新模糊匹配
+ * @param song - 歌词来源曲目
+ * @returns TTML 抓取结果
+ */
+export const loadAppleMusicLyricVersion = (
+  song: LyricSearchSong,
+): Promise<AppleMusicTTMLFetchResult> =>
+  fetchAppleMusicTTMLResultUncached(
+    {
+      source: "local",
+      id: "appleMusic:" + song.id,
+      title: song.title,
+      artists: song.artists.map((name) => ({ name })),
+      duration: song.duration,
+    },
+    song.id,
+  );
