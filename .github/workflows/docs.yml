@@ -2,6 +2,13 @@
 name: Deploy VitePress site to Pages
 
 on:
+  push:
+    branches: [dev]
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/docs.yml"
   workflow_dispatch:
 
 # 允许部署到 GitHub Pages
@@ -27,7 +34,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24.x
       - name: Setup Pages
         uses: actions/configure-pages@v5
       # 文档构建无需原生模块，跳过 postinstall（electron-rebuild）
