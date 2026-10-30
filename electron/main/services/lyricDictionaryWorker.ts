@@ -6,7 +6,7 @@ type Token = Pick<
   IpadicFeatures,
   "surface_form" | "reading" | "pos" | "pos_detail_1" | "conjugated_form"
 >;
-const require = createRequire(import.meta.url);
+const requireDictionary = createRequire(import.meta.url);
 const workerSource = `
 const { parentPort, workerData } = require("node:worker_threads");
 const kuromoji = require(workerData.modulePath);
@@ -39,7 +39,7 @@ export function createLyricDictionaryWorker(
     (() =>
       new Worker(workerSource, {
         eval: true,
-        workerData: { modulePath: require.resolve("kuromoji"), directory },
+        workerData: { modulePath: requireDictionary.resolve("kuromoji"), directory },
       }));
   let worker: Worker | undefined;
   let stopping: Promise<void> | undefined;
