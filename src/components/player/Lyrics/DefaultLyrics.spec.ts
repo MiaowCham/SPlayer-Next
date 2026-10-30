@@ -12,6 +12,7 @@ vi.mock("@/stores/settings", async () => {
   const settings = reactive({
     lyric: {
       engine: "physics",
+      independentWordRomanizationProgress: false,
       alignment: "auto",
       springMass: 0.9,
       springDamping: 15,
@@ -43,6 +44,7 @@ describe("默认歌词引擎配置同步", () => {
     );
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
     useSettingsStore().lyric.alignment = "auto";
+    useSettingsStore().lyric.independentWordRomanizationProgress = false;
   });
 
   afterEach(() => vi.unstubAllGlobals());
@@ -78,6 +80,12 @@ describe("默认歌词引擎配置同步", () => {
       await flushPromises();
       const root = wrapper.get(".lp-root");
       expect(root.classes().filter((value) => value.startsWith("lp-align-"))).toEqual([]);
+      settings.lyric.independentWordRomanizationProgress = true;
+      await nextTick();
+      expect(root.classes()).toContain("lp-independent-word-masks");
+      settings.lyric.independentWordRomanizationProgress = false;
+      await nextTick();
+      expect(root.classes()).not.toContain("lp-independent-word-masks");
       settings.lyric.alignment = "center";
       await nextTick();
       expect(root.classes()).toContain("lp-align-center");
@@ -103,6 +111,33 @@ describe("默认歌词引擎配置同步", () => {
         const classes = wrapper.classes().filter((value) => value.startsWith("lp-align-"));
         expect(classes).toEqual(alignment === "auto" ? [] : [`lp-align-${alignment}`]);
       }
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  it("发音提升后仍给主发音和原文分别建立遮罩，关闭后可还原", async () => {
+    const source = makeLine("窓");
+    source.words[0].romanWord = "mado  ";
+    source.words[0].endTime = 1500;
+    source.words.push({ word: "遠", romanWord: "to", startTime: 1500, endTime: 2000 });
+    const wrapper = mount(DefaultLyrics, {
+      props: {
+        lyricLines: [source],
+        independentWordRomanizationProgress: true,
+        largerLyricText: "pronunciation",
+        showWordRomanization: true,
+      },
+      global: lyricGlobals,
+    });
+    try {
+      expect(wrapper.get(".lp-word-text").text()).toBe("mado");
+      expect(wrapper.get(".lp-roman-word").text()).toBe("窓");
+      await wrapper.setProps({ largerLyricText: "lyrics" });
+      expect(wrapper.get(".lp-word-text").text()).toBe("窓");
+      expect(wrapper.get(".lp-roman-word").text()).toBe("mado");
+      expect(wrapper.classes()).toContain("lp-independent-word-masks");
+      expect(source.words[0].romanWord).toBe("mado  ");
     } finally {
       wrapper.unmount();
     }

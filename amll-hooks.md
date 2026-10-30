@@ -51,6 +51,9 @@ ESM 与 CommonJS 的消费方法必须保持一致；CommonJS 另修复了 struc
 
 ## 默认引擎迁移
 
+默认引擎的逐词发音、独立遮罩及扩展接口现单独维护在
+[lyric-dom-hooks.md](./lyric-dom-hooks.md)，升级默认引擎时必须一并核对。
+
 默认引擎已采用上游 `lyric-dom`，旧的本地引擎实现及样式已移除。
 `DefaultLyrics.vue` 负责发音提升、逐行发音回退、设置切换与冻结期间的数据缓冲；
 `Lyrics/index.vue` 统一转发两套引擎的定位、冻结、恢复和首次布局完成事件。

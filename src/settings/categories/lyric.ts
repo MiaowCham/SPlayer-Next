@@ -298,7 +298,6 @@ const lyricCategory: SettingCategory = {
             path: "lyric.independentWordRomanizationProgress",
           },
           defaultValue: false,
-          visible: () => lyricEngine() === "amll",
           disabled: () => !useSettingsStore().lyric.showWordRomanization,
           tag: { text: "Beta" },
         },

@@ -24,6 +24,8 @@ const props = withDefaults(
     forceSyllableSpacing?: boolean;
     /** 将逐行发音提升为逐句主歌词 */
     forceLinePronunciationAsMain?: boolean;
+    /** 是否按正文与发音各自的内容尺寸推进遮罩 */
+    independentWordRomanizationProgress?: boolean;
     /** 是否正在播放 */
     playing?: boolean;
     /**
@@ -118,6 +120,7 @@ const props = withDefaults(
   }>(),
   {
     playing: false,
+    independentWordRomanizationProgress: false,
     floatAnimationIntensity: "medium",
     disableCjkEmphasis: false,
     raiseAlignPositionOnOverlap: false,
@@ -289,6 +292,11 @@ watch(
 watch(
   () => props.alignPosition,
   (v) => renderer?.setConfig({ alignPosition: v }),
+);
+
+watch(
+  () => props.independentWordRomanizationProgress,
+  (value) => renderer?.setConfig({ independentWordRomanizationProgress: value }),
 );
 
 watch(

@@ -126,6 +126,7 @@ defineExpose({
     :word-fade-width="settings.lyric.wordFadeWidth"
     :spring-config="springConfig"
     :alignment="settings.lyric.alignment"
+    :independent-word-romanization-progress="settings.lyric.independentWordRomanizationProgress"
     :inactive-alpha="settings.lyric.inactiveAlpha"
     :hide-passed-lines="settings.lyric.hidePassedLines"
     :enable-blur="
