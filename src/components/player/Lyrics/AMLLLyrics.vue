@@ -326,11 +326,13 @@ const processLyricLanguage = (player = playerRef.value) => {
           lyricLineElement.removeAttribute("lang");
           lyricMainLineElement.removeAttribute("lang");
         }
-        // 翻译行是独立的 .FmKaba_lyricSubLine，继承主行 lang 会错用主行语种字体；
-        // 给翻译行与逐词音译写上各自的 lang，让 :lang() 的字体变量正常生效
-        const subLine = lyricLineElement.querySelector<HTMLElement>('[class*="lyricSubLine"]');
-        if (subLine) {
+        // 副行（翻译、音译）是独立的 .FmKaba_lyricSubLine，可能同时存在多个，
+        // 逐个按自身内容取字体，否则后一个会继承主行语种字体
+        for (const subLine of lyricLineElement.querySelectorAll<HTMLElement>(
+          '[class*="lyricSubLine"]',
+        )) {
           const subText = subLine.textContent ?? "";
+          if (!subText.trim()) continue;
           const subLanguage = detectTextLanguage(subText) ?? "zh-CN";
           subLine.lang = subLanguage;
           const subFamily = lyricFontFamilyFor(subLanguage);
