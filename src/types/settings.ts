@@ -209,6 +209,14 @@ export interface LyricSettings {
   independentWordRomanizationProgress: boolean;
   /** 是否将康熙部首/CJK 兼容表意文字等非标准汉字还原为标准汉字 */
   normalizeNonStandardHan: boolean;
+  /** 是否显示逐词音译 */
+  showWordRomanization: boolean;
+  /** 是否启用歌词缩放效果 */
+  enableScale: boolean;
+  /** 是否始终将背景行置于主行下方 */
+  bgAlwaysBelow: boolean;
+  /** 超长行智能换行 */
+  enableBalancedWrap: boolean;
   /** 逐字高亮效果 */
   enableWordHighlight: boolean;
   /** 逐字上浮动画强度 */

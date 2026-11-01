@@ -38,3 +38,4 @@ TODO.md
 
 # 上游 CI 工作流需要 workflow 权限，本 fork 暂不同步
 .github/workflows/automix.yml
+.github/workflows/beta.yml

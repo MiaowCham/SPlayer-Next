@@ -319,7 +319,8 @@ const fetchAppleMusicTTMLResultUncached = async (
   const language = String(config.appleMusicTranslationLanguage ?? "zh-Hans-CN").trim();
   const script = String(config.appleMusicTranslationScript ?? "").trim();
   const cacheKey = buildCacheKey(track, language, script);
-  const cached = getCachedTTML("appleMusic", cacheKey);
+  const cachedEntry = getCachedTTML("appleMusic", cacheKey);
+  const cached = cachedEntry === null ? "miss" : cachedEntry.content;
   if (cached !== "miss") {
     if (!cached) return fetchResult("noMatch", null, "cache");
     // 旧版可能缓存了逐行歌词，校验不通过时清理并重抓
@@ -455,7 +456,8 @@ export const getCachedAppleMusicTTML = (track: Track): string | null => {
   const language = String(config.appleMusicTranslationLanguage ?? "zh-Hans-CN").trim();
   const script = String(config.appleMusicTranslationScript ?? "").trim();
   const key = buildCacheKey(track, language, script);
-  const cached = getCachedTTML("appleMusic", key);
+  const cachedEntry = getCachedTTML("appleMusic", key);
+  const cached = cachedEntry === null ? "miss" : cachedEntry.content;
   if (cached === "miss" || !cached) return null;
   // 旧版本可能缓存了逐行歌词，校验不通过时清理并视为未命中
   if (!isSyllableTTML(cached)) {

@@ -7,9 +7,10 @@
     "installNow": "Restart & Install",
     "goDownload": "Go to Download",
     "goStore": "Update in Store",
-    "upToDate": "You're on the latest version",
+    "upToDate": "No newer version is available on this channel",
     "readyToast": "Update ready — restart to install",
-    "failed": "Update failed, please try again later"
+    "failed": "Update failed, please try again later",
+    "installing": "Starting installer"
   },
   "onboarding": {
     "next": "Next",
@@ -124,7 +125,8 @@
     "totalSongs": "{count} songs",
     "totalAlbums": "{count} albums",
     "totalArtists": "{count} artists",
-    "totalPlaylists": "{count} playlists"
+    "totalPlaylists": "{count} playlists",
+    "disabled": "Disabled"
   },
   "recognition": {
     "title": "Music Recognition",
@@ -402,7 +404,9 @@
       "artists": "Artists",
       "playlists": "Playlists"
     },
-    "appleMusicPreviewOnly": "Apple Music source plugin is not installed; only 30-second previews are available"
+    "appleMusicPreviewOnly": "Apple Music source plugin is not installed; only 30-second previews are available",
+    "plugins": "Plugins",
+    "pluginSource": "Select source"
   },
   "streaming": {
     "hint": "Connect to Media Source",
@@ -424,7 +428,8 @@
       "addHint": "Click the button at the top right to add one",
       "goToSettings": "Go to settings",
       "notConnected": "Not connected to any server",
-      "noResults": "No results"
+      "noResults": "No results",
+      "noFavorites": "No favorite songs on this server"
     },
     "server": {
       "type": "Type",
@@ -459,7 +464,8 @@
     },
     "actions": {
       "settings": "Streaming settings"
-    }
+    },
+    "favoritesOnly": "Favorites only"
   },
   "player": {
     "prev": "Previous",
@@ -493,14 +499,14 @@
       "hidePronunciation": "Hide Pronunciation"
     },
     "locateCurrentLyric": "Locate Current Lyric",
-    "lyricCredit": "Written by:",
+    "lyricCredit": "Lyrics by",
     "lyricProduction": "Lyric production:",
     "songProduction": "Song Production:",
     "copyLyric": {
       "title": "Copy Lyrics",
       "contentLabel": "Content to copy",
       "translation": "Translation",
-      "romaji": "Pronunciation",
+      "romaji": "Romaji",
       "emptyLine": "Blank line",
       "songName": "Title",
       "artist": "Artist",
@@ -525,7 +531,8 @@
       "on": "Shuffle on",
       "off": "Shuffle off"
     },
-    "automixing": "AutoMix"
+    "automixing": "AutoMix",
+    "transitioning": "Crossfade"
   },
   "lyricManager": {
     "trackTitle": "Lyric Management",
@@ -676,14 +683,15 @@
       "more": "More",
       "copyTitle": "Copy Title",
       "copyId": "Copy Song ID",
-      "copyUrl": "Share Song Link"
+      "copyUrl": "Share Song Link",
+      "copyFile": "Copy Song File"
     },
     "batch": {
       "manage": "Batch Manage",
       "selected": "{count} selected",
       "invert": "Invert",
       "addToQueue": "Add to Queue",
-      "download": "Download",
+      "download": "Batch Download",
       "exit": "Exit"
     },
     "delete": {
@@ -698,7 +706,7 @@
     }
   },
   "quality": {
-    "details": "Audio Quality",
+    "details": "Audio Details",
     "codec": "Codec",
     "sampleRate": "Sample Rate",
     "bitDepth": "Bit Depth",
@@ -706,7 +714,14 @@
     "channels": "Channels",
     "stereo": "Stereo",
     "mono": "Mono",
-    "multiChannel": "Multi-channel"
+    "multiChannel": "Multi-channel",
+    "outputInfo": "Output Information",
+    "outputSection": "Output Information",
+    "outputMode": "Output Mode",
+    "dspSection": "Audio Processing",
+    "tempoPitch": "Speed & Pitch",
+    "limiter": "Output Limiter",
+    "resampling": "Resampling"
   },
   "playlist": {
     "title": "Playlist",
@@ -775,7 +790,7 @@
     "clearConfirmTitle": "Clear finished tasks",
     "clearConfirmContent": "This removes all completed and failed task records from the list. Downloaded files on disk are kept. Continue?",
     "tabAll": "All",
-    "tabActive": "Downloading",
+    "tabActive": "Queue",
     "tabError": "Errors",
     "tabDone": "Completed",
     "colStatus": "Status",
@@ -911,11 +926,14 @@
       "downloadGeneral": "Download Options",
       "downloadTags": "What to Write",
       "cache": "Cache Management",
-      "database": "Lyric Cache Management",
+      "database": "Database Management",
       "backupReset": "Backup & Reset",
       "debug": "Debug",
       "preset": "OCD Settings",
-      "envInfo": "Environment Info"
+      "envInfo": "Environment Info",
+      "playBehavior": "Playback Behavior",
+      "playbackTransition": "Playback Transition",
+      "softwareAnimations": "Transitions & Animations"
     },
     "about": {
       "checkUpdate": "Check for Updates",
@@ -966,8 +984,8 @@
       "description": "Restore playback position on startup"
     },
     "searchPlayBehavior": {
-      "label": "Search Playback Behavior",
-      "description": "Playback strategy when double-clicking a track on the search page",
+      "label": "Search Playback",
+      "description": "Configure what double-clicking a track on the search page does",
       "current": "Play Current Track Only",
       "all": "Play All Results"
     },
@@ -1009,7 +1027,7 @@
     },
     "preloadNextTrack": {
       "label": "Preload next track",
-      "description": "Fetch the next track's playback info in advance, which may increase network usage"
+      "description": "Cache and decode the next track in advance, which may increase network usage"
     },
     "dynamicCover": {
       "label": "Animated cover",
@@ -1064,15 +1082,15 @@
       "description": "Platform priority when matching online lyrics",
       "auto": "Smart",
       "local": "Manual Import",
-      "qqmusic": "QM",
-      "kugou": "KG",
-      "netease": "NCM",
+      "qqmusic": "Prefer QM",
+      "kugou": "Prefer KG",
+      "netease": "Prefer NCM",
       "self": "Follow Self"
     },
     "lyricSourceOrder": {
-      "label": "Lyric Source Order",
-      "description": "Manually imported lyrics always come first; reorder the remaining sources below",
-      "hint": "Auto mode checks manually imported lyrics first, then tries the remaining sources in this order",
+      "label": "Source Order",
+      "description": "Customize source priority",
+      "hint": "When using auto mode, sources are tried top-down; falls through to the next on miss",
       "amll": "AMLL Online Lyric DB",
       "localTtml": "Local TTML Lyric Repository",
       "appleMusic": "Apple Music TTML"
@@ -1137,37 +1155,37 @@
       "failed": "Lyric enhancement incomplete"
     },
     "cjkTransform": {
-      "label": "Lyric Text Conversion",
-      "description": "Converts lyric text with OpenCC; legacy values are migrated to the Chinese script preference",
-      "none": "No Conversion",
-      "s2t": "Simplified to Traditional",
-      "t2s": "Traditional to Simplified",
-      "s2tw": "Simplified to Taiwan Traditional",
-      "tw2s": "Taiwan Traditional to Simplified",
-      "s2twp": "Simplified to Taiwan Traditional with Phrases",
-      "tw2sp": "Taiwan Traditional to Simplified with Phrases",
-      "s2hk": "Simplified to Hong Kong Traditional",
-      "hk2s": "Hong Kong Traditional to Simplified",
-      "t2tw": "Traditional to Taiwan Traditional",
-      "tw2t": "Taiwan Traditional to Traditional",
-      "t2hk": "Traditional to Hong Kong Traditional",
-      "hk2t": "Hong Kong Traditional to Traditional",
-      "jp2t": "Japanese Shinjitai to Traditional",
-      "t2jp": "Traditional to Japanese Shinjitai"
+      "label": "Chinese Conversion",
+      "description": "Convert lyric text between Simplified and Traditional Chinese or Japanese Kanji",
+      "none": "Off",
+      "s2t": "Simplified → Traditional",
+      "t2s": "Traditional → Simplified",
+      "s2tw": "Simplified → Traditional (Taiwan)",
+      "tw2s": "Traditional (Taiwan) → Simplified",
+      "s2twp": "Simplified → Traditional (Taiwan)",
+      "tw2sp": "Traditional (Taiwan) → Simplified",
+      "s2hk": "Simplified → Traditional (Hong Kong)",
+      "hk2s": "Traditional (Hong Kong) → Simplified",
+      "t2tw": "Traditional → Traditional (Taiwan)",
+      "tw2t": "Traditional (Taiwan) → Traditional",
+      "t2hk": "Traditional → Traditional (Hong Kong)",
+      "hk2t": "Traditional (Hong Kong) → Traditional",
+      "jp2t": "Japanese Shinjitai → Traditional",
+      "t2jp": "Traditional → Japanese Shinjitai"
     },
     "enableOnlineTTMLLyric": {
       "label": "Enable Online TTML Lyrics",
-      "description": "Fetch lyrics from AMLL TTML DB. Supports word-level timing, translation, and pronunciation."
+      "description": "Fetch lyrics from AMLL TTML DB. Supports word-level timing, translation, and romanization."
     },
     "amllDbServer": {
       "label": "AMLL TTML DB Server",
       "description": "Make sure the URL is correct, otherwise lyric fetch will fail",
-      "placeholder": "Enter AMLL TTML DB URL",
+      "placeholder": "Leave empty to use the official API",
       "warning": "If you do not know what this does, please leave it as default",
-      "hint": "URL must be valid and contain the required placeholders",
-      "placeholders": "%p is the platform path, %s is the song ID",
+      "hint": "Leave empty to use the official AMLL API; a mirror URL must contain %s",
+      "placeholders": "%s is the song ID (required), %p is the platform path (optional)",
       "docsHint": "More info at",
-      "invalid": "Invalid URL — required placeholders missing"
+      "invalid": "Invalid URL — %s placeholder missing"
     },
     "enableAppleMusicTTMLLyric": {
       "label": "Enable Apple Music TTML Lyrics",
@@ -1307,7 +1325,8 @@
         "closePlayer": "Close player view",
         "togglePlaylist": "Show / hide playlist",
         "openSearch": "Open search",
-        "searchInPage": "Search in page"
+        "searchInPage": "Search in page",
+        "openSettings": "Open settings"
       }
     },
     "engine": {
@@ -1324,10 +1343,18 @@
       "restartRequiredTitle": "Restart Required",
       "restartRequiredContent": "This setting requires an app restart. Save and relaunch now?",
       "testChannelTitle": "Switch to a Test Channel",
-      "testChannelContent": "Beta and Alpha channels receive test releases early. Alpha releases may be highly unstable. Switch anyway?",
+      "testChannelContent": "Beta and Nightly channels receive test releases early. Nightly releases may be highly unstable. Switch anyway?",
       "kugouLoginVersionTitle": "Switch KG Login Version",
       "kugouLoginVersionContent": "After switching, the current credentials will not match the new version. You must log out and scan the QR code again, or VIP privileges and high-quality playback will stop working. Switch anyway?",
-      "transitionHighResourceContent": "Playback transitions are resource-intensive and are intended for users with higher-performance devices.\nThis feature is still in testing, and for some tracks the transition may currently sound worse than a plain track change.\nEnabling it also turns on track preloading, song caching and streaming caching, which increases memory, CPU, network and disk usage. Enable it anyway?"
+      "transitionHighResourceContent": "Playback transitions are resource-intensive and are intended for users with higher-performance devices.\nThis feature is still in testing, and for some tracks the transition may currently sound worse than a plain track change.\nEnabling it also turns on track preloading, song caching and streaming caching, which increases memory, CPU, network and disk usage. Enable it anyway?",
+      "enableTitle": "Confirm enabling",
+      "scrobbleRiskContent": "Scrobbling is still experimental. Reported listening records are not guaranteed to count as valid plays, and the associated risks are not yet fully understood.\nEnabling it may trigger account risk controls or other account security issues. Consider the potential risks carefully before enabling this feature.",
+      "exclusiveModeTitle": "Switch to Exclusive Mode",
+      "exclusiveModeContent": "Exclusive mode bypasses the system mixer and prefers the source sample rate and bit depth, making it suitable for external DACs / Hi-Fi gear. Player volume, EQ and other processing still apply, so bit-perfect output is not guaranteed. Other apps may be unable to play audio while exclusive. If exclusive mode is unavailable, shared mode will be attempted; it may also fail if another app holds the device exclusively. Switch anyway?",
+      "preloadCacheTitle": "Enable the caches required for preloading?",
+      "preloadCacheContent": "Preloading requires caching the next track's audio. Continuing will enable both song caching and streaming caching, which may increase network traffic and disk usage",
+      "disableSongCacheTitle": "Disable Song Cache?",
+      "disableSongCacheContent": "Preloading and crossfade depend on the song cache and will be disabled as well"
     },
     "useAMSpring": {
       "label": "Spring Animation Debug Switch",
@@ -1395,11 +1422,11 @@
     },
     "adaptiveFontSize": {
       "label": "Adaptive Font Size",
-      "description": "Auto-adjust lyric font size based on window size"
+      "description": "Adjust lyric size with window height"
     },
     "fontSize": {
       "label": "Font Size",
-      "description": "Effective when adaptive is off"
+      "description": "Main lyric text size"
     },
     "fontWeight": {
       "label": "Font Weight",
@@ -1443,8 +1470,8 @@
       "description": "Prefer Chinese or English when a translation for the app language is unavailable"
     },
     "showRomanization": {
-      "label": "Show Pronunciation",
-      "description": "Display lyric pronunciation"
+      "label": "Show Line Romanization",
+      "description": "Display romanized lyrics for each line"
     },
     "amllShowLineRomanization": {
       "label": "Show Line Pronunciation",
@@ -1532,7 +1559,7 @@
     },
     "inactiveAlpha": {
       "label": "Inactive Opacity",
-      "description": "Base opacity for non-active lines"
+      "description": "Base opacity for non-active lines, also applied to translations and romanizations"
     },
     "desktopLyricEnabled": {
       "label": "Enable Desktop Lyric",
@@ -1760,7 +1787,7 @@
     },
     "playerBgFlowSpeed": {
       "label": "Flow Speed",
-      "description": "Animation flow speed of dynamic backgrounds"
+      "description": "Animation flow speed of the fluid background"
     },
     "playerBgRenderScale": {
       "label": "Render Scale",
@@ -1768,15 +1795,15 @@
     },
     "playerBgFps": {
       "label": "Frame Rate",
-      "description": "Render frame rate of dynamic backgrounds; higher is smoother but heavier"
+      "description": "Render frame rate of the fluid background; higher is smoother but heavier"
     },
     "playerBgFreezeOnPause": {
       "label": "Freeze When Paused",
-      "description": "Stop dynamic background motion while playback is paused"
+      "description": "Stop the fluid background animation while playback is paused"
     },
     "playerBgBeat": {
       "label": "Beat Pulse",
-      "description": "Make dynamic backgrounds pulse with low-frequency beats (not available in Classic)"
+      "description": "Make the fluid background pulse with the low-frequency beat of the music"
     },
     "coverLayout": {
       "label": "Cover Layout",
@@ -2007,10 +2034,11 @@
     },
     "updateChannel": {
       "label": "Update Channel",
-      "description": "Choose Stable, Beta preview, or Alpha experimental updates",
+      "description": "Choose which releases to receive. Switching channels never automatically downgrades the app.",
       "stable": "Stable",
       "beta": "Beta Preview",
-      "alpha": "Alpha Experimental"
+      "alpha": "Alpha Experimental",
+      "nightly": "Nightly Build"
     },
     "checkUpdate": {
       "label": "Check for Updates",
@@ -2063,12 +2091,12 @@
     },
     "neteaseScrobbleEnabled": {
       "label": "Enable scrobble",
-      "description": "Automatically report listening records to NCM after a track has played long enough"
+      "description": "Sync NCM listening records using actual playback time"
     },
     "neteaseScrobbleMode": {
       "label": "NCM scrobble method",
-      "description": "Choose which reporting interface is used for automatic NCM listening records",
-      "legacy": "Legacy log API",
+      "description": "Choose the reporting protocol for syncing listening records",
+      "legacy": "Web log API",
       "ncbl": "NCBL encrypted API"
     },
     "orpheusProtocol": {
@@ -2294,7 +2322,7 @@
         },
         "ui": {
           "label": "Interface",
-          "desc": "Can extend or modify the app interface"
+          "desc": "Can add song menus and send system notifications"
         },
         "library": {
           "label": "Library",
@@ -2326,8 +2354,8 @@
       "description": "Inspect cache usage and clear it"
     },
     "dbCacheManager": {
-      "label": "Lyric Cache Management",
-      "description": "Inspect lyric cache usage and clear it"
+      "label": "Database Manager",
+      "description": "Inspect database usage and clear it"
     },
     "cacheDir": {
       "label": "Cache Directory",
@@ -2429,7 +2457,7 @@
     },
     "downloadSaveTtml": {
       "label": "Also Save as TTML",
-      "description": "Export an extra TTML file containing original, translation and pronunciation in one file"
+      "description": "Export an extra TTML file containing original, translation and romanization in one file"
     },
     "cacheCategoryClear": {
       "label": "Clear",
@@ -2444,11 +2472,11 @@
       "confirmDesc": "All file caches above will be deleted and regenerated on next use. This cannot be undone."
     },
     "dbClearAll": {
-      "label": "Clear Lyric Cache",
+      "label": "Clear Database Caches",
       "description": "Wipe lyric and matching caches stored in the database. Your local library and account data are not affected.",
       "button": "Clear All",
-      "confirmTitle": "Clear all lyric caches?",
-      "confirmDesc": "All lyric and matching caches above will be cleared. This cannot be undone."
+      "confirmTitle": "Clear all database caches?",
+      "confirmDesc": "All database caches above will be cleared. This cannot be undone."
     },
     "managedLyrics": {
       "label": "Manually Imported Lyrics",
@@ -2651,6 +2679,10 @@
       "runtime": {
         "label": "Analysis runtime"
       }
+    },
+    "enableBalancedWrap": {
+      "label": "Balanced Line Wrap",
+      "description": "Wrap long lines into lines of similar length, breaking at punctuation and spaces first"
     }
   },
   "collection": {
@@ -2765,7 +2797,7 @@
     "NETWORK_ERROR": "Failed to reach audio source, check network or try another",
     "NETWORK_TIMEOUT": "Audio source timed out, check network or try another",
     "URL_RESOLVE_FAILED": "Failed to get playback URL",
-    "NO_PLUGIN_AVAILABLE": "No plugin available for this platform",
+    "NO_PLUGIN_AVAILABLE": "No music source plugin available",
     "NETEASE_LOGIN_EXPIRED": "Login expired; switched to guest mode",
     "NETEASE_VIP_REQUIRED": "This track requires a membership or separate purchase",
     "NETEASE_TRIAL_DISABLED": "Only a trial is available; enable trial playback in settings",
@@ -2777,7 +2809,8 @@
     "TAG_READ_FAILED": "Failed to read tags",
     "TAG_WRITE_FAILED": "Failed to write tags",
     "MAX_CONSECUTIVE_FAILURES": "Too many consecutive playback failures",
-    "UNKNOWN": "Operation failed"
+    "UNKNOWN": "Operation failed",
+    "PERMISSION_DENIED": "This account does not have permission to perform this action"
   },
   "tagEditor": {
     "title": "Edit Metadata",

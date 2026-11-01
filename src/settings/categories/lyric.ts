@@ -364,6 +364,38 @@ const lyricCategory: SettingCategory = {
       id: "lyricDisplay",
       items: [
         {
+          key: "lyricAlignment",
+          type: "select",
+          binding: { store: "settings", path: "lyric.alignment" },
+          options: [
+            { value: "auto", labelKey: "settings.lyricAlignment.auto" },
+            { value: "left", labelKey: "settings.lyricAlignment.left" },
+            { value: "center", labelKey: "settings.lyricAlignment.center" },
+            { value: "right", labelKey: "settings.lyricAlignment.right" },
+          ],
+          defaultValue: "auto",
+          visible: () => lyricEngine() === "physics",
+        },
+        {
+          key: "enableScale",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.enableScale" },
+          defaultValue: true,
+        },
+        {
+          key: "bgAlwaysBelow",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.bgAlwaysBelow" },
+          defaultValue: false,
+        },
+        {
+          key: "enableBalancedWrap",
+          type: "switch",
+          binding: { store: "settings", path: "lyric.enableBalancedWrap" },
+          defaultValue: true,
+          visible: () => lyricEngine() === "physics",
+        },
+        {
           key: "enableWordHighlight",
           type: "switch",
           binding: { store: "settings", path: "lyric.enableWordHighlight" },
