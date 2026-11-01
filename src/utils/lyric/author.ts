@@ -13,6 +13,17 @@ export interface LyricAuthorInfo {
  * @param format - 歌词格式
  * @returns 作者账号/名称的数组
  */
+
+/** GitHub 用户名规则：字母数字或单个连字符，不含空格与中文 */
+const GITHUB_LOGIN_RE = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
+
+/**
+ * 判断取值是否像 GitHub 用户名
+ * @param value - 待判断的字符串
+ * @returns 像用户名时为 true，否则视为人名
+ */
+const looksLikeGithubLogin = (value: string): boolean => GITHUB_LOGIN_RE.test(value.trim());
+
 export const extractLyricAuthorInfo = (content: string, format: LyricFormat): LyricAuthorInfo => {
   if (format === "ttml" || format === "ttmlLine") {
     const document = new DOMParser().parseFromString(content, "application/xml");
@@ -27,7 +38,12 @@ export const extractLyricAuthorInfo = (content: string, format: LyricFormat): Ly
       .map((element) => element.getAttribute("value")?.trim() ?? "")
       .filter(Boolean);
     if (logins.length > 0) {
-      return { authors: unique(logins), kind: "lyric-production" };
+      const authors = unique(logins);
+      // AMLL 有些文件把词曲作者写进该字段，人名不是用户名时按创作者处理
+      const kind: LyricAuthorKind = authors.every(looksLikeGithubLogin)
+        ? "lyric-production"
+        : "creator";
+      return { authors, kind };
     }
     // 如果无 login 标识，从 ttmlAuthorGithub 主页链接中截取最后的用户名
     const bases = meta
@@ -38,7 +54,12 @@ export const extractLyricAuthorInfo = (content: string, format: LyricFormat): Ly
         return parts[parts.length - 1] || val;
       })
       .filter(Boolean);
-    return { authors: unique(bases), kind: bases.length > 0 ? "lyric-production" : null };
+    if (bases.length === 0) return { authors: [], kind: null };
+    const authors = unique(bases);
+    const kind: LyricAuthorKind = authors.every(looksLikeGithubLogin)
+      ? "lyric-production"
+      : "creator";
+    return { authors, kind };
   }
   if (format === "lrc" || format === "lrcn") {
     const songwriters = [...content.matchAll(/^\[songwriter:\s*([^\]]+)\]/gim)].flatMap((m) =>

@@ -500,8 +500,8 @@
     },
     "locateCurrentLyric": "Locate Current Lyric",
     "lyricCredit": "Lyrics by",
-    "lyricProduction": "Lyric production:",
-    "songProduction": "Song Production:",
+    "lyricProduction": "Lyric credits",
+    "songProduction": "Song production",
     "copyLyric": {
       "title": "Copy Lyrics",
       "contentLabel": "Content to copy",
@@ -532,7 +532,8 @@
       "off": "Shuffle off"
     },
     "automixing": "AutoMix",
-    "transitioning": "Crossfade"
+    "transitioning": "Crossfade",
+    "lyricCreator": "Creator"
   },
   "lyricManager": {
     "trackTitle": "Lyric Management",

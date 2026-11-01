@@ -128,13 +128,15 @@ const effectiveEnableBlur = computed(
 const lyricCreatorsText = computed(() =>
   media.lyricAuthors.join(isChineseLocale.value ? "、" : ", "),
 );
+/** 作者前缀与名单之间的分隔符：中文用全角冒号，西文用半角冒号加空格 */
+const lyricCreditSeparator = computed(() => (isChineseLocale.value ? "：" : ": "));
 /** 按创作者信息类别选择「创作者：/歌词制作：」等前缀文案。 */
 const lyricCreditKey = computed(() =>
   media.lyricAuthorKind === "lyric-production"
     ? "player.lyricProduction"
     : media.lyricAuthorKind === "song-production"
       ? "player.songProduction"
-      : "player.lyricCredit",
+      : "player.lyricCreator",
 );
 
 /** 精确播放时间（毫秒） */
@@ -502,7 +504,7 @@ const showComments = (): void => {
                 <template #bottom>
                   <div v-if="media.lyricAuthors.length > 0" class="lyric-credit-line">
                     <strong class="lyric-credit-prefix">{{ $t(lyricCreditKey) }}</strong>
-                    <span v-if="!isChineseLocale">&nbsp;</span>
+                    <span class="lyric-credit-separator">{{ lyricCreditSeparator }}</span>
                     <span class="lyric-credit-content">{{ lyricCreatorsText }}</span>
                   </div>
                 </template>
@@ -535,7 +537,7 @@ const showComments = (): void => {
                 <template #bottom>
                   <div v-if="media.lyricAuthors.length > 0" class="lyric-credit-line">
                     <strong class="lyric-credit-prefix">{{ $t(lyricCreditKey) }}</strong>
-                    <span v-if="!isChineseLocale">&nbsp;</span>
+                    <span class="lyric-credit-separator">{{ lyricCreditSeparator }}</span>
                     <span class="lyric-credit-content">{{ lyricCreatorsText }}</span>
                   </div>
                 </template>

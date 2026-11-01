@@ -500,8 +500,8 @@
     },
     "locateCurrentLyric": "定位当前歌词",
     "lyricCredit": "歌词制作",
-    "lyricProduction": "歌词制作：",
-    "songProduction": "创作者：",
+    "lyricProduction": "歌词制作",
+    "songProduction": "歌曲制作",
     "copyLyric": {
       "title": "复制歌词",
       "contentLabel": "要复制的内容",
@@ -532,7 +532,8 @@
       "off": "顺序播放"
     },
     "automixing": "AutoMix",
-    "transitioning": "过渡"
+    "transitioning": "过渡",
+    "lyricCreator": "创作者"
   },
   "lyricManager": {
     "trackTitle": "歌词管理",
