@@ -34,6 +34,7 @@ const SIDEBAR_NAV_ENTRIES: SidebarNavEntry[] = [
   { key: "/albums/local", labelKey: "album.label", icon: IconLucideDisc3 },
   { key: "/folders", labelKey: "folder.label", icon: IconLucideFolder },
   { key: "/stats", labelKey: "stats.label", icon: IconLucideChartPie },
+  { key: "/ranking", labelKey: "nav.ranking", icon: IconLucideTrendingUp },
   { key: "/liked", labelKey: "nav.liked", icon: IconMaterialSymbolsFavoriteOutline },
   { key: "/favorites", labelKey: "nav.favorites", icon: IconLucideStar },
   { key: "/cloud", labelKey: "nav.cloud", icon: IconLucideCloud },
