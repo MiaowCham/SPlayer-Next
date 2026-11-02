@@ -468,7 +468,9 @@ onMounted(async () => {
   if (playerRef.value !== player) return;
 
   // 抽屉展开动画期间容器高度可能仍为 0，此时下发歌词会让核心按 0 高度排版并停在视口外
-  for (let attempt = 0; attempt < 60; attempt++) {
+  // 布局切换时新容器可能短暂为 0 高度，等太久会让歌词晚一步出现；
+  // 只等少量帧，仍为 0 也先下发，后续 ResizeObserver 会按真实尺寸重排
+  for (let attempt = 0; attempt < 8; attempt++) {
     if ((wrapperRef.value?.clientHeight ?? 0) > 0) break;
     await nextFrame();
   }

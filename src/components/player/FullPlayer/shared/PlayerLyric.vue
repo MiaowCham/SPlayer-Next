@@ -94,6 +94,18 @@ const handleLyricSeek = async (timeMs: number): Promise<void> => {
   if (!status.isPlaying) await player.play();
 };
 
+/** 歌词模糊：暂停或拖动进度时按设置临时关闭 */
+const effectiveEnableBlur = computed(
+  () => settings.lyric.enableBlur && !(settings.lyric.pauseClearBlur && !status.isPlaying),
+);
+
+/** 歌词滚动弹簧参数 */
+const springConfig = computed(() => ({
+  mass: settings.lyric.springMass,
+  damping: settings.lyric.springDamping,
+  stiffness: settings.lyric.springStiffness,
+}));
+
 const lyricFontSize = computed(() =>
   settings.lyric.adaptiveFontSize
     ? `calc(${settings.lyric.fontSize} / 1080 * 100vh)`
@@ -152,6 +164,22 @@ const lyricSubFontSize = computed(() => {
         :lyric-lines="media.parsedLyric"
         :initial-time="initialLyricTimeMs"
         :playing="status.isPlaying"
+        :align-position="settings.lyric.alignPosition"
+        :word-fade-width="settings.lyric.wordFadeWidth"
+        :spring-config="springConfig"
+        :inactive-alpha="settings.lyric.inactiveAlpha"
+        :hide-passed-lines="settings.lyric.hidePassedLines"
+        :enable-blur="effectiveEnableBlur"
+        :enable-word-highlight="settings.lyric.enableWordHighlight"
+        :float-animation-intensity="settings.lyric.floatAnimationIntensity"
+        :enable-emphasize-effect="settings.lyric.enableEmphasizeEffect"
+        :disable-cjk-emphasis="settings.lyric.disableCjkEmphasis"
+        :raise-align-position-on-overlap="settings.lyric.raiseAlignPositionOnOverlap"
+        :show-translation="settings.lyric.showTranslation"
+        :show-romanization="settings.lyric.showRomanization"
+        :swap-translation-pronunciation="settings.lyric.swapTranslationPronunciation"
+        :larger-lyric-text="settings.lyric.largerLyricText"
+        :force-syllable-spacing="settings.lyric.forceSyllableSpacing"
         @seek="handleLyricSeek"
         @ready="onReady"
       >
