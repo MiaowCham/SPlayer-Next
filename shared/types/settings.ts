@@ -333,6 +333,8 @@ export interface OnlineLyricSettings {
   appleMusicTranslationLanguage: string;
   /** Apple Music 歌词请求的脚本；为空时由语言自动推导 */
   appleMusicTranslationScript: string;
+  /** 自动发音的对齐方式：auto 按歌词统一、word 尽量逐字、line 全部逐行 */
+  pronunciationAlignment: "auto" | "word" | "line";
 }
 
 /** 本地歌词配置 */

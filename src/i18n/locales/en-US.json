@@ -2741,6 +2741,13 @@
       "classic": "Classic",
       "fullCover": "Fullscreen Cover",
       "fullLyric": "Fullscreen Lyrics"
+    },
+    "pronunciationAlignment": {
+      "label": "Auto pronunciation alignment",
+      "description": "Word: align per word; Line: one reading per line; Auto: unify per lyrics",
+      "auto": "Auto",
+      "word": "Word",
+      "line": "Line"
     }
   },
   "collection": {

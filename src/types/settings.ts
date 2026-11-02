@@ -14,6 +14,9 @@ export type PlayerBgType =
 export type CoverLayout = "default" | "fullscreen";
 
 /** 全屏播放器布局样式 */
+/** 自动发音的对齐方式 */
+export type PronunciationAlignment = "auto" | "word" | "line";
+
 export type PlayerLayout = "classic" | "fullCover" | "fullLyric";
 
 /**
@@ -156,6 +159,8 @@ export interface LyricSettings {
   llmTranslation: boolean;
   /** 发音优化方式 */
   pronunciationOptimization: PronunciationOptimization;
+  /** 自动发音的对齐方式：auto 按歌词统一，word 尽量逐字，line 全部逐行 */
+  pronunciationAlignment: PronunciationAlignment;
   /** 歌词来源偏好 */
   lyricSourcePreference: LyricSourcePreference;
   /** 音源顺序 */

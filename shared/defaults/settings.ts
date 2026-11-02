@@ -106,6 +106,7 @@ export const defaultSystemConfig: SystemConfig = {
     appleMusicSearchRegions: "cn,jp,tw,kr",
     appleMusicTranslationLanguage: "zh-Hans-CN",
     appleMusicTranslationScript: "",
+    pronunciationAlignment: "auto",
   },
   localLyric: {
     enableLocalTTMLOverride: false,
