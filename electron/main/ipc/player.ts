@@ -399,6 +399,10 @@ const completeTrackLoad = (
 };
 
 /** 播放器相关 IPC */
+/// 最近一次同步的播放模式，用于兼容旧版 media-ctrl 的 Toggle 事件
+let lastRepeatMode: RepeatMode = "list";
+let lastShuffleMode: ShuffleMode = "off";
+
 export const registerPlayerIpc = (): void => {
   ipcMain.handle(
     "player:prepareNext",
@@ -1007,6 +1011,8 @@ export const registerPlayerIpc = (): void => {
 
   // 渲染进程同步播放模式到托盘与系统媒体控件
   ipcMain.on("player:syncPlayMode", (_event, repeat: RepeatMode, shuffle: ShuffleMode) => {
+    lastRepeatMode = repeat;
+    lastShuffleMode = shuffle;
     setTrayPlayMode(repeat, shuffle);
     mediaService.setPlayMode({
       shuffle: shuffle === "on",
@@ -1029,6 +1035,18 @@ export const registerPlayerIpc = (): void => {
   mediaService.onEvent((event: MediaEvent) => {
     try {
       const inst = getPlayer();
+      // 旧版 media-ctrl 只发 Toggle 事件，新二进制发 Set 事件；两者都兼容
+      const legacyType = (event as { type: string }).type;
+      if (legacyType === "ToggleShuffle") {
+        lastShuffleMode = lastShuffleMode === "on" ? "off" : "on";
+        sendToMain("player:event", { type: "setShuffle", data: { mode: lastShuffleMode } });
+        return;
+      }
+      if (legacyType === "ToggleRepeat") {
+        const next = lastRepeatMode === "one" ? "list" : "one";
+        sendToMain("player:event", { type: "setRepeat", data: { mode: next } });
+        return;
+      }
       switch (event.type) {
         case "Play":
           void inst.play().catch(() => {});
