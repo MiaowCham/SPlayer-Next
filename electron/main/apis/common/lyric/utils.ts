@@ -121,7 +121,11 @@ export const pickBestCandidate = <E>(
       if (!bothContains(candName, trackName)) continue;
       const longer = Math.max(candName.length, trackName.length);
       const shorter = Math.min(candName.length, trackName.length);
-      if (shorter / longer < NAME_CONTAIN_MIN_RATIO) continue;
+      // 标题带副标题（如 `The Eye(《…》动画片头曲)`）时，候选的短标题往往是长标题的前缀，
+      // 按比例会被误杀，这里对前缀/后缀匹配且长度足够的情况放行
+      const prefixMatch =
+        shorter >= 4 && (candName.startsWith(trackName) || trackName.startsWith(candName));
+      if (shorter / longer < NAME_CONTAIN_MIN_RATIO && !prefixMatch) continue;
     }
 
     if (durationFar(candidate.duration, trackDuration)) continue;
