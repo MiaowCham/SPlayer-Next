@@ -745,6 +745,7 @@
   },
   "liked": {
     "title": "Liked Songs",
+    "copyToClipboard": "Copy to Clipboard",
     "tabs": {
       "local": "Local",
       "online": "Online"
