@@ -108,6 +108,8 @@ const props = withDefaults(
 );
 
 interface Emits {
+  /** 棣栨灏忓竷灞€瀹屾垚 */
+  (e: "ready"): void;
   /** 点击歌词行进行播放进度跳转 */
   (e: "seek", timeMs: number): void;
 }
@@ -510,6 +512,7 @@ onMounted(async () => {
   player.update(0);
   initialized.value = true;
   contentVisible.value = true;
+  emit("ready");
 
   // 抽屉展开动画期间容器高度为 0，排版会把歌词排到可视区外；等一帧后按真实尺寸重排
   await nextFrame();

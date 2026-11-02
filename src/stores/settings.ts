@@ -248,7 +248,7 @@ export const useSettingsStore = defineStore(
       enableExcludeLyrics: true,
       excludeLyricsUserKeywords: [],
       excludeLyricsUserRegexes: [],
-      engine: "physics",
+      engine: "amll",
       useAMSpring: true,
       // 过阻尼参数：滚动平滑无回弹，与官方 lyric-dom 的默认手感一致
       amllVerticalSpringMass: 1,
