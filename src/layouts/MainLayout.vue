@@ -59,6 +59,7 @@ const cachedViews = [
   "Home",
   "Library",
   "Liked",
+  "Ranking",
   "History",
   "Download",
   "Daily",
