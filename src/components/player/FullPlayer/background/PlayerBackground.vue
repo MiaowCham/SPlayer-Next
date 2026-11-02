@@ -1,10 +1,10 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { useSettingsStore } from "@/stores/settings";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import DEFAULT_COVER from "@/assets/images/song.jpg";
 import BackgroundRender from "./BackgroundRender.vue";
-import AppleMusicBackground from "./AppleMusicBackground.vue";
+import AppleMusicBackground from "../AppleMusicBackground.vue";
 
 const media = useMediaStore();
 const settings = useSettingsStore();

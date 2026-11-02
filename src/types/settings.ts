@@ -13,6 +13,9 @@ export type PlayerBgType =
   "blur" | "solid" | "animation" | "isolation" | "titanium" | "apple-music" | "apple-music-classic";
 export type CoverLayout = "default" | "fullscreen";
 
+/** 全屏播放器布局样式 */
+export type PlayerLayout = "classic" | "fullCover" | "fullLyric";
+
 /**
  * 歌曲播放时间显示格式
  * - current-total: 播放时间 / 总时长
@@ -169,6 +172,12 @@ export interface LyricSettings {
   chineseScriptPreference: ChineseScriptPreference;
   /** 字号自适应窗口大小 */
   adaptiveFontSize: boolean;
+  /** 翻译字号是否跟随主行 */
+  translationFontSizeFollowMain: boolean;
+  /** 翻译字号（px，跟随主行时忽略） */
+  translationFontSize: number;
+  /** 无逐字歌词时按字符自动生成 */
+  autoGenerateWordByWord: boolean;
   /** 歌词字号（px，自适应关闭时生效） */
   fontSize: number;
   /** 歌词字重（100~900） */
@@ -280,6 +289,10 @@ export interface LyricSettings {
 
 /** 播放器设置 */
 export interface PlayerSettings {
+  /** 全屏播放器布局 */
+  layout: PlayerLayout;
+  /** 播放栏歌词模式 */
+  barLyricMode: "lyric" | "translation" | "word";
   /** 播放器背景类型 */
   playerBgType: PlayerBgType;
   /** 流体背景渲染引擎 */

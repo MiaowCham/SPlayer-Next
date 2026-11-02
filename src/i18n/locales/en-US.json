@@ -249,7 +249,9 @@
     "searchSection": {
       "quick": "Quick",
       "history": "Recent searches",
-      "hot": "Trending"
+      "hot": "Trending",
+      "pages": "Pages",
+      "actions": "Actions"
     },
     "searchMenu": {
       "copy": "Copy",
@@ -265,6 +267,14 @@
       "album": "Go to album [{id}]",
       "artist": "Go to artist [{id}]",
       "playlist": "Go to playlist [{id}]"
+    },
+    "searchCommandHint": "Search songs, or type / for commands",
+    "searchCommandTip": "Type to jump to a setting or page, or run a common action",
+    "searchHistoryClearConfirm": "Clear all search history?",
+    "searchFooter": {
+      "select": "Select",
+      "run": "Run",
+      "command": "Commands"
     }
   },
   "home": {
@@ -934,7 +944,9 @@
       "envInfo": "Environment Info",
       "playBehavior": "Playback Behavior",
       "playbackTransition": "Playback Transition",
-      "softwareAnimations": "Transitions & Animations"
+      "softwareAnimations": "Transitions & Animations",
+      "fullPlayer": "Player",
+      "playerBackground": "Player Background"
     },
     "about": {
       "checkUpdate": "Check for Updates",
@@ -1776,7 +1788,7 @@
       "description": "Hide confirmed Mandarin pinyin matching the lyrics. Keep Cantonese and other pronunciations, including uncertain cases."
     },
     "playerBgType": {
-      "label": "Player Background",
+      "label": "Background Style",
       "description": "Background type of the full-screen player",
       "blur": "Blur",
       "solid": "Solid",
@@ -1814,7 +1826,7 @@
     },
     "coverLyricRatio": {
       "label": "Cover/Lyrics Ratio",
-      "description": "Width ratio between cover and lyric areas in Now Playing"
+      "description": "Width ratio between cover and lyric areas in the classic layout"
     },
     "themeMode": {
       "label": "Theme Mode",
@@ -2684,6 +2696,24 @@
     "enableBalancedWrap": {
       "label": "Balanced Line Wrap",
       "description": "Wrap long lines into lines of similar length, breaking at punctuation and spaces first"
+    },
+    "barLyricMode": {
+      "label": "Player Bar Lyric Mode",
+      "description": "Choose lyric content and highlighting; long lines scroll with playback progress",
+      "lyric": "Lyrics",
+      "translation": "Lyrics + Translation",
+      "word": "Word by Word"
+    },
+    "autoGenerateWordByWord": {
+      "label": "Auto-generate Word Effect",
+      "description": "Generate word-by-word effects for line-timed lyrics"
+    },
+    "playerLayout": {
+      "label": "Player Layout",
+      "description": "Overall layout of the full-screen player",
+      "classic": "Classic",
+      "fullCover": "Fullscreen Cover",
+      "fullLyric": "Fullscreen Lyrics"
     }
   },
   "collection": {

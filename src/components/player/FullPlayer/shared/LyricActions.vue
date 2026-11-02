@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
 import { useStatusStore } from "@/stores/status";
@@ -7,8 +7,8 @@ import { formatLyricOffset } from "@/utils/time";
 import IconLucideLanguages from "~icons/lucide/languages";
 
 defineProps<{
-  /** 是否处于沉浸模式 */
-  immersive: boolean;
+  /** 是否处于沉浸模式（由布局决定） */
+  immersive?: boolean;
 }>();
 
 const emit = defineEmits<{

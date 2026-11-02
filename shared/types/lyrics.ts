@@ -42,6 +42,8 @@ export type LyricData = {
   /** 托管文件 UUID 或提供方与正文摘要 */
   versionId?: string;
   format: LyricFormat;
+  /** 本次解析结果是否具有真实或统一生成的逐字时间 */
+  wordTimed?: boolean;
   /** 在线歌词所属平台，仅 source=online 时有值 */
   platform?: Platform;
   /** 区分平台原始歌词与 AMLL、本地 TTML 等解析提供方 */

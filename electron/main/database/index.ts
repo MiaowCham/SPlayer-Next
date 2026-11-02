@@ -273,6 +273,7 @@ export {
   upsertTracks,
   deleteTracksByPaths,
   searchTracks,
+  quickSearchLibrary,
   deleteTracksByDir,
   getAlbumList,
   getArtistList,

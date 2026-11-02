@@ -57,6 +57,8 @@ export const useMediaStore = defineStore("media", () => {
 
   /** 当前歌词文件制作者列表 */
   const lyricAuthors = ref<string[]>([]);
+  /** 当前歌词是否带逐字时间轴 */
+  const wordTimed = computed(() => activeLyric.value?.wordTimed ?? false);
   const lyricAuthorKind = ref<LyricAuthorKind | null>(null);
   const onlineCreators = ref<string[] | null>(null);
   let creatorToken = 0;
@@ -277,7 +279,10 @@ export const useMediaStore = defineStore("media", () => {
     }
     // 解析后无有效行视作无歌词
     const hasContent = nextLines.length > 0;
-    activeLyric.value = hasContent ? source : null;
+    const hasWordTiming = nextLines.some(
+      (line) => line.words.length > 1 && line.words.some((word) => word.endTime > word.startTime),
+    );
+    activeLyric.value = hasContent && source ? { ...source, wordTimed: hasWordTiming } : null;
     lyricContent.value = hasContent ? input : null;
     // 先让歌词立刻上屏，过滤发音在后台完成后替换；避免开着「隐藏中文发音」时整页空白等待
     parsedLyric.value = nextLines;
@@ -408,6 +413,7 @@ export const useMediaStore = defineStore("media", () => {
     parsedLyric,
     lyricAuthors,
     lyricAuthorKind,
+    wordTimed,
     lyricLoading,
     lyricEnhancementPending,
     lyricEnhancementWarnings,

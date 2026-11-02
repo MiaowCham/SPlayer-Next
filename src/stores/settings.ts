@@ -132,6 +132,8 @@ export const useSettingsStore = defineStore(
 
     /** 播放器 */
     const player = reactive<PlayerSettings>({
+      layout: "classic",
+      barLyricMode: "lyric",
       playerBgType: "blur",
       playerBgRenderer: "mesh",
       playerBgLightWave: false,
@@ -200,6 +202,9 @@ export const useSettingsStore = defineStore(
       detectBackgroundLyrics: true,
       chineseScriptPreference: "default",
       adaptiveFontSize: true,
+      translationFontSizeFollowMain: true,
+      translationFontSize: 24,
+      autoGenerateWordByWord: false,
       fontSize: 48,
       fontWeight: 700,
       lyricBlendMode: "normal",

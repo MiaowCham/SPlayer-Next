@@ -1,3 +1,7 @@
+<script lang="ts">
+const hdCache = shallowRef<{ id: string; data: string } | null>(null);
+</script>
+
 <script setup lang="ts">
 import Hls from "hls.js";
 import { resolveDynamicCover, type DynamicCoverResult } from "@/services/dynamicCover";
@@ -7,21 +11,14 @@ import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
 import { useUserStore } from "@/stores/user";
 import { useTimeoutFn } from "@vueuse/core";
-import { nextTick } from "vue";
-
-withDefaults(defineProps<{ fullscreen?: boolean }>(), { fullscreen: false });
 
 const media = useMediaStore();
 const status = useStatusStore();
 const settings = useSettingsStore();
 const user = useUserStore();
-const { isPlaying } = storeToRefs(status);
 
 /** 加载中的歌曲使用队列当前项作为封面兜底 */
 const displayTrack = computed(() => media.track ?? status.currentTrack);
-
-/** 高清封面缓存 */
-const hdCache = shallowRef<{ id: string; data: string } | null>(null);
 
 const coverSrc = computed(() =>
   hdCache.value && hdCache.value.id === displayTrack.value?.id
@@ -83,33 +80,20 @@ const attachVideoSource = async (result: DynamicCoverResult | null): Promise<voi
   video.src = result.url;
 };
 
-/** 是否处于封面展示模式（非全屏） */
-const isCoverMode = computed(() => settings.player.coverLayout !== "fullscreen");
-
-/** 是否在加载中 */
-const trackLoading = computed(() => status.trackLoading);
-
-/** 封面再放送：视频结束后 2s 重新播放 */
+/** 动态封面再放送：视频结束后 2s 重新播放 */
 const { start: dynamicCoverStart, stop: dynamicCoverStop } = useTimeoutFn(
   () => {
-    dynamicCoverLoaded.value = true;
-    nextTick(() => {
-      const video = videoRef.value;
-      if (!video) return;
-      // HLS 播完后 currentTime 停在结尾，复位才能重播
-      if (video.currentTime > 0) video.currentTime = 0;
-      void video.play();
-    });
+    const video = videoRef.value;
+    if (!video) return;
+    // HLS 播完后 currentTime 停在结尾，复位才能重播
+    if (video.currentTime > 0) video.currentTime = 0;
+    void video.play();
   },
   2000,
   { immediate: false },
 );
 
-/**
- * 拉取动态封面
- *
- * 仅对网易云来源、非全屏布局、已登录且开关开启的曲目生效
- */
+/** 拉取动态封面：开关开启且非加载中才生效 */
 const fetchDynamicCover = async (): Promise<void> => {
   const track = displayTrack.value;
   if (!track) {
@@ -117,13 +101,12 @@ const fetchDynamicCover = async (): Promise<void> => {
     destroyHls();
     return;
   }
-  if (!isCoverMode.value || !settings.player.dynamicCover || trackLoading.value) {
+  if (!settings.player.dynamicCover || status.trackLoading) {
     dynamicCover.value = null;
     destroyHls();
     return;
   }
 
-  // 停止已有的再放送定时器，重置加载状态
   dynamicCoverStop();
   dynamicCoverLoaded.value = false;
 
@@ -132,11 +115,9 @@ const fetchDynamicCover = async (): Promise<void> => {
     settings.player.appleMusicStorefront,
     user.isLoggedIn,
   );
-  if (displayTrack.value?.id !== track.id) return; // 歌曲已切换
+  if (displayTrack.value?.id !== track.id) return;
 
-  // 专辑名相同不代表封面相同：动效封面来自别的发行时，静态封面会来回跳，直接不用
-  // 专辑名精确命中时封面本就属于同一发行，指纹仅作参考，避免图源差异导致误杀
-  // 专辑名相同也可能是不同版本封面，因此始终比对指纹；取不到图时接受
+  // 专辑名相同也可能是不同版本封面，始终比对指纹；取不到图时接受
   let same: boolean | null = null;
   if (result?.artwork) {
     const trackCover =
@@ -154,7 +135,7 @@ const fetchDynamicCover = async (): Promise<void> => {
   await attachVideoSource(result);
 };
 
-/** 视频播完后进入等待再放送 */
+/** 首帧就绪后淡入视频层 */
 const onCoverFrame = (): void => {
   dynamicCoverLoaded.value = true;
   void window.api.lyrics.log("info", "[am-cover] first frame ready");
@@ -186,13 +167,7 @@ const cleanupDynamicCover = (): void => {
 };
 
 watch(
-  () =>
-    [
-      displayTrack.value?.id,
-      settings.player.dynamicCover,
-      settings.player.coverLayout,
-      status.trackLoading,
-    ] as const,
+  () => [displayTrack.value?.id, settings.player.dynamicCover, status.trackLoading] as const,
   () => {
     fetchDynamicCover();
   },
@@ -209,24 +184,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    data-player-cover="full"
-    :class="
-      fullscreen
-        ? 'player-cover-fullscreen w-full h-full aspect-auto rounded-none bg-transparent overflow-hidden shrink-0'
-        : [
-            'player-cover',
-            'relative',
-            'w-full aspect-square rounded-[32px] overflow-hidden shrink-0',
-            'shadow-[0_0_20px_10px_rgba(0,0,0,0.1)]',
-            isPlaying ? 'scale-100' : 'scale-90',
-          ]
-    "
-  >
+  <!-- 外观由布局决定，这里只负责高清封面、动态封面与共享过渡标记 -->
+  <div data-player-cover="full" class="relative overflow-hidden shrink-0">
     <DetailCover :src="coverSrc" :fallback="displayTrack?.cover" class="size-full" />
     <Transition name="fade" mode="out-in">
       <video
-        v-if="dynamicCover && !fullscreen"
+        v-if="dynamicCover"
         ref="videoRef"
         :src="dynamicCover.format === 'mp4' ? dynamicCover.url : undefined"
         :class="['dynamic-cover', { loaded: dynamicCoverLoaded }]"
@@ -242,46 +205,20 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.player-cover {
-  transition:
-    transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 200ms ease-out;
-}
-
-.player-cover-fullscreen {
-  mask-image: linear-gradient(
-    to right,
-    rgba(0, 0, 0, 1) 0%,
-    rgba(0, 0, 0, 0.98) 10%,
-    rgba(0, 0, 0, 0.92) 22%,
-    rgba(0, 0, 0, 0.82) 32%,
-    rgba(0, 0, 0, 0.68) 42%,
-    rgba(0, 0, 0, 0.52) 52%,
-    rgba(0, 0, 0, 0.36) 62%,
-    rgba(0, 0, 0, 0.22) 72%,
-    rgba(0, 0, 0, 0.1) 82%,
-    rgba(0, 0, 0, 0.03) 92%,
-    rgba(0, 0, 0, 0) 100%
-  );
-}
-
 .dynamic-cover {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
-  border-radius: 32px;
-  overflow: hidden;
   z-index: 1;
   opacity: 0;
   transition: opacity 0.8s ease-in-out;
   backface-visibility: hidden;
   transform: translateZ(0);
+}
 
-  &.loaded {
-    opacity: 1;
-  }
+.dynamic-cover.loaded {
+  opacity: 1;
 }
 
 .fade-enter-active,
