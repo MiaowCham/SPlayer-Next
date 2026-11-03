@@ -7,7 +7,7 @@ import { useFullPlayer } from "../../context";
 const { t } = useI18n();
 const status = useStatusStore();
 const media = useMediaStore();
-const { showLyric } = storeToRefs(status);
+const { showLyric, isPlaying } = storeToRefs(status);
 const { onMainMove } = useFullPlayer();
 
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
@@ -50,7 +50,8 @@ const toggleLyric = (): void => {
     >
       <div class="w-[min(50vh,38vw)] flex flex-col gap-[4vh]">
         <PlayerCover
-          class="w-full aspect-square rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.3)] transition-shadow duration-500 ease-out"
+          class="w-full aspect-square rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.3)] [transition:transform_500ms_cubic-bezier(0.34,1.56,0.64,1),box-shadow_500ms_ease-out]"
+          :class="isPlaying ? 'scale-100' : 'scale-90'"
         />
         <AppleControls />
       </div>
