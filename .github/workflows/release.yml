@@ -3,9 +3,7 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  # 仅手动触发：本仓库的版本由本地脚本打包发布，不让 tag 自动触发 CI
   workflow_dispatch:
     inputs:
       tag:
