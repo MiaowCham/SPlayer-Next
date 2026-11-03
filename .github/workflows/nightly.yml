@@ -2,9 +2,7 @@
 name: Nightly Build
 
 on:
-  schedule:
-    # 每天 UTC 18:00 触发
-    - cron: "0 18 * * *"
+  # 仅手动触发：需要出新 nightly 时在 Actions 页面点 Run workflow
   workflow_dispatch:
 
 permissions:
