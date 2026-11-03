@@ -108,10 +108,13 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         <div
           class="flex min-w-0 items-baseline gap-x-1.5 select-none tracking-[0.4px] text-cover/45"
         >
-          <span class="shrink-0 whitespace-nowrap">
+          <span
+            class="min-w-0 truncate whitespace-nowrap"
+            :class="albumTarget?.name ? 'max-w-[55%]' : 'max-w-full'"
+          >
             <template v-if="artists.length">
               <template v-for="(artist, index) in artists" :key="artist.id ?? artist.name">
-                <span v-if="index > 0">,</span>
+                <span v-if="index > 0" class="mr-1">,</span>
                 <button
                   type="button"
                   class="app-no-drag appearance-none border-0 bg-transparent p-0 transition-colors"
@@ -130,6 +133,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
           </span>
           <template v-if="albumTarget?.name">
             <span class="shrink-0 text-cover/25">—</span>
+
             <button
               type="button"
               class="app-no-drag min-w-0 flex-1 appearance-none truncate border-0 bg-transparent p-0 text-left transition-colors"
