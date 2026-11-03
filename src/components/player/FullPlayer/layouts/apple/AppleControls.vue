@@ -50,6 +50,30 @@ const goToArtist = (artist: Artist): void => {
   if (navigateToResource(artistTarget(artist))) status.isPlayerExpanded = false;
 };
 
+/** 当前专辑详情页跳转目标 */
+const albumTarget = computed<ResourceNavigationTarget | null>(() => {
+  const track = displayTrack.value;
+  if (!track?.album?.name) return null;
+  return {
+    type: "album",
+    source: track.source,
+    id: track.album.id,
+    name: track.album.name,
+  };
+});
+
+/** 专辑是否可跳转 */
+const isAlbumLinkable = computed(() =>
+  albumTarget.value ? canNavigateToResource(albumTarget.value) : false,
+);
+
+/** 跳转专辑详情页并收起全屏播放器 */
+const goToAlbum = (): void => {
+  const target = albumTarget.value;
+  if (!target || !isAlbumLinkable.value) return;
+  if (navigateToResource(target)) status.isPlayerExpanded = false;
+};
+
 const quality = computed(() => media.detail?.quality ?? displayTrack.value?.quality);
 
 const volumePosition = computed(() => volumeGainToPosition(status.volume));
@@ -96,6 +120,19 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
             </template>
           </template>
           <template v-else>{{ t("playlist.unknownArtist") }}</template>
+          <template v-if="albumTarget">
+            <span class="mx-1.5 text-cover/25">—</span>
+            <button
+              type="button"
+              class="app-no-drag max-w-[16em] truncate align-bottom transition-colors"
+              :class="
+                isAlbumLinkable ? 'cursor-pointer hover:text-cover/80' : 'cursor-default'
+              "
+              @click="goToAlbum"
+            >
+              {{ albumTarget.name }}
+            </button>
+          </template>
         </div>
       </div>
       <SButton
