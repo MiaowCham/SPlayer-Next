@@ -14,7 +14,6 @@ import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
 import { useUserStore } from "@/stores/user";
-import { useTimeoutFn } from "@vueuse/core";
 
 const media = useMediaStore();
 const status = useStatusStore();
@@ -84,18 +83,18 @@ const attachVideoSource = async (result: DynamicCoverResult | null): Promise<voi
   video.src = result.url;
 };
 
-/** 动态封面再放送：视频结束后 2s 重新播放 */
-const { start: dynamicCoverStart, stop: dynamicCoverStop } = useTimeoutFn(
-  () => {
-    const video = videoRef.value;
-    if (!video) return;
-    // HLS 播完后 currentTime 停在结尾，复位才能重播
-    if (video.currentTime > 0) video.currentTime = 0;
-    void video.play();
-  },
-  2000,
-  { immediate: false },
-);
+const { isPlaying } = storeToRefs(status);
+
+/** 播放状态与视频同步：Apple Music 的动效封面随播放暂停 */
+const syncVideoPlayback = (): void => {
+  const video = videoRef.value;
+  if (!video) return;
+  if (isPlaying.value) {
+    void video.play().catch(() => {});
+  } else {
+    video.pause();
+  }
+};
 
 /** 拉取动态封面：开关开启且非加载中才生效 */
 const fetchDynamicCover = async (): Promise<void> => {
@@ -111,7 +110,6 @@ const fetchDynamicCover = async (): Promise<void> => {
     return;
   }
 
-  dynamicCoverStop();
   dynamicCoverLoaded.value = false;
 
   let result = await resolveDynamicCover(
@@ -142,6 +140,7 @@ const fetchDynamicCover = async (): Promise<void> => {
 /** 首帧就绪后淡入视频层 */
 const onCoverFrame = (): void => {
   dynamicCoverLoaded.value = true;
+  syncVideoPlayback();
   void window.api.lyrics.log("info", "[am-cover] first frame ready");
 };
 
@@ -154,11 +153,6 @@ const onCoverError = (): void => {
   // 资源失效（节日封面已下架等）时清掉缓存，下次播放重新解析
   const track = displayTrack.value;
   if (track) invalidateDynamicCover(track, settings.player.appleMusicStorefront);
-};
-
-const onDynamicCoverEnded = (): void => {
-  dynamicCoverLoaded.value = false;
-  dynamicCoverStart();
 };
 
 /** 卸载或切歌时清理视频元素，避免继续解码 */
@@ -180,12 +174,15 @@ watch(
   },
 );
 
+watch(isPlaying, () => {
+  syncVideoPlayback();
+});
+
 onMounted(() => {
   fetchDynamicCover();
 });
 
 onBeforeUnmount(() => {
-  dynamicCoverStop();
   cleanupDynamicCover();
 });
 </script>
@@ -202,10 +199,10 @@ onBeforeUnmount(() => {
         :class="['dynamic-cover', { loaded: dynamicCoverLoaded }]"
         muted
         autoplay
+        loop
         playsinline
         @loadeddata="onCoverFrame"
         @error="onCoverError"
-        @ended="onDynamicCoverEnded"
       />
     </Transition>
   </div>
