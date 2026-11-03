@@ -114,7 +114,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
                 <span v-if="index > 0">,</span>
                 <button
                   type="button"
-                  class="app-no-drag transition-colors"
+                  class="app-no-drag appearance-none border-0 bg-transparent p-0 transition-colors"
                   :class="
                     isArtistLinkable(artist)
                       ? 'cursor-pointer hover:text-cover/80 hover:underline underline-offset-[3px]'
@@ -132,7 +132,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
             <span class="shrink-0 text-cover/25">—</span>
             <button
               type="button"
-              class="app-no-drag min-w-0 flex-1 truncate text-left transition-colors"
+              class="app-no-drag min-w-0 flex-1 appearance-none truncate border-0 bg-transparent p-0 text-left transition-colors"
               :class="
                 isAlbumLinkable
                   ? 'cursor-pointer hover:text-cover/80 hover:underline underline-offset-[3px]'
