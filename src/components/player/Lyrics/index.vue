@@ -114,7 +114,7 @@ defineExpose({ setCurrentTime, freeze, resume });
     :raise-align-position-on-overlap="props.raiseAlignPositionOnOverlap"
     :show-translation="props.showTranslation"
     :show-line-romanization="props.showRomanization"
-    :show-word-romanization="settings.lyric.showWordRomanization"
+    :show-word-romanization="settings.lyric.showWordRomanization && props.showRomanization"
     :swap-translation-pronunciation="props.swapTranslationPronunciation"
     :larger-lyric-text="props.largerLyricText"
     :force-syllable-spacing="props.forceSyllableSpacing"
