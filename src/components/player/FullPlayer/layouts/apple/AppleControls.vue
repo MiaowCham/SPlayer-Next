@@ -6,7 +6,13 @@ import { useTimeFormat } from "@/composables/useTimeFormat";
 import { useProgressLyric } from "@/composables/useProgressLyric";
 import * as player from "@/core/player";
 import { volumeGainToPosition, volumePositionToGain } from "@/utils/volume";
+import type { Artist } from "@shared/types/player";
 import { getValidArtists } from "@shared/utils/track";
+import {
+  canNavigateToResource,
+  navigateToResource,
+  type ResourceNavigationTarget,
+} from "@/utils/navigate";
 import { getQualityLabel, isLosslessQuality } from "@/utils/quality";
 import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import { useDownload } from "@/composables/useDownload";
@@ -25,12 +31,24 @@ const { snapToNearestLyric } = useProgressLyric();
 const displayTrack = computed(() => media.track ?? status.currentTrack);
 const hasTrack = computed(() => !!displayTrack.value);
 
-const artistNames = computed(
-  () =>
-    getValidArtists(displayTrack.value?.artists)
-      .map((artist) => artist.name)
-      .join(", ") || t("playlist.unknownArtist"),
-);
+const artists = computed(() => getValidArtists(displayTrack.value?.artists));
+
+/** 生成歌手详情页跳转目标 */
+const artistTarget = (artist: Artist): ResourceNavigationTarget => ({
+  type: "artist",
+  source: displayTrack.value?.source,
+  id: artist.id,
+  name: artist.name,
+});
+
+/** 歌手是否可跳转 */
+const isArtistLinkable = (artist: Artist): boolean => canNavigateToResource(artistTarget(artist));
+
+/** 跳转歌手详情页并收起全屏播放器 */
+const goToArtist = (artist: Artist): void => {
+  if (!isArtistLinkable(artist)) return;
+  if (navigateToResource(artistTarget(artist))) status.isPlayerExpanded = false;
+};
 
 const quality = computed(() => media.detail?.quality ?? displayTrack.value?.quality);
 
@@ -63,7 +81,22 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         <SMarquee fit class="max-w-full font-medium tracking-[0.4px] text-cover/90">
           {{ displayTrack?.title }}
         </SMarquee>
-        <div class="truncate tracking-[0.4px] text-cover/45">{{ artistNames }}</div>
+        <div class="truncate tracking-[0.4px] text-cover/45">
+          <template v-if="artists.length">
+            <template v-for="(artist, index) in artists" :key="artist.id ?? artist.name">
+              <span v-if="index > 0">, </span>
+              <button
+                type="button"
+                class="app-no-drag transition-colors"
+                :class="isArtistLinkable(artist) ? 'cursor-pointer hover:text-cover/80' : 'cursor-default'"
+                @click="goToArtist(artist)"
+              >
+                {{ artist.name }}
+              </button>
+            </template>
+          </template>
+          <template v-else>{{ t("playlist.unknownArtist") }}</template>
+        </div>
       </div>
       <SButton
         v-if="displayTrack?.source !== 'plugin'"
