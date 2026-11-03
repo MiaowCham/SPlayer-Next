@@ -4,7 +4,11 @@ const hdCache = shallowRef<{ id: string; data: string } | null>(null);
 
 <script setup lang="ts">
 import Hls from "hls.js";
-import { resolveDynamicCover, type DynamicCoverResult } from "@/services/dynamicCover";
+import {
+  invalidateDynamicCover,
+  resolveDynamicCover,
+  type DynamicCoverResult,
+} from "@/services/dynamicCover";
 import { isSameCoverArt } from "@/utils/coverFingerprint";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
@@ -147,6 +151,9 @@ const onCoverError = (): void => {
     "warn",
     `[am-cover] video error code=${video?.error?.code ?? "-"} msg=${video?.error?.message ?? "-"}`,
   );
+  // 资源失效（节日封面已下架等）时清掉缓存，下次播放重新解析
+  const track = displayTrack.value;
+  if (track) invalidateDynamicCover(track, settings.player.appleMusicStorefront);
 };
 
 const onDynamicCoverEnded = (): void => {

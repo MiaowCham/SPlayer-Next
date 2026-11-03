@@ -212,5 +212,29 @@ export const resolveDynamicCover = async (
   return remember(key, motion ? { url: motion.url, format: "hls", artwork: motion.artwork } : null);
 };
 
+/**
+ * 失效单曲的动态封面缓存
+ *
+ * 视频加载失败通常意味着 Apple 已撤下该资源（节日限定封面过期），
+ * 此时同时清掉渲染层缓存与主进程缓存，下次播放重新解析
+ *
+ * @param track - 当前曲目
+ * @param storefront - Apple Music 商店地区
+ */
+export const invalidateDynamicCover = (track: Track, storefront: string): void => {
+  cache.delete(`${track.source}:${track.id}`);
+  const artist = track.artists
+    ?.map((item) => item.name)
+    .filter(Boolean)
+    .join(" ");
+  window.api.appleMusic.motionInvalidate({
+    title: track.title,
+    artist: artist ?? "",
+    album: track.album?.name,
+    songId: track.source === "appleMusic" ? track.id : undefined,
+    storefront,
+  });
+};
+
 /** 清空缓存（切换账号或强制刷新时使用） */
 export const clearDynamicCoverCache = (): void => cache.clear();

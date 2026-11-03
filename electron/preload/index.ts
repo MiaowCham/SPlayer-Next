@@ -254,6 +254,8 @@ const api = {
     search: (params: AppleMusicSearchParams) => ipcRenderer.invoke("appleMusic:search", params),
     // 查询专辑动态封面（AMP editorialVideo）
     motion: (params: AppleMusicMotionParams) => ipcRenderer.invoke("appleMusic:motion", params),
+    motionInvalidate: (params: AppleMusicMotionParams) =>
+      ipcRenderer.send("appleMusic:motionInvalidate", params),
   },
   system: {
     installType: getInstallType(),

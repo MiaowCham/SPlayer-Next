@@ -46,7 +46,19 @@ const resolveStorefrontOrder = (title: string, artist: string): string[] => {
   return LATIN_STOREFRONTS;
 };
 
-const cache = new Map<string, AppleMusicMotionResult | null>();
+/**
+ * 缓存有效期：Apple 的节日动效封面会随时间替换，这里按 30 分钟重新校验
+ */
+const CACHE_TTL_MS = 30 * 60 * 1000;
+
+interface MotionCacheEntry {
+  /** 查询结果，未命中为 null */
+  value: AppleMusicMotionResult | null;
+  /** 写入时间戳 */
+  at: number;
+}
+
+const cache = new Map<string, MotionCacheEntry>();
 
 /**
  * 写入缓存并淘汰最旧条目
@@ -62,8 +74,31 @@ const remember = (
     const oldest = cache.keys().next();
     if (!oldest.done) cache.delete(oldest.value);
   }
-  cache.set(key, value);
+  cache.set(key, { value, at: Date.now() });
   return value;
+};
+
+/**
+ * 读取未过期的缓存
+ * @param key - 曲目缓存键
+ * @returns 命中返回结果，过期或未命中返回 undefined
+ */
+const readCache = (key: string): AppleMusicMotionResult | null | undefined => {
+  const entry = cache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.at > CACHE_TTL_MS) {
+    cache.delete(key);
+    return undefined;
+  }
+  return entry.value;
+};
+
+/**
+ * 清除指定曲目的缓存，供播放器在视频加载失败时调用
+ * @param params - 曲目元信息与商店地区
+ */
+export const invalidateAppleMusicMotionCover = (params: AppleMusicMotionParams): void => {
+  cache.delete(`${params.storefront}|${params.songId ?? ""}|${params.title}|${params.artist}`);
 };
 
 /**
@@ -365,7 +400,8 @@ export const getAppleMusicMotionCover = async (
   params: AppleMusicMotionParams,
 ): Promise<AppleMusicMotionResult | null> => {
   const key = `${params.storefront}|${params.songId ?? ""}|${params.title}|${params.artist}`;
-  if (cache.has(key)) return cache.get(key) ?? null;
+  const cached = readCache(key);
+  if (cached !== undefined) return cached;
 
   try {
     const token = await getDeveloperToken();
