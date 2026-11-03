@@ -133,7 +133,7 @@ export const useSettingsStore = defineStore(
     /** 播放器 */
     const player = reactive<PlayerSettings>({
       layout: "classic",
-      barLyricMode: "lyric",
+      barLyricMode: "translation",
       playerBgType: "blur",
       playerBgRenderer: "mesh",
       playerBgLightWave: false,
