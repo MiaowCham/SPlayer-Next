@@ -13,11 +13,10 @@ export type PlayerBgType =
   "blur" | "solid" | "animation" | "isolation" | "titanium" | "apple-music" | "apple-music-classic";
 export type CoverLayout = "default" | "fullscreen";
 
-/** 全屏播放器布局样式 */
 /** 自动发音的对齐方式 */
 export type PronunciationAlignment = "auto" | "word" | "line";
 
-export type PlayerLayout = "classic" | "fullCover" | "fullLyric";
+export type PlayerLayout = "classic" | "fullCover" | "fullLyric" | "apple";
 
 /**
  * 歌曲播放时间显示格式

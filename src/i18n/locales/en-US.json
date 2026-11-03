@@ -523,6 +523,7 @@
     "lyricCredit": "Lyrics by",
     "lyricProduction": "Lyric credits",
     "songProduction": "Song production",
+    "collapse": "Collapse Player",
     "copyLyric": {
       "title": "Copy Lyrics",
       "contentLabel": "Content to copy",
@@ -2740,7 +2741,8 @@
       "description": "Overall layout of the full-screen player",
       "classic": "Classic",
       "fullCover": "Fullscreen Cover",
-      "fullLyric": "Fullscreen Lyrics"
+      "fullLyric": "Fullscreen Lyrics",
+      "apple": "AM Style"
     },
     "pronunciationAlignment": {
       "label": "Auto pronunciation alignment",
