@@ -108,11 +108,15 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         <div class="truncate tracking-[0.4px] text-cover/45">
           <template v-if="artists.length">
             <template v-for="(artist, index) in artists" :key="artist.id ?? artist.name">
-              <span v-if="index > 0">, </span>
+              <span v-if="index > 0">,</span>
               <button
                 type="button"
                 class="app-no-drag transition-colors"
-                :class="isArtistLinkable(artist) ? 'cursor-pointer hover:text-cover/80' : 'cursor-default'"
+                :class="
+                  isArtistLinkable(artist)
+                    ? 'cursor-pointer hover:text-cover/80 hover:underline underline-offset-[3px]'
+                    : 'cursor-default'
+                "
                 @click="goToArtist(artist)"
               >
                 {{ artist.name }}
@@ -126,7 +130,9 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
               type="button"
               class="app-no-drag max-w-[16em] truncate align-bottom transition-colors"
               :class="
-                isAlbumLinkable ? 'cursor-pointer hover:text-cover/80' : 'cursor-default'
+                isAlbumLinkable
+                  ? 'cursor-pointer hover:text-cover/80 hover:underline underline-offset-[3px]'
+                  : 'cursor-default'
               "
               @click="goToAlbum"
             >
