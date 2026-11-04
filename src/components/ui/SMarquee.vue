@@ -33,10 +33,12 @@ const containerRef = ref<HTMLElement>();
 const textRef = ref<HTMLElement>();
 const trackRef = ref<HTMLElement>();
 const isOverflowing = ref(false);
+const isScrolling = ref(false);
 const contentWidth = ref(0);
 
 let resizeObserver: ResizeObserver | null = null;
 let animation: Animation | null = null;
+let phaseFrame: number | undefined;
 
 /**
  * 同步滚动动画
@@ -50,6 +52,7 @@ const syncAnimation = (): void => {
   if (!track) return;
   animation?.cancel();
   animation = null;
+  stopPhaseTracking();
   if (!isOverflowing.value) {
     track.style.transform = "";
     return;
@@ -75,6 +78,33 @@ const syncAnimation = (): void => {
       fill: "both",
     },
   );
+  startPhaseTracking(props.delay, total, props.pause);
+};
+
+/** 跟踪动画相位：滚动段内侧也要渐隐，停留段只保留右侧渐隐 */
+const startPhaseTracking = (delay: number, total: number, pause: number): void => {
+  stopPhaseTracking();
+  const startedAt = performance.now();
+  const tick = (): void => {
+    const elapsed = performance.now() - startedAt - delay;
+    if (elapsed < 0) {
+      isScrolling.value = false;
+    } else {
+      const phase = elapsed % total;
+      isScrolling.value = phase >= pause;
+    }
+    phaseFrame = requestAnimationFrame(tick);
+  };
+  phaseFrame = requestAnimationFrame(tick);
+};
+
+/** 停止相位跟踪 */
+const stopPhaseTracking = (): void => {
+  if (phaseFrame !== undefined) {
+    cancelAnimationFrame(phaseFrame);
+    phaseFrame = undefined;
+  }
+  isScrolling.value = false;
 };
 
 const check = (): void => {
@@ -104,6 +134,7 @@ watch(() => settings.appearance.marqueeScroll, check);
 onUnmounted(() => {
   resizeObserver?.disconnect();
   animation?.cancel();
+  stopPhaseTracking();
 });
 </script>
 
@@ -111,7 +142,10 @@ onUnmounted(() => {
   <div
     ref="containerRef"
     class="overflow-hidden"
-    :class="[fit ? 'max-w-full' : 'w-full', isOverflowing && mask && 's-marquee-mask']"
+    :class="[
+      fit ? 'max-w-full' : 'w-full',
+      isOverflowing && mask && (isScrolling ? 's-marquee-mask-scrolling' : 's-marquee-mask'),
+    ]"
     :style="{
       '--marquee-mask-width': `${maskWidth}px`,
       '--marquee-gap': `${gap}px`,
@@ -133,7 +167,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Apple 只在右侧渐隐：文字起点贴左边缘，末尾被淡出 */
+/* 停留段：只有右侧渐隐，文字起点贴左边缘 */
 .s-marquee-mask {
   mask-image: linear-gradient(
     to right,
@@ -144,6 +178,24 @@ onUnmounted(() => {
   -webkit-mask-image: linear-gradient(
     to right,
     black 0%,
+    black calc(100% - var(--marquee-mask-width, 12px)),
+    transparent 100%
+  );
+}
+
+/* 滚动段：两侧都渐隐，滚动中的文字自然淡入淡出 */
+.s-marquee-mask-scrolling {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black var(--marquee-mask-width, 12px),
+    black calc(100% - var(--marquee-mask-width, 12px)),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black var(--marquee-mask-width, 12px),
     black calc(100% - var(--marquee-mask-width, 12px)),
     transparent 100%
   );
