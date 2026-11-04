@@ -85,22 +85,25 @@ const syncAnimation = (): void => {
     },
   );
   animationKey = key;
-  startPhaseTracking(props.delay, total, props.pause);
+  startPhaseTracking(props.delay);
 };
 
 /** 跟踪动画相位：滚动段内侧也要渐隐，停留段只保留右侧渐隐 */
-const startPhaseTracking = (delay: number, total: number, pause: number): void => {
+const startPhaseTracking = (delay: number): void => {
   stopPhaseTracking();
   const startedAt = performance.now();
   const tick = (): void => {
     const elapsed = performance.now() - startedAt - delay;
-    if (elapsed < 0) {
+    const track = trackRef.value;
+    const text = textRef.value;
+    if (elapsed < 0 || !track || !text) {
       isScrolling.value = false;
     } else {
-      const phase = elapsed % total;
-      // 收尾阶段速度已接近 0，提前一点撤掉左侧渐隐，避免"停了还在渐隐"的延迟感
-      const tail = Math.min(600, (total - pause) * 0.18);
-      isScrolling.value = phase >= pause && phase < total - tail;
+      // 读取当前位移：左边缘是否还有被裁切的文字，决定左侧渐隐
+      const matrix = getComputedStyle(track).transform;
+      const offset = Math.abs(matrix === "none" ? 0 : Number(matrix.split(",")[4] ?? 0));
+      const textWidth = text.scrollWidth;
+      isScrolling.value = offset > 1 && offset < textWidth - 8;
     }
     phaseFrame = requestAnimationFrame(tick);
   };
