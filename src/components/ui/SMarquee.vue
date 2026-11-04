@@ -98,7 +98,9 @@ const startPhaseTracking = (delay: number, total: number, pause: number): void =
       isScrolling.value = false;
     } else {
       const phase = elapsed % total;
-      isScrolling.value = phase >= pause;
+      // 收尾阶段速度已接近 0，提前一点撤掉左侧渐隐，避免"停了还在渐隐"的延迟感
+      const tail = Math.min(600, (total - pause) * 0.18);
+      isScrolling.value = phase >= pause && phase < total - tail;
     }
     phaseFrame = requestAnimationFrame(tick);
   };
