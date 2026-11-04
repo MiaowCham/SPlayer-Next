@@ -10,8 +10,6 @@ export interface SMarqueeProps {
   pause?: number;
   /** 两份内容之间的间隔（px） */
   gap?: number;
-  /** 起步加速时长（ms） */
-  ramp?: number;
   /** 收缩适应内容 */
   fit?: boolean;
   /** 是否在超出滚动时启用边缘渐变遮罩 */
@@ -25,7 +23,6 @@ const props = withDefaults(defineProps<SMarqueeProps>(), {
   delay: 1000,
   pause: 5500,
   gap: 50,
-  ramp: 400,
   fit: false,
   mask: true,
   maskWidth: 12,
@@ -59,22 +56,15 @@ const syncAnimation = (): void => {
   }
   const distance = contentWidth.value + props.gap;
   if (distance <= 1) return;
-  // 起步先加速到匀速：加速段平均速度是匀速的一半
-  const rampMs = Math.min(props.ramp, (distance / props.speed) * 500);
-  const rampDistance = (props.speed * rampMs) / 2000;
-  const scrollMs = rampMs + ((distance - rampDistance) / props.speed) * 1000;
+  const scrollMs = (distance / props.speed) * 1000;
   const total = scrollMs + props.pause;
   const pauseRatio = props.pause / total;
-  const rampRatio = rampMs / total;
+  // 全程一条缓动曲线：起步略缓、尾段明显减速停住（对齐 Apple 的收尾手感）
+  const scrollEasing = "cubic-bezier(0.22, 0, 0.12, 1)";
   animation = track.animate(
     [
       { transform: "translateX(0px)", offset: 0, easing: "linear" },
-      { transform: "translateX(0px)", offset: pauseRatio, easing: "ease-in" },
-      {
-        transform: `translateX(-${rampDistance}px)`,
-        offset: pauseRatio + rampRatio,
-        easing: "linear",
-      },
+      { transform: "translateX(0px)", offset: pauseRatio, easing: scrollEasing },
       { transform: `translateX(-${distance}px)`, offset: 1 },
     ],
     {
