@@ -6,8 +6,10 @@ export interface SMarqueeProps {
   speed?: number;
   /** 开始滚动前的延迟（ms） */
   delay?: number;
-  /** 滚动结束回到起点后的停留时间（ms） */
+  /** 一轮滚动结束后在接缝处的停留时间（ms） */
   pause?: number;
+  /** 两份内容之间的间隔（px） */
+  gap?: number;
   /** 收缩适应内容 */
   fit?: boolean;
   /** 是否在超出滚动时启用边缘渐变遮罩 */
@@ -19,7 +21,8 @@ export interface SMarqueeProps {
 const props = withDefaults(defineProps<SMarqueeProps>(), {
   speed: 80,
   delay: 1000,
-  pause: 5000,
+  pause: 5500,
+  gap: 50,
   fit: false,
   mask: true,
   maskWidth: 12,
@@ -30,11 +33,18 @@ const containerRef = ref<HTMLElement>();
 const textRef = ref<HTMLElement>();
 const trackRef = ref<HTMLElement>();
 const isOverflowing = ref(false);
+const contentWidth = ref(0);
 
 let resizeObserver: ResizeObserver | null = null;
 let animation: Animation | null = null;
 
-/** 按当前宽度同步滚动动画（Apple 风格：滚到底即时回到起点，停留后重播） */
+/**
+ * 同步滚动动画
+ *
+ * 与 Apple Music 一致：内容复制一份并以间隔相隔，匀速从左往右推进一整轮
+ * （内容宽 + 间隔），到接缝处停留数秒后继续；由于副本起点与正文起点重合，
+ * 停留与循环都看不出接缝
+ */
 const syncAnimation = (): void => {
   const track = trackRef.value;
   if (!track) return;
@@ -44,22 +54,16 @@ const syncAnimation = (): void => {
     track.style.transform = "";
     return;
   }
-  const container = containerRef.value;
-  const text = textRef.value;
-  if (!container || !text) return;
-  const overflow = Math.max(text.scrollWidth - container.clientWidth, 0);
-  if (overflow <= 1) {
-    track.style.transform = "";
-    return;
-  }
-  const scrollMs = (overflow / props.speed) * 1000;
+  const distance = contentWidth.value + props.gap;
+  if (distance <= 1) return;
+  const scrollMs = (distance / props.speed) * 1000;
   const total = scrollMs + props.pause;
-  const pauseRatio = props.pause / total;
+  const scrollRatio = scrollMs / total;
   animation = track.animate(
     [
       { transform: "translateX(0px)", offset: 0 },
-      { transform: "translateX(0px)", offset: pauseRatio },
-      { transform: `translateX(-${overflow}px)`, offset: 1 },
+      { transform: `translateX(-${distance}px)`, offset: scrollRatio },
+      { transform: `translateX(-${distance}px)`, offset: 1 },
     ],
     {
       duration: total,
@@ -75,9 +79,10 @@ const check = (): void => {
   const container = containerRef.value;
   const text = textRef.value;
   if (!container || !text) return;
+  contentWidth.value = text.scrollWidth;
   const overflow = text.scrollWidth - container.clientWidth;
   isOverflowing.value = settings.appearance.marqueeScroll && overflow > 1;
-  syncAnimation();
+  nextTick(syncAnimation);
 };
 
 onMounted(() => {
@@ -107,10 +112,18 @@ onUnmounted(() => {
     :class="[fit ? 'max-w-full' : 'w-full', isOverflowing && mask && 's-marquee-mask']"
     :style="{
       '--marquee-mask-width': `${maskWidth}px`,
+      '--marquee-gap': `${gap}px`,
     }"
   >
     <div ref="trackRef" class="inline-flex min-w-full whitespace-nowrap">
       <span ref="textRef" class="inline-flex shrink-0 items-center whitespace-nowrap">
+        <slot />
+      </span>
+      <span
+        v-if="isOverflowing"
+        class="inline-flex shrink-0 items-center whitespace-nowrap pl-[var(--marquee-gap,50px)]"
+        aria-hidden="true"
+      >
         <slot />
       </span>
     </div>
