@@ -128,6 +128,7 @@ export const useSettingsStore = defineStore(
       seamlessTransition: false,
       songListStyle: "comfortable",
       reduceMotion: false,
+      marqueeScroll: true,
     });
 
     /** 播放器 */

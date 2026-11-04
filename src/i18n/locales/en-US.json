@@ -2754,6 +2754,11 @@
       "auto": "Auto",
       "word": "Word",
       "line": "Line"
+    },
+    "appearance": {
+      "marqueeScroll": {
+        "label": "Text scrolling"
+      }
     }
   },
   "collection": {

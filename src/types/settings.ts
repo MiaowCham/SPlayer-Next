@@ -391,6 +391,8 @@ export interface AppearanceSettings {
   layoutMode: LayoutMode;
   /** 路由切换动效 */
   routeTransition: RouteTransition;
+  /** 过长文字滚动（标题、歌手等） */
+  marqueeScroll: boolean;
   /** 侧边栏折叠 */
   sidebarCollapsed: boolean;
   /** 侧边栏 Logo 快捷切换折叠状态 */

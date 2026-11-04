@@ -80,13 +80,7 @@ html[data-reduced-motion] {
     will-change: auto !important;
   }
 
-  :is(.s-marquee-scrolling, .s-marquee-mask) {
-    animation: none;
-  }
-
-  .s-marquee-scrolling > [aria-hidden="true"] {
-    display: none;
-  }
+  /* 跑马灯与减少动效解耦：由外观设置单独控制 */
 
   /* 移除毛玻璃后用更实的底色保证可读性 */
 

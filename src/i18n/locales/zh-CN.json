@@ -2754,6 +2754,11 @@
       "auto": "自动",
       "word": "逐字",
       "line": "逐行"
+    },
+    "appearance": {
+      "marqueeScroll": {
+        "label": "文字滚动"
+      }
     }
   },
   "collection": {

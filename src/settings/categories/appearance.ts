@@ -189,6 +189,12 @@ const appearanceCategory: SettingCategory = {
           defaultValue: false,
         },
         {
+          key: "marqueeScroll",
+          type: "switch",
+          binding: { store: "settings", path: "appearance.marqueeScroll" },
+          defaultValue: true,
+        },
+        {
           key: "routeTransition",
           type: "select",
           binding: { store: "settings", path: "appearance.routeTransition" },

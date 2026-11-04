@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useSettingsStore } from "@/stores/settings";
 export interface SMarqueeProps {
   /** 滚动速度（px/s） */
   speed?: number;
@@ -13,6 +14,8 @@ export interface SMarqueeProps {
   /** 渐变遮罩宽度（px） */
   maskWidth?: number;
 }
+
+const settings = useSettingsStore();
 
 const props = withDefaults(defineProps<SMarqueeProps>(), {
   speed: 30,
@@ -30,25 +33,14 @@ const animDuration = ref("0s");
 const animDistance = ref("100%");
 
 let resizeObserver: ResizeObserver | null = null;
-/** 诊断日志节流时间戳 */
-let lastLogAt = 0;
 
 const check = () => {
   const container = containerRef.value;
   if (!container) return;
   // 容器与文本取较大者：任一侧量到 0（字体未就绪/被收缩）时仍能拿到真实内容宽度
   const contentWidth = Math.max(container.scrollWidth, textRef.value?.scrollWidth ?? 0);
-  const overflow = contentWidth > container.clientWidth + 1;
+  const overflow = settings.appearance.marqueeScroll && contentWidth > container.clientWidth + 1;
   isOverflowing.value = overflow;
-  // 临时诊断：把量到的宽高写进日志，便于定位不滚动的原因
-  const now = Date.now();
-  if (now - lastLogAt > 2000) {
-    lastLogAt = now;
-    void (window as unknown as { api?: { lyrics?: { log?: (level: string, msg: string) => void } } }).api?.lyrics?.log?.(
-      "info",
-      `[marquee] content=${contentWidth} client=${container.clientWidth} overflow=${overflow} duration=${animDuration.value}`,
-    );
-  }
   if (overflow) {
     // 兜底下限，避免宽度为 0 时算出 0s 导致动画瞬间跑完、两份内容重叠
     const duration = Math.max(contentWidth / props.speed, 4);
