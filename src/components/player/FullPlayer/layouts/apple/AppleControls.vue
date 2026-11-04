@@ -108,10 +108,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         <div
           class="flex min-w-0 items-baseline gap-x-1.5 select-none tracking-[0.4px] text-cover/45"
         >
-          <span
-            class="min-w-0 truncate whitespace-nowrap"
-            :class="albumTarget?.name ? 'max-w-[55%]' : 'max-w-full'"
-          >
+          <SMarquee fit class="min-w-0" :class="albumTarget?.name ? 'max-w-[55%]' : 'max-w-full'">
             <template v-if="artists.length">
               <template v-for="(artist, index) in artists" :key="artist.id ?? artist.name">
                 <span v-if="index > 0" class="mr-1">,</span>
@@ -130,7 +127,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
               </template>
             </template>
             <template v-else>{{ t("playlist.unknownArtist") }}</template>
-          </span>
+          </SMarquee>
           <template v-if="albumTarget?.name">
             <span class="shrink-0 text-cover/25">—</span>
 
