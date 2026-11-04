@@ -151,7 +151,11 @@ const menuItemClass = computed(() =>
             <component :is="item.icon" v-if="item.icon" class="size-3.5 opacity-60 shrink-0" />
             <span class="flex flex-col min-w-0">
               <span class="truncate">{{ item.label }}</span>
-              <span v-if="item.description" class="truncate text-xs text-on-surface-variant/60">
+              <span
+                v-if="item.description"
+                class="truncate text-xs leading-snug"
+                :class="cover ? 'text-cover/70' : 'text-on-surface-variant/80'"
+              >
                 {{ item.description }}
               </span>
             </span>

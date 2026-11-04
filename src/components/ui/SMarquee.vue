@@ -27,18 +27,34 @@ const containerRef = ref<HTMLElement>();
 const textRef = ref<HTMLElement>();
 const isOverflowing = ref(false);
 const animDuration = ref("0s");
+const animDistance = ref("100%");
 
 let resizeObserver: ResizeObserver | null = null;
+/** 诊断日志节流时间戳 */
+let lastLogAt = 0;
 
 const check = () => {
   const container = containerRef.value;
   if (!container) return;
-  // 以容器自身的 scrollWidth 判定：文本节点可能被 flex 收缩，直接量容器更可靠
-  const contentWidth = container.scrollWidth;
+  // 容器与文本取较大者：任一侧量到 0（字体未就绪/被收缩）时仍能拿到真实内容宽度
+  const contentWidth = Math.max(container.scrollWidth, textRef.value?.scrollWidth ?? 0);
   const overflow = contentWidth > container.clientWidth + 1;
   isOverflowing.value = overflow;
+  // 临时诊断：把量到的宽高写进日志，便于定位不滚动的原因
+  const now = Date.now();
+  if (now - lastLogAt > 2000) {
+    lastLogAt = now;
+    void (window as unknown as { api?: { lyrics?: { log?: (level: string, msg: string) => void } } }).api?.lyrics?.log?.(
+      "info",
+      `[marquee] content=${contentWidth} client=${container.clientWidth} overflow=${overflow} duration=${animDuration.value}`,
+    );
+  }
   if (overflow) {
-    animDuration.value = `${contentWidth / props.speed}s`;
+    // 兜底下限，避免宽度为 0 时算出 0s 导致动画瞬间跑完、两份内容重叠
+    const duration = Math.max(contentWidth / props.speed, 4);
+    animDuration.value = `${duration}s`;
+    // 位移量按「内容宽 + 间隔」精确计算，避免用 -50% 时因间隔产生的半格偏差
+    animDistance.value = `${contentWidth + props.gap}px`;
   }
 };
 
@@ -47,8 +63,10 @@ onMounted(() => {
   if (containerRef.value) resizeObserver.observe(containerRef.value);
   if (textRef.value) resizeObserver.observe(textRef.value);
   nextTick(check);
-  // 字体与布局稳定后再量一次，避免首帧宽度未定
+  // 布局与字体就绪后再量几次，避免首帧宽度为 0 时算出异常时长
+  requestAnimationFrame(check);
   setTimeout(check, 200);
+  document.fonts?.ready.then(check).catch(() => {});
 });
 
 onUpdated(check);
@@ -68,6 +86,7 @@ onUnmounted(() => {
       '--marquee-delay': `${delay}ms`,
       '--marquee-gap': `${gap}px`,
       '--marquee-mask-width': `${maskWidth}px`,
+      '--marquee-distance': animDistance,
     }"
   >
     <div
@@ -98,7 +117,7 @@ onUnmounted(() => {
     transform: translateX(0);
   }
   100% {
-    transform: translateX(calc(-50% - var(--marquee-gap, 50px) / 2));
+    transform: translateX(calc(-1 * var(--marquee-distance, 100%)));
   }
 }
 
