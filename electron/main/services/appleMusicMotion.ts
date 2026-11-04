@@ -260,6 +260,21 @@ const isSameSong = (song: any, params: AppleMusicMotionParams): boolean => {
 };
 
 /**
+ * 取歌手串里的第一位歌手
+ *
+ * 搜索结果对超长检索词不友好：把整串合作歌手拼进去往往直接返回 0 条，
+ * 因此只用第一位歌手参与检索，匹配阶段仍按完整歌手串校验
+ *
+ * @param artist - 完整歌手串
+ * @returns 第一位歌手，取不到时返回空串
+ */
+const primaryArtistOf = (artist: string | undefined): string =>
+  (artist ?? "")
+    .split(/[,，&/、;；]+/u)
+    .map((name) => name.trim())
+    .find((name) => name.length > 0) ?? "";
+
+/**
  * 按地区生成候选检索词
  *
  * 港台区曲库多用繁体标题、大陆区为简体，直接用元数据原文常常匹配不到，
@@ -331,9 +346,14 @@ const lookupInStorefront = async (
     keepBest(await considerAlbum(data?.data?.[0]?.relationships?.albums?.data?.[0]));
   }
 
-  const term = `${params.title} ${params.artist}`.trim();
-  if (term) {
-    for (const searchTerm of searchTerms(term, storefront)) {
+  // 检索词从窄到宽：歌名 + 主歌手 → 仅歌名；过长检索词可能直接返回 0 条
+  const primaryArtist = primaryArtistOf(params.artist);
+  const songTermCandidates = [
+    `${params.title} ${primaryArtist}`.trim(),
+    params.title.trim(),
+  ].filter((value, index, list) => Boolean(value) && list.indexOf(value) === index);
+  for (const baseTerm of songTermCandidates) {
+    for (const searchTerm of searchTerms(baseTerm, storefront)) {
       const search = await requestAmp(
         `/catalog/${storefront}/search?term=${encodeURIComponent(searchTerm)}&types=songs&limit=10`,
         token,
@@ -356,8 +376,12 @@ const lookupInStorefront = async (
 
   // 歌曲搜索可能只返回标准版/单曲，专辑版（如 The Encore）搜不到对应歌曲，
   // 因此再按专辑名直接搜专辑，命中同名专辑即取它的动效封面
-  const albumTerm = `${params.album ?? ""} ${params.artist}`.trim();
-  if (albumTerm && params.album) {
+  const albumTermCandidates = params.album
+    ? [params.album.trim(), `${params.album} ${primaryArtist}`.trim()].filter(
+        (value, index, list) => Boolean(value) && list.indexOf(value) === index,
+      )
+    : [];
+  for (const albumTerm of albumTermCandidates) {
     for (const searchTerm of searchTerms(albumTerm, storefront)) {
       const search = await requestAmp(
         `/catalog/${storefront}/search?term=${encodeURIComponent(searchTerm)}&types=albums&limit=10&extend=editorialVideo`,
