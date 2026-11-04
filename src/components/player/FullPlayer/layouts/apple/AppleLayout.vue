@@ -45,7 +45,7 @@ const toggleLyric = (): void => {
   <div class="absolute top-14 inset-x-0 bottom-16" @mousemove="onMainMove">
     <!-- 左侧封面与控制 -->
     <div
-      class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
+      class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center will-change-transform transition-transform duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
       :style="{ transform: infoCentered ? 'translateX(calc(50vw - 50%))' : undefined }"
     >
       <div class="w-[min(50vh,38vw)] flex flex-col gap-[4vh]">
@@ -58,8 +58,10 @@ const toggleLyric = (): void => {
     </div>
     <!-- 右侧歌词 -->
     <div
-      class="group absolute inset-y-0 right-0 w-[55%] pr-[8%] flex flex-col transition-opacity duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
-      :class="lyricVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'"
+      class="group absolute inset-y-0 right-0 w-[55%] pr-[8%] flex flex-col transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.5,0,0.5,1)] will-change-[opacity,transform]"
+      :class="
+        lyricVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-6 pointer-events-none'
+      "
     >
       <PlayerLyric :visible="lyricVisible" />
       <LyricActions />
@@ -70,10 +72,10 @@ const toggleLyric = (): void => {
       :class="status.fullQueueOpen ? '' : 'pointer-events-none'"
     >
       <Transition
-        enter-active-class="transition-opacity duration-500"
-        enter-from-class="opacity-0"
-        leave-active-class="transition-opacity duration-500"
-        leave-to-class="opacity-0"
+        enter-active-class="transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
+        enter-from-class="opacity-0 translate-x-6"
+        leave-active-class="transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
+        leave-to-class="opacity-0 translate-x-6"
       >
         <div v-if="status.fullQueueOpen" class="w-full h-full">
           <QueuePanel @close="status.fullQueueOpen = false" />
