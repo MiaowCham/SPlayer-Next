@@ -22,7 +22,7 @@ const props = withDefaults(defineProps<SMarqueeProps>(), {
   speed: 45,
   delay: 1000,
   pause: 5500,
-  gap: 50,
+  gap: 100,
   fit: false,
   mask: true,
   maskWidth: 12,
@@ -133,18 +133,17 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Apple 只在右侧渐隐：文字起点贴左边缘，末尾被淡出 */
 .s-marquee-mask {
   mask-image: linear-gradient(
     to right,
-    transparent 0%,
-    black var(--marquee-mask-width, 12px),
+    black 0%,
     black calc(100% - var(--marquee-mask-width, 12px)),
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to right,
-    transparent 0%,
-    black var(--marquee-mask-width, 12px),
+    black 0%,
     black calc(100% - var(--marquee-mask-width, 12px)),
     transparent 100%
   );
