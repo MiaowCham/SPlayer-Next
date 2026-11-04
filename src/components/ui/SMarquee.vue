@@ -33,7 +33,7 @@ const containerRef = ref<HTMLElement>();
 const textRef = ref<HTMLElement>();
 const trackRef = ref<HTMLElement>();
 const isOverflowing = ref(false);
-const isScrolling = ref(false);
+const leftFadeWidth = ref(0);
 const contentWidth = ref(0);
 
 let resizeObserver: ResizeObserver | null = null;
@@ -92,19 +92,26 @@ const syncAnimation = (): void => {
 const startPhaseTracking = (delay: number): void => {
   stopPhaseTracking();
   const startedAt = performance.now();
+  let lastFrameAt = performance.now();
   const tick = (): void => {
-    const elapsed = performance.now() - startedAt - delay;
+    const now = performance.now();
+    const elapsed = now - startedAt - delay;
+    const delta = Math.min(now - lastFrameAt, 64);
+    lastFrameAt = now;
     const track = trackRef.value;
     const text = textRef.value;
-    if (elapsed < 0 || !track || !text) {
-      isScrolling.value = false;
-    } else {
+    let target = 0;
+    if (elapsed >= 0 && track && text) {
       // 读取当前位移：左边缘是否还有被裁切的文字，决定左侧渐隐
       const matrix = getComputedStyle(track).transform;
       const offset = Math.abs(matrix === "none" ? 0 : Number(matrix.split(",")[4] ?? 0));
       const textWidth = text.scrollWidth;
-      isScrolling.value = offset > 1 && offset < textWidth - 8;
+      if (offset > 1 && offset < textWidth - 8) target = props.maskWidth;
     }
+    // 按时间插值，约 180ms 完成淡入淡出，避免切换时边缘突然变硬
+    const step = delta / 240;
+    leftFadeWidth.value += (target - leftFadeWidth.value) * Math.min(step, 1);
+    if (Math.abs(target - leftFadeWidth.value) < 0.2) leftFadeWidth.value = target;
     phaseFrame = requestAnimationFrame(tick);
   };
   phaseFrame = requestAnimationFrame(tick);
@@ -116,7 +123,7 @@ const stopPhaseTracking = (): void => {
     cancelAnimationFrame(phaseFrame);
     phaseFrame = undefined;
   }
-  isScrolling.value = false;
+  leftFadeWidth.value = 0;
 };
 
 const check = (): void => {
@@ -154,12 +161,10 @@ onUnmounted(() => {
   <div
     ref="containerRef"
     class="overflow-hidden"
-    :class="[
-      fit ? 'max-w-full' : 'w-full',
-      isOverflowing && mask && (isScrolling ? 's-marquee-mask-scrolling' : 's-marquee-mask'),
-    ]"
+    :class="[fit ? 'max-w-full' : 'w-full', isOverflowing && mask && 's-marquee-mask']"
     :style="{
       '--marquee-mask-width': `${maskWidth}px`,
+      '--marquee-left-mask-width': `${leftFadeWidth}px`,
       '--marquee-gap': `${gap}px`,
     }"
   >
@@ -179,35 +184,19 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* 停留段：只有右侧渐隐，文字起点贴左边缘 */
+/* 左宽度由脚本逐帧插值，右侧固定；两者相加即为两侧渐隐 */
 .s-marquee-mask {
   mask-image: linear-gradient(
     to right,
-    black 0%,
-    black calc(100% - var(--marquee-mask-width, 12px)),
-    transparent 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    to right,
-    black 0%,
-    black calc(100% - var(--marquee-mask-width, 12px)),
-    transparent 100%
-  );
-}
-
-/* 滚动段：两侧都渐隐，滚动中的文字自然淡入淡出 */
-.s-marquee-mask-scrolling {
-  mask-image: linear-gradient(
-    to right,
     transparent 0%,
-    black var(--marquee-mask-width, 12px),
+    black var(--marquee-left-mask-width, 0px),
     black calc(100% - var(--marquee-mask-width, 12px)),
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to right,
     transparent 0%,
-    black var(--marquee-mask-width, 12px),
+    black var(--marquee-left-mask-width, 0px),
     black calc(100% - var(--marquee-mask-width, 12px)),
     transparent 100%
   );
