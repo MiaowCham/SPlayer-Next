@@ -39,6 +39,8 @@ const contentWidth = ref(0);
 let resizeObserver: ResizeObserver | null = null;
 let animation: Animation | null = null;
 let phaseFrame: number | undefined;
+/** 当前动画的参数指纹，参数不变时不重建动画，避免刷新重置进度 */
+let animationKey = "";
 
 /**
  * 同步滚动动画
@@ -50,20 +52,24 @@ let phaseFrame: number | undefined;
 const syncAnimation = (): void => {
   const track = trackRef.value;
   if (!track) return;
-  animation?.cancel();
-  animation = null;
-  stopPhaseTracking();
   if (!isOverflowing.value) {
+    animation?.cancel();
+    animation = null;
+    animationKey = "";
+    stopPhaseTracking();
     track.style.transform = "";
     return;
   }
   const distance = contentWidth.value + props.gap;
   if (distance <= 1) return;
+  const key = `${distance}|${props.speed}|${props.pause}|${props.delay}|${props.gap}`;
+  if (animation && animationKey === key) return;
   const scrollMs = (distance / props.speed) * 1000;
   const total = scrollMs + props.pause;
   const pauseRatio = props.pause / total;
   // 全程一条缓动曲线：起步略缓、尾段明显减速停住（对齐 Apple 的收尾手感）
   const scrollEasing = "cubic-bezier(0.22, 0, 0.12, 1)";
+  animation?.cancel();
   animation = track.animate(
     [
       { transform: "translateX(0px)", offset: 0, easing: "linear" },
@@ -78,6 +84,7 @@ const syncAnimation = (): void => {
       fill: "both",
     },
   );
+  animationKey = key;
   startPhaseTracking(props.delay, total, props.pause);
 };
 
