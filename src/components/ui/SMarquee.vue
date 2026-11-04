@@ -19,7 +19,7 @@ export interface SMarqueeProps {
 }
 
 const props = withDefaults(defineProps<SMarqueeProps>(), {
-  speed: 80,
+  speed: 45,
   delay: 1000,
   pause: 5500,
   gap: 50,
