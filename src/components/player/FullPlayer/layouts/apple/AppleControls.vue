@@ -90,11 +90,33 @@ const {
 } = usePlaylistPicker();
 
 const { enqueue: enqueueDownload } = useDownload();
-const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(media, "track"), {
-  hidePlayActions: true,
-  onAddToPlaylist: (track) => openPicker([track]),
-  onDownload: (track, quality) => void enqueueDownload(track, { quality }),
+const { items: trackMenuItems, handleSelect: onTrackMenuSelect } = useTrackMenu(
+  toRef(media, "track"),
+  {
+    hidePlayActions: true,
+    onAddToPlaylist: (track) => openPicker([track]),
+    onDownload: (track, quality) => void enqueueDownload(track, { quality }),
+  },
+);
+
+/** 曲目菜单：末尾补「前往专辑」 */
+const menuItems = computed(() => {
+  const album = albumTarget.value;
+  if (!album || !isAlbumLinkable.value) return trackMenuItems.value;
+  return [
+    ...trackMenuItems.value,
+    { key: "goToAlbum", label: t("command.link.album", { id: album.name }) },
+  ];
 });
+
+/** 处理曲目菜单选择 */
+const onMenuSelect = (key: string): void => {
+  if (key === "goToAlbum") {
+    goToAlbum();
+    return;
+  }
+  onTrackMenuSelect(key);
+};
 </script>
 
 <template>
@@ -108,7 +130,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
         <div
           class="flex min-w-0 items-baseline gap-x-1.5 select-none tracking-[0.4px] text-cover/45"
         >
-          <SMarquee fit class="min-w-0" :class="albumTarget?.name ? 'max-w-[55%]' : 'max-w-full'">
+          <SMarquee fit class="min-w-0 max-w-full">
             <template v-if="artists.length">
               <template v-for="(artist, index) in artists" :key="artist.id ?? artist.name">
                 <span v-if="index > 0" class="mr-1">,</span>
@@ -128,22 +150,6 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
             </template>
             <template v-else>{{ t("playlist.unknownArtist") }}</template>
           </SMarquee>
-          <template v-if="albumTarget?.name">
-            <span class="shrink-0 text-cover/25">—</span>
-
-            <button
-              type="button"
-              class="app-no-drag min-w-0 flex-1 appearance-none truncate border-0 bg-transparent p-0 text-left transition-colors"
-              :class="
-                isAlbumLinkable
-                  ? 'cursor-pointer hover:text-cover/80 hover:underline underline-offset-[3px]'
-                  : 'cursor-default'
-              "
-              @click="goToAlbum"
-            >
-              {{ albumTarget.name }}
-            </button>
-          </template>
         </div>
       </div>
       <SButton
