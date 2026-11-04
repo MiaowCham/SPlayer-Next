@@ -124,13 +124,13 @@ const onMenuSelect = (key: string): void => {
     <!-- 标题与歌手 -->
     <div class="flex items-center gap-3 leading-[1.25em]">
       <div class="flex-1 min-w-0">
-        <SMarquee fit class="max-w-full font-medium tracking-[0.4px] text-cover/90">
+        <SMarquee class="w-full min-w-0 font-medium tracking-[0.4px] text-cover/90">
           {{ displayTrack?.title }}
         </SMarquee>
         <div
           class="flex min-w-0 items-baseline gap-x-1.5 select-none tracking-[0.4px] text-cover/45"
         >
-          <SMarquee fit class="min-w-0 max-w-full">
+          <SMarquee class="w-full min-w-0">
             <template v-if="artists.length">
               <template v-for="(artist, index) in artists" :key="artist.id ?? artist.name">
                 <span v-if="index > 0" class="mr-1">,</span>
