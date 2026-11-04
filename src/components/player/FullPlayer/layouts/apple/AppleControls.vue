@@ -18,6 +18,8 @@ import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import { useDownload } from "@/composables/useDownload";
 import { useTrackMenu } from "@/composables/useTrackMenu";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
+import IconLucideMic from "~icons/lucide/mic";
+import IconLucideDisc3 from "~icons/lucide/disc-3";
 
 const { t } = useI18n();
 const status = useStatusStore();
@@ -100,15 +102,8 @@ const { items: trackMenuItems, handleSelect: onTrackMenuSelect } = useTrackMenu(
   },
 );
 
-/** 曲目菜单：末尾补「前往专辑」 */
-const menuItems = computed(() => {
-  const album = albumTarget.value;
-  if (!album || !isAlbumLinkable.value) return trackMenuItems.value;
-  return [
-    ...trackMenuItems.value,
-    { key: "goToAlbum", label: t("command.link.album", { id: album.name }) },
-  ];
-});
+/** 曲目菜单（专辑入口已并入歌手行菜单） */
+const menuItems = computed(() => trackMenuItems.value);
 
 /** 歌手行菜单：前往艺人 / 前往专辑 */
 const artistMenuItems = computed<DropdownMenuItem[]>(() => {
@@ -119,6 +114,7 @@ const artistMenuItems = computed<DropdownMenuItem[]>(() => {
       key: `artist:${artist.id ?? artist.name}`,
       label: t("player.artistAlbumLinks.artist"),
       description: artist.name,
+      icon: markRaw(IconLucideMic),
     });
   }
   const album = albumTarget.value;
@@ -127,6 +123,7 @@ const artistMenuItems = computed<DropdownMenuItem[]>(() => {
       key: "album",
       label: t("player.artistAlbumLinks.album"),
       description: album.name,
+      icon: markRaw(IconLucideDisc3),
       separator: items.length > 0,
     });
   }
@@ -147,10 +144,6 @@ const onArtistMenuSelect = (key: string): void => {
 
 /** 处理曲目菜单选择 */
 const onMenuSelect = (key: string): void => {
-  if (key === "goToAlbum") {
-    goToAlbum();
-    return;
-  }
   onTrackMenuSelect(key);
 };
 </script>
@@ -165,8 +158,10 @@ const onMenuSelect = (key: string): void => {
         </SMarquee>
         <SDropdownMenu
           :items="artistMenuItems"
+          cover
           side="top"
           align="start"
+          trigger-class="block w-full min-w-0"
           @select="onArtistMenuSelect"
         >
           <template #trigger>

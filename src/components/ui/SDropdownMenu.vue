@@ -33,12 +33,15 @@ const props = withDefaults(
     sideOffset?: number;
     /** 封面主题模式 */
     cover?: boolean;
+    /** 触发元素容器的类名 */
+    triggerClass?: string;
   }>(),
   {
     side: "bottom",
     align: "center",
     sideOffset: 4,
     cover: false,
+    triggerClass: "inline-flex",
   },
 );
 
@@ -88,7 +91,7 @@ const menuItemClass = computed(() =>
 
 <template>
   <DropdownMenuRoot @update:open="onOpenChange">
-    <DropdownMenuTrigger as="div" class="inline-flex">
+    <DropdownMenuTrigger as="div" :class="triggerClass">
       <slot name="trigger" />
     </DropdownMenuTrigger>
 
