@@ -17,6 +17,7 @@ import { getQualityLabel, isLosslessQuality } from "@/utils/quality";
 import { usePlaylistPicker } from "@/composables/usePlaylistPicker";
 import { useDownload } from "@/composables/useDownload";
 import { useTrackMenu } from "@/composables/useTrackMenu";
+import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 
 const { t } = useI18n();
 const status = useStatusStore();
@@ -109,6 +110,41 @@ const menuItems = computed(() => {
   ];
 });
 
+/** 歌手行菜单：前往艺人 / 前往专辑 */
+const artistMenuItems = computed<DropdownMenuItem[]>(() => {
+  const items: DropdownMenuItem[] = [];
+  for (const artist of artists.value) {
+    if (!isArtistLinkable(artist)) continue;
+    items.push({
+      key: `artist:${artist.id ?? artist.name}`,
+      label: t("player.artistAlbumLinks.artist"),
+      description: artist.name,
+    });
+  }
+  const album = albumTarget.value;
+  if (album && isAlbumLinkable.value) {
+    items.push({
+      key: "album",
+      label: t("player.artistAlbumLinks.album"),
+      description: album.name,
+      separator: items.length > 0,
+    });
+  }
+  return items;
+});
+
+/** 处理歌手行菜单选择 */
+const onArtistMenuSelect = (key: string): void => {
+  if (key === "album") {
+    goToAlbum();
+    return;
+  }
+  if (!key.startsWith("artist:")) return;
+  const id = key.slice("artist:".length);
+  const artist = artists.value.find((item) => String(item.id ?? item.name) === id);
+  if (artist) goToArtist(artist);
+};
+
 /** 处理曲目菜单选择 */
 const onMenuSelect = (key: string): void => {
   if (key === "goToAlbum") {
@@ -127,30 +163,29 @@ const onMenuSelect = (key: string): void => {
         <SMarquee class="w-full min-w-0 font-medium tracking-[0.4px] text-cover/90">
           {{ displayTrack?.title }}
         </SMarquee>
-        <div
-          class="flex min-w-0 items-baseline gap-x-1.5 select-none tracking-[0.4px] text-cover/45"
+        <SDropdownMenu
+          :items="artistMenuItems"
+          side="top"
+          align="start"
+          @select="onArtistMenuSelect"
         >
-          <SMarquee class="w-full min-w-0">
-            <template v-if="artists.length">
-              <template v-for="(artist, index) in artists" :key="artist.id ?? artist.name">
-                <span v-if="index > 0" class="mr-1">,</span>
-                <button
-                  type="button"
-                  class="app-no-drag appearance-none border-0 bg-transparent p-0 transition-colors"
-                  :class="
-                    isArtistLinkable(artist)
-                      ? 'cursor-pointer hover:text-cover/80 hover:underline underline-offset-[3px]'
-                      : 'cursor-default'
-                  "
-                  @click="goToArtist(artist)"
-                >
-                  {{ artist.name }}
-                </button>
-              </template>
-            </template>
-            <template v-else>{{ t("playlist.unknownArtist") }}</template>
-          </SMarquee>
-        </div>
+          <template #trigger>
+            <button
+              type="button"
+              class="app-no-drag flex w-full min-w-0 select-none items-baseline gap-x-1.5 appearance-none border-0 bg-transparent p-0 text-left tracking-[0.4px] text-cover/45 transition-colors hover:text-cover/70"
+            >
+              <SMarquee class="w-full min-w-0">
+                <template v-if="artists.length">
+                  <template v-for="(artist, index) in artists" :key="artist.id ?? artist.name">
+                    <span v-if="index > 0" class="mr-1">,</span>
+                    <span>{{ artist.name }}</span>
+                  </template>
+                </template>
+                <template v-else>{{ t("playlist.unknownArtist") }}</template>
+              </SMarquee>
+            </button>
+          </template>
+        </SDropdownMenu>
       </div>
       <SButton
         v-if="displayTrack?.source !== 'plugin'"

@@ -32,12 +32,13 @@ let resizeObserver: ResizeObserver | null = null;
 
 const check = () => {
   const container = containerRef.value;
-  const text = textRef.value;
-  if (!container || !text) return;
-  const overflow = text.scrollWidth > container.clientWidth;
+  if (!container) return;
+  // 以容器自身的 scrollWidth 判定：文本节点可能被 flex 收缩，直接量容器更可靠
+  const contentWidth = container.scrollWidth;
+  const overflow = contentWidth > container.clientWidth + 1;
   isOverflowing.value = overflow;
   if (overflow) {
-    animDuration.value = `${text.scrollWidth / props.speed}s`;
+    animDuration.value = `${contentWidth / props.speed}s`;
   }
 };
 
@@ -46,6 +47,8 @@ onMounted(() => {
   if (containerRef.value) resizeObserver.observe(containerRef.value);
   if (textRef.value) resizeObserver.observe(textRef.value);
   nextTick(check);
+  // 字体与布局稳定后再量一次，避免首帧宽度未定
+  setTimeout(check, 200);
 });
 
 onUpdated(check);

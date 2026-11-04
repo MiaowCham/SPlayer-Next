@@ -9,6 +9,8 @@ export interface DropdownMenuItem {
   label: string;
   /** 图标组件 */
   icon?: Component;
+  /** 副标题（第二行小字） */
+  description?: string;
   /** 是否禁用 */
   disabled?: boolean;
   /** 是否显示 */
@@ -144,7 +146,12 @@ const menuItemClass = computed(() =>
             @select="handleSelect(item)"
           >
             <component :is="item.icon" v-if="item.icon" class="size-3.5 opacity-60 shrink-0" />
-            <span>{{ item.label }}</span>
+            <span class="flex flex-col min-w-0">
+              <span class="truncate">{{ item.label }}</span>
+              <span v-if="item.description" class="truncate text-xs text-on-surface-variant/60">
+                {{ item.description }}
+              </span>
+            </span>
           </DropdownMenuItem>
         </template>
       </DropdownMenuContent>

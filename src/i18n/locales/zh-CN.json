@@ -555,7 +555,11 @@
     },
     "automixing": "AutoMix",
     "transitioning": "过渡",
-    "lyricCreator": "创作者"
+    "lyricCreator": "创作者",
+    "artistAlbumLinks": {
+      "artist": "前往艺人",
+      "album": "前往专辑"
+    }
   },
   "lyricManager": {
     "trackTitle": "歌词管理",

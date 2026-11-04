@@ -555,7 +555,11 @@
     },
     "automixing": "AutoMix",
     "transitioning": "Crossfade",
-    "lyricCreator": "Creator"
+    "lyricCreator": "Creator",
+    "artistAlbumLinks": {
+      "artist": "Go to Artist",
+      "album": "Go to Album"
+    }
   },
   "lyricManager": {
     "trackTitle": "Lyric Management",
