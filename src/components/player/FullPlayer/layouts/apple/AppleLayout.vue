@@ -2,13 +2,11 @@
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { setPlayerExpanded } from "@/services/playerTransition";
-import { useFullPlayer } from "../../context";
 
 const { t } = useI18n();
 const status = useStatusStore();
 const media = useMediaStore();
 const { showLyric, isPlaying } = storeToRefs(status);
-const { onMainMove } = useFullPlayer();
 
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
 
@@ -42,7 +40,7 @@ const toggleLyric = (): void => {
       <span class="block w-14 h-1.2 rounded-full bg-cover/40" />
     </SButton>
   </div>
-  <div class="absolute top-14 inset-x-0 bottom-16" @mousemove="onMainMove">
+  <div class="absolute top-14 inset-x-0 bottom-16">
     <!-- 左侧封面与控制 -->
     <div
       class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center will-change-transform transition-transform duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"

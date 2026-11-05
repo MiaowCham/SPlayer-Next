@@ -1,4 +1,3 @@
-import type { LyricEnhancementRequest } from "@shared/types/lyricEnhancement";
 import os from "os";
 import type { PlaybackQueueSnapshot } from "@shared/types/music";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
@@ -41,7 +40,6 @@ import type {
 } from "@shared/types/playlist";
 import type { CjkTransformMode } from "@shared/types/opencc";
 import type { DownloadTrackIdentity } from "@shared/types/download";
-import type { AppleMusicMotionParams, AppleMusicSearchParams } from "@shared/types/appleMusic";
 import type {
   AutoMixComponentStatus,
   AutoMixComponentId,
@@ -249,14 +247,6 @@ const api = {
     // 订阅主进程推送的播放事件
     onEvent: (callback: (event: unknown) => void) => subscribe("player:event", callback),
   },
-  appleMusic: {
-    // 按分类搜索 Apple Music 目录（iTunes Search 代理）
-    search: (params: AppleMusicSearchParams) => ipcRenderer.invoke("appleMusic:search", params),
-    // 查询专辑动态封面（AMP editorialVideo）
-    motion: (params: AppleMusicMotionParams) => ipcRenderer.invoke("appleMusic:motion", params),
-    motionInvalidate: (params: AppleMusicMotionParams) =>
-      ipcRenderer.send("appleMusic:motionInvalidate", params),
-  },
   system: {
     installType: getInstallType(),
     platform: process.platform,
@@ -288,9 +278,9 @@ const api = {
     listFonts: () => ipcRenderer.invoke("system:listFonts"),
     // 拉远端字节回渲染层
     fetchRemoteBytes: (url: string) => ipcRenderer.invoke("system:fetchRemoteBytes", url),
-    // 保存文件到下载目录
-    saveFile: (data: ArrayBuffer, defaultName: string) =>
-      ipcRenderer.invoke("system:saveFile", data, defaultName),
+    // 弹出保存对话框让用户选择位置
+    saveFile: (data: ArrayBuffer, defaultName: string, title: string) =>
+      ipcRenderer.invoke("system:saveFile", data, defaultName, title),
     // 重启应用
     relaunch: () => ipcRenderer.invoke("system:relaunch"),
     // 测试当前网络代理
@@ -553,25 +543,6 @@ const api = {
     onUploadProgress: (callback: (progress: CloudUploadProgress) => void) =>
       subscribe<CloudUploadProgress>("cloud:upload-progress", callback),
   },
-  lyricEnhancement: {
-    enhance: (request: LyricEnhancementRequest) =>
-      ipcRenderer.invoke("lyricEnhancement:enhance", request),
-    dictionaryStatus: () => ipcRenderer.invoke("lyricEnhancement:dictionaryStatus"),
-    downloadDictionary: () => ipcRenderer.invoke("lyricEnhancement:downloadDictionary"),
-    removeDictionary: () => ipcRenderer.invoke("lyricEnhancement:removeDictionary"),
-    clearCache: () => ipcRenderer.invoke("lyricEnhancement:clearCache"),
-  },
-  lyricPreview: {
-    open: (sessionId: string, track: unknown, source: string) =>
-      ipcRenderer.invoke("lyricPreview:open", sessionId, track, source),
-    control: (sessionId: string, action: "play" | "pause" | "seek", value?: number) =>
-      ipcRenderer.invoke("lyricPreview:control", sessionId, action, value),
-    close: (sessionId: string) => ipcRenderer.invoke("lyricPreview:close", sessionId),
-    onState: (callback: (state: unknown) => void) => {
-      ipcRenderer.removeAllListeners("lyricPreview:state");
-      return subscribe("lyricPreview:state", callback);
-    },
-  },
   lyrics: {
     // 渲染进程歌词加载日志 → 主进程文件日志
     log: (level: "info" | "warn" | "error", message: string) =>
@@ -659,6 +630,7 @@ const api = {
       ipcRenderer.invoke("lyrics:migrateAppleMusicMediaUserToken", storage),
     // 验证已保存令牌并发起实际搜索，返回时不包含令牌明文
     verifyAppleMusicTTMLToken: () => ipcRenderer.invoke("lyrics:verifyAppleMusicTTMLToken"),
+    searchTTML: (track: unknown) => ipcRenderer.invoke("lyrics:searchTTML", track),
     // 在本地 TTML 歌词库目录中按元信息匹配
     matchLocalTTML: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalTTML", track),
     // 选择本地 TTML 歌词库目录
@@ -734,6 +706,11 @@ const api = {
     // 订阅当前曲目歌词偏移变化
     onLyricOffsetChange: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:lyric-offset-change", callback),
+  },
+  motionCover: {
+    // 解析曲目的动态封面
+    resolve: (track: unknown, source: string): Promise<string | null> =>
+      ipcRenderer.invoke("motionCover:resolve", track, source),
   },
   theme: {
     // 弹出文件选择框

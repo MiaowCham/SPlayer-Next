@@ -108,3 +108,4 @@ export const updaterLog = log.scope("updater");
 export const cloudLog = log.scope("cloud");
 export const recognitionLog = log.scope("recognition");
 export const lyricLog = log.scope("lyric");
+export const motionCoverLog = log.scope("motionCover");

@@ -120,6 +120,7 @@ export const defaultSystemConfig: SystemConfig = {
       cacheStreaming: false,
       sizeLimitGb: 10,
     },
+    motionCoverSizeLimitMb: 300,
   },
   download: {
     enabled: false,

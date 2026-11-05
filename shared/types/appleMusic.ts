@@ -86,18 +86,4 @@ export interface AppleMusicApi {
    * @returns 归一化后的搜索结果
    */
   search: (params: AppleMusicSearchParams) => Promise<AppleMusicSearchResult>;
-  /**
-   * 查询专辑动态封面（editorialVideo）
-   * @param params - 曲目元信息与商店地区
-   * @returns 命中返回 HLS 地址，未命中返回 null
-   */
-  motion: (params: AppleMusicMotionParams) => Promise<AppleMusicMotionResult | null>;
-  /**
-   * 使指定曲目的动态封面缓存失效
-   *
-   * 视频加载失败（节日限定封面已撤下）时调用，下次播放重新向 Apple 查询
-   *
-   * @param params - 曲目元信息与商店地区
-   */
-  motionInvalidate: (params: AppleMusicMotionParams) => void;
 }

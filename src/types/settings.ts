@@ -1,7 +1,7 @@
 import type { LyricFormat } from "@shared/types/lyrics";
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
-import type { TransitionPreference } from "@shared/types/player";
+import type { MotionCoverSource, TransitionPreference } from "@shared/types/player";
 import type { TransitionMode } from "@shared/types/automix";
 import type { PronunciationOptimization } from "@shared/types/lyricEnhancement";
 
@@ -337,6 +337,8 @@ export interface PlayerSettings {
   showPlaybackSource: boolean;
   /** 颜色是否跟随封面 */
   followCoverColor: boolean;
+  /** 全屏播放器动态封面来源 */
+  motionCoverSource: MotionCoverSource;
   /** 全屏播放器自动进入沉浸模式（隐藏顶/底栏与鼠标） */
   autoImmersive: boolean;
   /** 输出设备名称，null 表示跟随系统默认 */
@@ -382,7 +384,6 @@ export interface PlayerSettings {
   /** 搜索页播放行为 */
   searchPlayBehavior: SearchPlayBehavior;
   /** 是否展示动态封面（仅网易云来源，封面模式有效） */
-  dynamicCover: boolean;
 }
 
 /** 外观设置 */

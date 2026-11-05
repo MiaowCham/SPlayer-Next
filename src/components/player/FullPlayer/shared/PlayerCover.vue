@@ -3,22 +3,13 @@ const hdCache = shallowRef<{ id: string; data: string } | null>(null);
 </script>
 
 <script setup lang="ts">
-import Hls from "hls.js";
-import {
-  invalidateDynamicCover,
-  resolveDynamicCover,
-  type DynamicCoverResult,
-} from "@/services/dynamicCover";
-import { isSameCoverArt } from "@/utils/coverFingerprint";
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
-import { useUserStore } from "@/stores/user";
 
 const media = useMediaStore();
 const status = useStatusStore();
 const settings = useSettingsStore();
-const user = useUserStore();
 
 /** 加载中的歌曲使用队列当前项作为封面兜底 */
 const displayTrack = computed(() => media.track ?? status.currentTrack);
@@ -38,201 +29,113 @@ watchEffect(async () => {
   hdCache.value = { id, data: r.data };
 });
 
-/** 动态封面地址与格式 */
-const dynamicCover = ref<DynamicCoverResult | null>(null);
-/** 动态封面是否已加载出首帧 */
-const dynamicCoverLoaded = ref<boolean>(false);
-const videoRef = ref<HTMLVideoElement | null>(null);
-/** HLS 播放实例，非 mp4 动态封面需要它做 MSE 播放 */
-let hls: Hls | null = null;
+let layerId = 0;
 
-/** 释放 HLS 实例，避免离开播放页后继续拉流 */
-const destroyHls = (): void => {
-  hls?.destroy();
-  hls = null;
-};
+const createLayer = () => ({
+  id: ++layerId,
+  src: coverSrc.value,
+  fallback: displayTrack.value?.cover,
+});
 
-/**
- * 按格式给视频元素挂载媒体源
- * @param result - 动态封面解析结果
- */
-const attachVideoSource = async (result: DynamicCoverResult | null): Promise<void> => {
-  await nextTick();
-  const video = videoRef.value;
-  if (!video || !result) return;
-  if (result.format === "mp4") {
-    video.src = result.url;
-    return;
-  }
-  if (Hls.isSupported()) {
-    destroyHls();
-    hls = new Hls({ enableWorker: true, lowLatencyMode: false });
-    hls.on(Hls.Events.ERROR, (_event, data) => {
-      void window.api.lyrics.log(
-        "warn",
-        `[am-cover] hls error ${data.type}/${data.details} fatal=${data.fatal}`,
-      );
-    });
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      void window.api.lyrics.log("info", "[am-cover] hls manifest parsed");
-    });
-    hls.loadSource(result.url);
-    hls.attachMedia(video);
-    return;
-  }
-  video.src = result.url;
-};
+const layers = shallowRef([createLayer()]);
 
-const { isPlaying } = storeToRefs(status);
+// 新图解码后才淡入，淡入结束前底层旧图保持不动，最多两层
+watch([coverSrc, () => displayTrack.value?.cover], async () => {
+  const layer = createLayer();
+  const decodes = [layer.src, layer.fallback].filter(Boolean).map((src) => {
+    const image = new Image();
+    image.src = src!;
+    return image.decode();
+  });
+  await Promise.any(decodes).catch(() => {});
+  if (layer.id === layerId) layers.value = [layers.value[0], layer];
+});
 
-/** 播放状态与视频同步：Apple Music 的动效封面随播放暂停 */
-const syncVideoPlayback = (): void => {
-  const video = videoRef.value;
-  if (!video) return;
-  if (isPlaying.value) {
-    void video.play().catch(() => {});
-  } else {
-    video.pause();
-  }
-};
-
-/** 拉取动态封面：开关开启且非加载中才生效 */
-const fetchDynamicCover = async (): Promise<void> => {
-  const track = displayTrack.value;
-  if (!track) {
-    dynamicCover.value = null;
-    destroyHls();
-    return;
-  }
-  if (!settings.player.dynamicCover || status.trackLoading) {
-    dynamicCover.value = null;
-    destroyHls();
-    return;
-  }
-
-  dynamicCoverLoaded.value = false;
-
-  let result = await resolveDynamicCover(
-    track,
-    settings.player.appleMusicStorefront,
-    user.isLoggedIn,
-  );
-  if (displayTrack.value?.id !== track.id) return;
-
-  // 专辑名相同也可能是不同版本封面，始终比对指纹；取不到图时接受
-  let same: boolean | null = null;
-  if (result?.artwork) {
-    const trackCover =
-      hdCache.value?.id === track.id ? hdCache.value.data : (track.cover ?? track.coverOriginal);
-    same = trackCover ? await isSameCoverArt(trackCover, result.artwork) : null;
-    if (same === false) result = null;
-  }
-  void window.api.lyrics.log(
-    "info",
-    `[am-cover] ${track.title} decided=${result ? result.format : "none"} exact=${result?.exact ?? "-"} coverSame=${same === null ? "unknown" : same}`,
-  );
-  if (displayTrack.value?.id !== track.id) return;
-
-  dynamicCover.value = result;
-  await attachVideoSource(result);
-};
-
-/** 首帧就绪后淡入视频层 */
-const onCoverFrame = (): void => {
-  dynamicCoverLoaded.value = true;
-  syncVideoPlayback();
-  void window.api.lyrics.log("info", "[am-cover] first frame ready");
-};
-
-const onCoverError = (): void => {
-  const video = videoRef.value;
-  void window.api.lyrics.log(
-    "warn",
-    `[am-cover] video error code=${video?.error?.code ?? "-"} msg=${video?.error?.message ?? "-"}`,
-  );
-  // 资源失效（节日封面已下架等）时清掉缓存，下次播放重新解析
-  const track = displayTrack.value;
-  if (track) invalidateDynamicCover(track, settings.player.appleMusicStorefront);
-};
-
-/** 卸载或切歌时清理视频元素，避免继续解码 */
-const cleanupDynamicCover = (): void => {
-  destroyHls();
-  if (videoRef.value) {
-    videoRef.value.pause();
-    videoRef.value.removeAttribute("src");
-    videoRef.value.load();
-  }
-  dynamicCover.value = null;
-  dynamicCoverLoaded.value = false;
-};
+const motion = shallowRef<{ key: string; src: string } | null>(null);
+const motionReady = ref(false);
+const videoRef = ref<HTMLVideoElement>();
 
 watch(
-  () => [displayTrack.value?.id, settings.player.dynamicCover, status.trackLoading] as const,
-  () => {
-    fetchDynamicCover();
+  () =>
+    [
+      status.isPlayerExpanded && !status.trackLoading,
+      settings.player.motionCoverSource,
+      displayTrack.value?.id,
+    ] as const,
+  async ([active, source, id]) => {
+    const key = `${source}:${id}`;
+    if (motion.value && motion.value.key !== key) {
+      motion.value = null;
+      motionReady.value = false;
+    }
+    if (!active || source === "off" || !id || !displayTrack.value || motion.value) return;
+    const src = await window.api.motionCover.resolve(toRaw(displayTrack.value), source);
+    if (src && `${settings.player.motionCoverSource}:${displayTrack.value?.id}` === key) {
+      motion.value = { key, src };
+    }
   },
+  { immediate: true },
 );
 
-watch(isPlaying, () => {
-  syncVideoPlayback();
+const visibility = useDocumentVisibility();
+
+// 跟随播放暂停，窗口隐藏时停止解码
+watch([videoRef, () => status.isPlaying, visibility], ([video, playing, visible]) => {
+  if (!video) return;
+  if (playing && visible === "visible") video.play().catch(() => {});
+  else video.pause();
 });
 
-onMounted(() => {
-  fetchDynamicCover();
-});
+/**
+ * 移除后立即释放解码器与缓冲，不等 GC
+ * @param el - 离场的视频元素
+ */
+const releaseVideo = (el: Element) => {
+  const video = el as HTMLVideoElement;
+  video.removeAttribute("src");
+  video.load();
+};
 
-onBeforeUnmount(() => {
-  cleanupDynamicCover();
-});
+// 切换布局时组件直接卸载，不经过离场过渡
+onBeforeUnmount(() => videoRef.value && releaseVideo(videoRef.value));
 </script>
 
 <template>
-  <!-- 外观由布局决定，这里只负责高清封面、动态封面与共享过渡标记 -->
+  <!-- 外观由布局决定，这里只负责高清封面加载与共享过渡标记 -->
   <div data-player-cover="full" class="relative overflow-hidden shrink-0">
-    <DetailCover :src="coverSrc" :fallback="displayTrack?.cover" class="size-full" />
-    <Transition name="fade" mode="out-in">
+    <!-- 切歌交叉淡入 -->
+    <TransitionGroup
+      :css="!settings.reducedMotion"
+      enter-active-class="transition-opacity duration-500 ease-linear"
+      enter-from-class="opacity-0"
+      @after-enter="layers = layers.slice(-1)"
+    >
+      <DetailCover
+        v-for="layer in layers"
+        :key="layer.id"
+        :src="layer.src"
+        :fallback="layer.fallback"
+        class="absolute! inset-0 size-full"
+      />
+    </TransitionGroup>
+    <!-- 动态封面 -->
+    <Transition
+      leave-active-class="transition-opacity duration-500"
+      leave-to-class="opacity-0"
+      @after-leave="releaseVideo"
+    >
       <video
-        v-if="dynamicCover"
+        v-if="motion && status.isPlayerExpanded"
         ref="videoRef"
-        :src="dynamicCover.format === 'mp4' ? dynamicCover.url : undefined"
-        :class="['dynamic-cover', { loaded: dynamicCoverLoaded }]"
+        :key="motion.src"
+        :src="motion.src"
         muted
-        autoplay
         loop
         playsinline
-        @loadeddata="onCoverFrame"
-        @error="onCoverError"
+        class="absolute inset-0 z-2 size-full object-cover transition-opacity duration-500"
+        :class="motionReady ? 'opacity-100' : 'opacity-0'"
+        @loadeddata="motionReady = true"
       />
     </Transition>
   </div>
 </template>
-
-<style scoped>
-.dynamic-cover {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: 1;
-  opacity: 0;
-  transition: opacity 0.8s ease-in-out;
-  backface-visibility: hidden;
-  transform: translateZ(0);
-}
-
-.dynamic-cover.loaded {
-  opacity: 1;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-</style>

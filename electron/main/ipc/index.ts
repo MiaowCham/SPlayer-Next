@@ -1,4 +1,3 @@
-import { registerLyricEnhancementIpc } from "./lyricEnhancement";
 import { registerSystemIpc } from "./system";
 import { registerPlayerIpc } from "./player";
 import { registerConfigIpc } from "./config";
@@ -24,7 +23,7 @@ import { registerAiModelIpc } from "./aiModel";
 import { registerPlaylistIpc } from "./playlist";
 import { registerRecognitionIpc } from "./recognition";
 import { registerOpenccIpc } from "./opencc";
-import { registerAppleMusicIpc } from "./appleMusic";
+import { registerMotionCoverIpc } from "./motionCover";
 import { registerAutoMixIpc } from "./automix";
 
 /**
@@ -44,14 +43,13 @@ export const registerIpcHandlers = (onStartupComplete: () => void): void => {
   registerCloudIpc();
   registerCommentsIpc();
   registerLyricsIpc();
-  registerLyricEnhancementIpc();
   registerOpenccIpc();
+  registerMotionCoverIpc();
   registerHotkeyIpc();
   registerThemeIpc();
   registerStreamingIpc();
   registerPlaylistIpc();
   registerRecognitionIpc();
-  registerAppleMusicIpc();
   registerLastfmIpc();
   registerCacheIpc();
   registerDownloadIpc();

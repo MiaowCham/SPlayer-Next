@@ -125,12 +125,6 @@ const playerCategory: SettingCategory = {
             await settings.setSystem("cache.songCache.cacheStreaming", true);
           },
         },
-        {
-          key: "dynamicCover",
-          type: "switch",
-          binding: { store: "settings", path: "player.dynamicCover" },
-          defaultValue: false,
-        },
       ],
     },
     {
