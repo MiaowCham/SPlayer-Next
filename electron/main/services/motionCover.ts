@@ -8,6 +8,7 @@
 
 import crypto from "node:crypto";
 import { createWriteStream, existsSync } from "node:fs";
+import { nativeImage } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -74,18 +75,14 @@ const primaryArtistOf = (track: Track): string =>
  */
 const buildSearchTerms = (track: Track): string[] => {
   const artist = primaryArtistOf(track);
-  const terms = [
-    artist ? `${track.title} ${artist}` : track.title,
-    track.title,
-    track.album?.name && artist ? `${track.album.name} ${artist}` : "",
-  ];
+  const terms = [artist ? `${track.title} ${artist}` : track.title, track.title];
   return [...new Set(terms.filter((term) => term.trim().length > 0))];
 };
 /** 变体短边下限（px） */
-const TARGET_SIZE = 768;
+const TARGET_SIZE = 640;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
-/** iTunes Search 约 20 次/分钟限流 */
-const ITUNES_INTERVAL_MS = 3000;
+/** iTunes Search 约 20 次/分钟限流；命中靠缓存，单曲只查一次 */
+const ITUNES_INTERVAL_MS = 1500;
 const TIMEOUT_MS = 15_000;
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
@@ -182,40 +179,27 @@ const readMotionUrl = (album: unknown): string | null => {
  * @param signal - 中止信号
  * @returns HLS 主列表地址
  */
-const fetchAlbumVideoByApi = async (
-  collectionId: number,
-  storefront: string,
-  signal: AbortSignal,
-): Promise<string | null> => {
-  const token = await getDeveloperToken();
-  const res = await fetch(
-    `https://amp-api.music.apple.com/v1/catalog/${storefront}/albums/${collectionId}?extend=editorialVideo`,
-    {
-      headers: { Authorization: `Bearer ${token}`, Origin: "https://music.apple.com" },
-      signal,
-    },
-  );
-  if (!res.ok) throw new Error(`AMP ${res.status} album ${collectionId}`);
-  const body = (await res.json()) as { data?: { attributes?: unknown }[] };
-  return readMotionUrl(body.data?.[0]);
-};
+interface AlbumInfo {
+  video: string | null;
+  artwork: string | null;
+}
 
-const fetchAlbumVideo = async (
+/**
+ * 从公开专辑页读取动态封面地址
+ * @param collectionId - 专辑 id
+ * @param storefront - 地区
+ * @param signal - 中止信号
+ * @returns 视频主列表地址
+ */
+const fetchAlbumVideoFromPage = async (
   collectionId: number,
   storefront: string,
   signal: AbortSignal,
 ): Promise<string | null> => {
-  // AMP 接口稳定返回 editorialVideo；公开页面结构偶尔变动，作为兜底
-  try {
-    return await fetchAlbumVideoByApi(collectionId, storefront, signal);
-  } catch (err) {
-    if ((err as Error).name === "AbortError") throw err;
-  }
   const html = await (
     await request(`https://music.apple.com/${storefront}/album/x/${collectionId}`, signal)
   ).text();
   const json = html.match(/id="serialized-server-data">([\s\S]*?)<\/script>/)?.[1];
-  // 页面结构变化或被跳转时抛错而不是记成未命中
   if (!json) throw new Error(`serialized-server-data missing ${collectionId}`);
   const page = JSON.parse(json) as AlbumPageData;
   const header = page.data?.[0]?.data?.sections?.find((section) =>
@@ -223,6 +207,115 @@ const fetchAlbumVideo = async (
   );
   if (!header) throw new Error(`album-detail-header missing ${collectionId}`);
   return header.items?.[0]?.videoArtwork?.dictionary?.motionDetailSquare?.video ?? null;
+};
+
+/**
+ * 通过 AMP 目录接口读取专辑动态封面与静态封面
+ * @param collectionId - 专辑 id
+ * @param storefront - 地区
+ * @param signal - 中止信号
+ * @returns 视频主列表地址与 300px 封面地址
+ */
+const fetchAlbumInfo = async (
+  collectionId: number,
+  storefront: string,
+  signal: AbortSignal,
+): Promise<AlbumInfo> => {
+  try {
+    const token = await getDeveloperToken();
+    const res = await fetch(
+      `https://amp-api.music.apple.com/v1/catalog/${storefront}/albums/${collectionId}?extend=editorialVideo`,
+      {
+        headers: { Authorization: `Bearer ${token}`, Origin: "https://music.apple.com" },
+        signal,
+      },
+    );
+    if (!res.ok) throw new Error(`AMP ${res.status} album ${collectionId}`);
+    const body = (await res.json()) as {
+      data?: {
+        attributes?: {
+          editorialVideo?: Record<string, { video?: string }>;
+          artwork?: { url?: string };
+        };
+      }[];
+    };
+    const attrs = body.data?.[0]?.attributes;
+    return {
+      video: readMotionUrl({ attributes: attrs }),
+      artwork: attrs?.artwork?.url?.replace("{w}", "300").replace("{h}", "300") ?? null,
+    };
+  } catch (err) {
+    if ((err as Error).name === "AbortError") throw err;
+  }
+  // 公开页面结构偶尔变动，作为兜底
+  return { video: await fetchAlbumVideoFromPage(collectionId, storefront, signal), artwork: null };
+};
+
+/**
+ * 读取专辑静态封面地址
+ * @param collectionId - 专辑 id
+ * @param storefront - 地区
+ * @param signal - 中止信号
+ * @returns 300px 封面地址
+ */
+const fetchAlbumArtwork = async (
+  collectionId: number,
+  storefront: string,
+  signal: AbortSignal,
+): Promise<string | null> => (await fetchAlbumInfo(collectionId, storefront, signal)).artwork;
+
+/**
+ * 把图片缩到 16x16 灰度，用于封面指纹比对
+ * @param url - 图片地址
+ * @param signal - 中止信号
+ * @returns 灰度像素数组
+ */
+const grayPixels = async (url: string, signal: AbortSignal): Promise<number[] | null> => {
+  try {
+    const res = await request(url, signal);
+    if (!res.ok) return null;
+    const image = nativeImage
+      .createFromBuffer(Buffer.from(await res.arrayBuffer()))
+      .resize({ width: 16, height: 16 });
+    const bitmap = image.toBitmap();
+    const pixels: number[] = [];
+    for (let i = 0; i + 3 < bitmap.length; i += 4) {
+      pixels.push(0.299 * bitmap[i + 2] + 0.587 * bitmap[i + 1] + 0.114 * bitmap[i]);
+    }
+    return pixels;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * 两张封面是否同一张图：灰度相关系数判定，容忍压缩与轻微裁切
+ * @param left - 曲目封面地址
+ * @param right - 专辑封面地址
+ * @param signal - 中止信号
+ * @returns 是否一致
+ */
+const isSameArtwork = async (
+  left: string,
+  right: string,
+  signal: AbortSignal,
+): Promise<boolean> => {
+  const [a, b] = await Promise.all([grayPixels(left, signal), grayPixels(right, signal)]);
+  if (!a || !b || a.length !== b.length || a.length === 0) return false;
+  const meanA = a.reduce((sum, value) => sum + value, 0) / a.length;
+  const meanB = b.reduce((sum, value) => sum + value, 0) / b.length;
+  let cov = 0;
+  let varA = 0;
+  let varB = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    const da = a[i] - meanA;
+    const db = b[i] - meanB;
+    cov += da * db;
+    varA += da * da;
+    varB += db * db;
+  }
+  if (varA === 0 || varB === 0) return false;
+  return cov / Math.sqrt(varA * varB) >= 0.9;
 };
 
 /**
@@ -247,17 +340,16 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
     album: track.album && { ...track.album, name: album },
     artists: track.artists.map((artist, index) => ({ ...artist, name: artistNames[index] })),
   };
+  const coverUrl = track.coverOriginal || track.cover;
   const storefronts = resolveStorefrontOrder(
     track.title,
     track.artists.map((artist) => artist.name).join(" "),
   );
   for (const storefront of storefronts) {
-    const songs: ItunesSong[] = [];
+    let songs: ItunesSong[] = [];
     for (const term of terms) {
-      songs.push(
-        ...(await searchItunes(term, storefront, signal)).filter((song) => song.collectionId),
-      );
-      if (songs.length >= 10) break;
+      songs = (await searchItunes(term, storefront, signal)).filter((song) => song.collectionId);
+      if (songs.length > 0) break;
     }
     const texts = convertTexts(
       songs.flatMap((song) => [
@@ -274,20 +366,34 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
       duration: song.trackTimeMillis,
       extra: song.collectionId!,
     }));
-    const best = pickBestCandidate(candidates, simplified);
-    if (!best) continue;
-    const collectionKey = `collection|${storefront}|${best.extra}`;
-    let video = getMotionCoverRecord(collectionKey);
-    if (video === undefined) {
-      video = await fetchAlbumVideo(best.extra, storefront, signal);
-      setMotionCoverRecord(collectionKey, video);
+    // 逐个候选验证：精确专辑名直接用，近似专辑要求封面指纹一致
+    for (const candidate of candidates) {
+      if (!pickBestCandidate([candidate], simplified)) continue;
+      const collectionKey = `collection|${storefront}|${candidate.extra}`;
+      let video = getMotionCoverRecord(collectionKey);
+      let artwork: string | null = null;
+      if (video === undefined) {
+        const info = await fetchAlbumInfo(candidate.extra, storefront, signal);
+        video = info.video;
+        artwork = info.artwork;
+        setMotionCoverRecord(collectionKey, video);
+      }
+      if (!video) continue;
+      const exact = !!album && normalize(candidate.album) === normalize(album);
+      if (exact) {
+        // 专辑名一致才共享，避免一首歌的误匹配扩散到整张专辑
+        if (albumKey) setMotionCoverRecord(albumKey, video);
+        return video;
+      }
+      if (!coverUrl) continue;
+      if (!artwork) artwork = await fetchAlbumArtwork(candidate.extra, storefront, signal);
+      if (!artwork) continue;
+      if (await isSameArtwork(coverUrl, artwork, signal)) {
+        motionCoverLog.info(`${track.title}：近似专辑封面匹配 ${candidate.album}`);
+        return video;
+      }
     }
-    // 专辑名一致才共享，避免一首歌的误匹配扩散到整张专辑
-    if (albumKey && normalize(best.album) === normalize(album)) {
-      setMotionCoverRecord(albumKey, video);
-    }
-    if (!video) motionCoverLog.info(`${track.title}：AM 专辑无动态封面`);
-    return video;
+    if (songs.length > 0) break;
   }
   motionCoverLog.info(`${track.title}：AM 未匹配`);
   return null;
@@ -478,14 +584,59 @@ const resolveAm = (track: Track, fingerprint: string): Promise<string | null> =>
 };
 
 /**
- * 获取 NCM 动态封面，仅限已登录时的网易云曲目
+ * 按歌名与主歌手在网易云搜索对应歌曲 id
  * @param track - 曲目
+ * @returns 网易云歌曲 id
+ */
+const findNeteaseId = async (track: Track): Promise<string | null> => {
+  const { body } = await callNetease("cloudsearch", {
+    keywords: `${track.title} ${primaryArtistOf(track)}`.trim(),
+    type: 1,
+    limit: 10,
+  });
+  const songs =
+    (
+      body as {
+        result?: {
+          songs?: {
+            id: number;
+            name: string;
+            ar?: { name: string }[];
+            al?: { name: string };
+            dt?: number;
+          }[];
+        };
+      }
+    )?.result?.songs ?? [];
+  const candidates: LyricCandidate<string>[] = songs.map((song) => ({
+    name: song.name,
+    artist: (song.ar ?? []).map((artist) => artist.name).join(" / "),
+    album: song.al?.name,
+    duration: song.dt,
+    extra: String(song.id),
+  }));
+  return pickBestCandidate(candidates, track)?.extra ?? null;
+};
+
+/**
+ * 获取 NCM 动态封面，非网易云曲目按歌名反查网易云 id
+ * @param track - 曲目
+ * @param fingerprint - 曲目指纹，用于缓存查询结果
  * @returns 在线 mp4 地址
  */
-const resolveNcm = async (track: Track): Promise<string | null> => {
-  if (track.source !== "netease") return null;
-  const { body } = await callNetease("song_dynamic_cover", { id: track.id });
+const resolveNcm = async (track: Track, fingerprint: string): Promise<string | null> => {
+  const key = `ncm|${fingerprint}`;
+  const cached = getMotionCoverRecord(key);
+  if (cached !== undefined) return cached;
+  const id = track.source === "netease" ? track.id : await findNeteaseId(track);
+  if (!id) {
+    setMotionCoverRecord(key, null);
+    motionCoverLog.info(`${track.title}：NCM 未匹配`);
+    return null;
+  }
+  const { body } = await callNetease("song_dynamic_cover", { id });
   const url = (body as { data?: { videoPlayUrl?: string } } | undefined)?.data?.videoPlayUrl;
+  setMotionCoverRecord(key, url || null);
   if (!url) motionCoverLog.info(`${track.title}：NCM 无动态封面`);
   return url || null;
 };
@@ -507,15 +658,18 @@ export const resolveMotionCover = async (
     active.controller.abort();
     active = null;
   }
-  if (source === "ncm") return resolveNcm(track).catch(logFailure(track));
+  if (source === "ncm") return resolveNcm(track, fingerprint).catch(logFailure(track));
   if (source === "am") return resolveAm(track, fingerprint);
   // 网易云优先：NCM 直出在线 mp4，未命中再走 AM（AM 需要下载，作为兜底）
   if (source === "ncmFirst") {
-    return (await resolveNcm(track).catch(logFailure(track))) ?? resolveAm(track, fingerprint);
+    return (
+      (await resolveNcm(track, fingerprint).catch(logFailure(track))) ??
+      resolveAm(track, fingerprint)
+    );
   }
   // AM 优先：已缓存直接用；否则先放 NCM，AM 在后台下载供下次播放，不中途切换
   const cached = await cachedAm(track, fingerprint);
   if (cached) return cached;
   const am = resolveAm(track, fingerprint);
-  return (await resolveNcm(track).catch(logFailure(track))) ?? am;
+  return (await resolveNcm(track, fingerprint).catch(logFailure(track))) ?? am;
 };
