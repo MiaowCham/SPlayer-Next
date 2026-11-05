@@ -509,6 +509,10 @@ export const resolveMotionCover = async (
   }
   if (source === "ncm") return resolveNcm(track).catch(logFailure(track));
   if (source === "am") return resolveAm(track, fingerprint);
+  // 网易云优先：NCM 直出在线 mp4，未命中再走 AM（AM 需要下载，作为兜底）
+  if (source === "ncmFirst") {
+    return (await resolveNcm(track).catch(logFailure(track))) ?? resolveAm(track, fingerprint);
+  }
   // AM 优先：已缓存直接用；否则先放 NCM，AM 在后台下载供下次播放，不中途切换
   const cached = await cachedAm(track, fingerprint);
   if (cached) return cached;

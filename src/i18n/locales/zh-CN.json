@@ -1504,6 +1504,7 @@
       "description": "在全屏播放器中播放专辑动态封面",
       "off": "关闭",
       "ncm": "仅 NCM",
+      "ncmFirst": "NCM 优先",
       "am": "仅 AM",
       "amFirst": "AM 优先"
     },

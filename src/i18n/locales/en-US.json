@@ -1504,6 +1504,7 @@
       "description": "Play the album's animated cover in the full player",
       "off": "Off",
       "ncm": "NCM Only",
+      "ncmFirst": "Prefer NCM",
       "am": "AM Only",
       "amFirst": "Prefer AM"
     },

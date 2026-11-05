@@ -8,8 +8,10 @@
 
 import { getDb } from "./index";
 
-const HIT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const MISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** 命中结果的有效期：Apple 会随时替换节日/活动动效封面，一天后重新校验 */
+const HIT_TTL_MS = 24 * 60 * 60 * 1000;
+/** 未命中的有效期：短一些，避免匹配规则修复后仍被旧的失败记录挡住 */
+const MISS_TTL_MS = 60 * 60 * 1000;
 
 /**
  * 读取未过期的匹配结果

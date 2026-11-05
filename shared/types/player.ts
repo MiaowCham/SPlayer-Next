@@ -242,7 +242,7 @@ export interface AudioDevice {
 export type TransitionPreference = "conservative" | "standard" | "eager";
 
 /** 动态封面来源 */
-export type MotionCoverSource = "off" | "ncm" | "am" | "amFirst";
+export type MotionCoverSource = "off" | "ncm" | "ncmFirst" | "am" | "amFirst";
 
 export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }

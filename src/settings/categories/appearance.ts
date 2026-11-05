@@ -325,6 +325,7 @@ const appearanceCategory: SettingCategory = {
           options: [
             { value: "off", labelKey: "settings.motionCover.off" },
             { value: "ncm", labelKey: "settings.motionCover.ncm" },
+            { value: "ncmFirst", labelKey: "settings.motionCover.ncmFirst" },
             { value: "am", labelKey: "settings.motionCover.am" },
             { value: "amFirst", labelKey: "settings.motionCover.amFirst" },
           ],
