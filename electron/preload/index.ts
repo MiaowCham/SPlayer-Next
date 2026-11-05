@@ -1,5 +1,7 @@
 import os from "os";
 import type { PlaybackQueueSnapshot } from "@shared/types/music";
+import type { LyricEnhancementRequest } from "@shared/types/lyricEnhancement";
+import type { AppleMusicSearchParams } from "@shared/types/appleMusic";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import type { ExternalApiStatus, McpStatus, TaskbarLyricSettings } from "@shared/types/settings";
@@ -543,6 +545,17 @@ const api = {
     onUploadProgress: (callback: (progress: CloudUploadProgress) => void) =>
       subscribe<CloudUploadProgress>("cloud:upload-progress", callback),
   },
+  lyricEnhancement: {
+    enhance: (request: LyricEnhancementRequest) =>
+      ipcRenderer.invoke("lyricEnhancement:enhance", request),
+    dictionaryStatus: () => ipcRenderer.invoke("lyricEnhancement:dictionaryStatus"),
+    downloadDictionary: () => ipcRenderer.invoke("lyricEnhancement:downloadDictionary"),
+    removeDictionary: () => ipcRenderer.invoke("lyricEnhancement:removeDictionary"),
+    clearCache: () => ipcRenderer.invoke("lyricEnhancement:clearCache"),
+  },
+  appleMusic: {
+    search: (params: AppleMusicSearchParams) => ipcRenderer.invoke("appleMusic:search", params),
+  },
   lyrics: {
     // 渲染进程歌词加载日志 → 主进程文件日志
     log: (level: "info" | "warn" | "error", message: string) =>
@@ -631,6 +644,21 @@ const api = {
     // 验证已保存令牌并发起实际搜索，返回时不包含令牌明文
     verifyAppleMusicTTMLToken: () => ipcRenderer.invoke("lyrics:verifyAppleMusicTTMLToken"),
     searchTTML: (track: unknown) => ipcRenderer.invoke("lyrics:searchTTML", track),
+    // 歌词管理：候选版本级操作
+    getTrackSourceCandidates: (track: unknown, origin: unknown) =>
+      ipcRenderer.invoke("lyrics:getTrackSourceCandidates", track, origin),
+    searchSourceTracks: (platform: unknown, track: unknown, query: unknown) =>
+      ipcRenderer.invoke("lyrics:searchSourceTracks", platform, track, query),
+    loadSourceVersion: (source: unknown, song: unknown) =>
+      ipcRenderer.invoke("lyrics:loadSourceVersion", source, song),
+    saveSourceVersion: (track: unknown, candidate: unknown) =>
+      ipcRenderer.invoke("lyrics:saveSourceVersion", track, candidate),
+    refetchCandidate: (track: unknown, candidate: unknown) =>
+      ipcRenderer.invoke("lyrics:refetchCandidate", track, candidate),
+    deleteCandidate: (track: unknown, candidate: unknown) =>
+      ipcRenderer.invoke("lyrics:deleteCandidate", track, candidate),
+    getVersionOffset: (track: unknown, candidate: unknown) =>
+      ipcRenderer.invoke("lyrics:getVersionOffset", track, candidate),
     // 在本地 TTML 歌词库目录中按元信息匹配
     matchLocalTTML: (track: unknown) => ipcRenderer.invoke("lyrics:matchLocalTTML", track),
     // 选择本地 TTML 歌词库目录
