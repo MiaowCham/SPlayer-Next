@@ -1,7 +1,7 @@
 /**
  * 动态封面
  *
- * AM：iTunes Search 匹配专辑 → 公开专辑页 serialized-server-data 取 HLS 主列表
+ * AM：iTunes Search 匹配专辑 → AMP 目录接口取 editorialVideo 主列表（失败回退公开页面）
  * → 选 avc1 变体 → 下载 EXT-X-MAP 指向的单个 fMP4 到缓存目录，全程无需鉴权
  * NCM：登录后按歌曲 id 取在线 mp4，不落盘
  */
@@ -14,24 +14,73 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { ReadableStream } from "node:stream/web";
-import {
-  buildLyricSearchKeyword,
-  normalize,
-  pickBestCandidate,
-  type LyricCandidate,
-} from "@main/apis/common/lyric/utils";
-import { callNetease, getNeteaseCookies } from "@main/apis/netease";
+import { normalize, pickBestCandidate, type LyricCandidate } from "@main/apis/common/lyric/utils";
+import { callNetease } from "@main/apis/netease";
 import { buildFingerprint } from "@main/database/lyricMatchCache";
 import { getMotionCoverRecord, setMotionCoverRecord } from "@main/database/motionCoverCache";
 import { store } from "@main/store";
 import { getMotionCoverCacheDir } from "@main/utils/config";
 import { convertTexts } from "@main/services/opencc";
 import { motionCoverLog } from "@main/utils/logger";
+import { getDeveloperToken } from "@main/services/appleMusicLyrics";
 import { toCacheUrl } from "@main/utils/protocol";
 import type { MotionCoverSource, Track } from "@shared/types/player";
 
-/** 依次尝试的地区；CN 区 Search 接口不返回结果，专辑 ID 按区不同，详情页须用同一区 */
-const STOREFRONTS = ["hk", "tw", "us"];
+/** 假名：日文曲目的判定依据 */
+const KANA_RE = /[\p{Script=Hiragana}\p{Script=Katakana}\u30FC\uFF66-\uFF9F]/u;
+/** 谚文：韩文曲目的判定依据 */
+const HANGUL_RE = /[\p{Script=Hangul}]/u;
+/** 汉字：中文曲目的判定依据 */
+const HAN_RE = /\p{Script=Han}/u;
+/** 日文新字体（中文不使用）：出现即可判定为日文汉字曲目 */
+const JA_SHINJITAI_RE = /[楽図広気売駅円芸転伝沢浜桜鉄県検険厳塩縁剤斎徳]/u;
+
+/** 日文曲目优先日本区，其次韩国区 */
+const KANA_STOREFRONTS = ["jp", "kr", "tw", "hk", "us"];
+/** 韩文曲目优先韩国区，其次日本区 */
+const KOREAN_STOREFRONTS = ["kr", "jp", "tw", "hk", "us"];
+/** 中文曲目优先港台区 */
+const HAN_STOREFRONTS = ["cn", "tw", "hk", "sg", "us", "jp"];
+/** 西文曲目优先美加区 */
+const LATIN_STOREFRONTS = ["us", "ca", "jp", "kr", "tw", "hk"];
+
+/**
+ * 按曲目文字种类决定地区回退顺序
+ * @param title - 曲目名
+ * @param artist - 歌手名
+ * @returns 地区回退顺序
+ */
+const resolveStorefrontOrder = (title: string, artist: string): string[] => {
+  const text = `${title}${artist}`;
+  if (KANA_RE.test(text)) return KANA_STOREFRONTS;
+  if (HANGUL_RE.test(text)) return KOREAN_STOREFRONTS;
+  if (JA_SHINJITAI_RE.test(text)) return KANA_STOREFRONTS;
+  if (HAN_RE.test(text)) return HAN_STOREFRONTS;
+  return LATIN_STOREFRONTS;
+};
+
+/**
+ * 主歌手：歌手串里第一个，避免把「A, B, C」整串塞进搜索词导致零结果
+ * @param track - 曲目
+ * @returns 主歌手名
+ */
+const primaryArtistOf = (track: Track): string =>
+  track.artists[0]?.name?.split(/[,，&/、;；]+/)[0]?.trim() ?? "";
+
+/**
+ * 搜索词分级：歌名+主歌手 → 歌名 → 专辑名+主歌手
+ * @param track - 曲目
+ * @returns 搜索词列表
+ */
+const buildSearchTerms = (track: Track): string[] => {
+  const artist = primaryArtistOf(track);
+  const terms = [
+    artist ? `${track.title} ${artist}` : track.title,
+    track.title,
+    track.album?.name && artist ? `${track.album.name} ${artist}` : "",
+  ];
+  return [...new Set(terms.filter((term) => term.trim().length > 0))];
+};
 /** 变体短边下限（px） */
 const TARGET_SIZE = 768;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -120,11 +169,48 @@ const searchItunes = (
  * @param signal - 中止信号
  * @returns 主列表地址，专辑无动态封面时为 null
  */
+const readMotionUrl = (album: unknown): string | null => {
+  const video = (album as { attributes?: { editorialVideo?: Record<string, { video?: string }> } })
+    ?.attributes?.editorialVideo;
+  return video?.motionDetailSquare?.video ?? video?.motionSquareVideo1x1?.video ?? null;
+};
+
+/**
+ * 通过 AMP 目录接口读取专辑动态封面
+ * @param collectionId - 专辑 id
+ * @param storefront - 地区
+ * @param signal - 中止信号
+ * @returns HLS 主列表地址
+ */
+const fetchAlbumVideoByApi = async (
+  collectionId: number,
+  storefront: string,
+  signal: AbortSignal,
+): Promise<string | null> => {
+  const token = await getDeveloperToken();
+  const res = await fetch(
+    `https://amp-api.music.apple.com/v1/catalog/${storefront}/albums/${collectionId}?extend=editorialVideo`,
+    {
+      headers: { Authorization: `Bearer ${token}`, Origin: "https://music.apple.com" },
+      signal,
+    },
+  );
+  if (!res.ok) throw new Error(`AMP ${res.status} album ${collectionId}`);
+  const body = (await res.json()) as { data?: { attributes?: unknown }[] };
+  return readMotionUrl(body.data?.[0]);
+};
+
 const fetchAlbumVideo = async (
   collectionId: number,
   storefront: string,
   signal: AbortSignal,
 ): Promise<string | null> => {
+  // AMP 接口稳定返回 editorialVideo；公开页面结构偶尔变动，作为兜底
+  try {
+    return await fetchAlbumVideoByApi(collectionId, storefront, signal);
+  } catch (err) {
+    if ((err as Error).name === "AbortError") throw err;
+  }
   const html = await (
     await request(`https://music.apple.com/${storefront}/album/x/${collectionId}`, signal)
   ).text();
@@ -146,7 +232,7 @@ const fetchAlbumVideo = async (
  * @returns 主列表地址，未匹配或无动态封面时为 null
  */
 const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string | null> => {
-  const term = buildLyricSearchKeyword(track);
+  const terms = buildSearchTerms(track);
   // 港台区返回繁体，双方统一转简体再比对
   const [title, album, ...artistNames] = convertTexts(
     [track.title, track.album?.name ?? "", ...track.artists.map((artist) => artist.name)],
@@ -161,10 +247,18 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
     album: track.album && { ...track.album, name: album },
     artists: track.artists.map((artist, index) => ({ ...artist, name: artistNames[index] })),
   };
-  for (const storefront of STOREFRONTS) {
-    const songs = (await searchItunes(term, storefront, signal)).filter(
-      (song) => song.collectionId,
-    );
+  const storefronts = resolveStorefrontOrder(
+    track.title,
+    track.artists.map((artist) => artist.name).join(" "),
+  );
+  for (const storefront of storefronts) {
+    const songs: ItunesSong[] = [];
+    for (const term of terms) {
+      songs.push(
+        ...(await searchItunes(term, storefront, signal)).filter((song) => song.collectionId),
+      );
+      if (songs.length >= 10) break;
+    }
     const texts = convertTexts(
       songs.flatMap((song) => [
         song.trackName ?? "",
@@ -389,9 +483,11 @@ const resolveAm = (track: Track, fingerprint: string): Promise<string | null> =>
  * @returns 在线 mp4 地址
  */
 const resolveNcm = async (track: Track): Promise<string | null> => {
-  if (track.source !== "netease" || !getNeteaseCookies().MUSIC_U) return null;
+  if (track.source !== "netease") return null;
   const { body } = await callNetease("song_dynamic_cover", { id: track.id });
-  return body?.data?.videoPlayUrl || null;
+  const url = (body as { data?: { videoPlayUrl?: string } } | undefined)?.data?.videoPlayUrl;
+  if (!url) motionCoverLog.info(`${track.title}：NCM 无动态封面`);
+  return url || null;
 };
 
 /**
