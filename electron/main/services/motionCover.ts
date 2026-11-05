@@ -36,6 +36,9 @@ const HAN_RE = /\p{Script=Han}/u;
 /** 日文新字体（中文不使用）：出现即可判定为日文汉字曲目 */
 const JA_SHINJITAI_RE = /[楽図広気売駅円芸転伝沢浜桜鉄県検険厳塩縁剤斎徳]/u;
 
+/** 匹配缓存版本：匹配规则变化时递增，让旧的正/负缓存一次性失效 */
+const CACHE_VERSION = "v2";
+
 /** 日文曲目优先日本区，其次韩国区 */
 const KANA_STOREFRONTS = ["jp", "kr", "tw", "hk", "us"];
 /** 韩文曲目优先韩国区，其次日本区 */
@@ -331,7 +334,9 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
     [track.title, track.album?.name ?? "", ...track.artists.map((artist) => artist.name)],
     "t2s",
   );
-  const albumKey = album ? `album|${normalize(album)}|${normalize(artistNames[0])}` : null;
+  const albumKey = album
+    ? `album|${CACHE_VERSION}|${normalize(album)}|${normalize(artistNames[0])}`
+    : null;
   const albumRecord = albumKey ? getMotionCoverRecord(albumKey) : undefined;
   if (albumRecord !== undefined) return albumRecord;
   const simplified: Track = {
@@ -369,7 +374,7 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
     // 逐个候选验证：精确专辑名直接用，近似专辑要求封面指纹一致
     for (const candidate of candidates) {
       if (!pickBestCandidate([candidate], simplified)) continue;
-      const collectionKey = `collection|${storefront}|${candidate.extra}`;
+      const collectionKey = `collection|${CACHE_VERSION}|${storefront}|${candidate.extra}`;
       let video = getMotionCoverRecord(collectionKey);
       let artwork: string | null = null;
       if (video === undefined) {
@@ -652,7 +657,7 @@ export const resolveMotionCover = async (
   source: MotionCoverSource,
 ): Promise<string | null> => {
   if (source === "off" || !track.title || track.artists.length === 0) return null;
-  const fingerprint = buildFingerprint(track);
+  const fingerprint = `${CACHE_VERSION}|${buildFingerprint(track)}`;
   // 切歌后旧曲目的匹配与下载不再需要
   if (active && active.fingerprint !== fingerprint) {
     active.controller.abort();
