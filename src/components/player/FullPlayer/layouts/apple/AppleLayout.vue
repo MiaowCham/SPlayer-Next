@@ -15,6 +15,23 @@ const infoCentered = computed(() => !status.fullQueueOpen && (!showLyric.value |
 
 const lyricVisible = computed(() => showLyric.value && hasLyric.value && !status.fullQueueOpen);
 
+/** 歌词面板正在过渡：只有这段时间才给合成层提示，空闲时保持可混合 */
+const lyricTransitioning = ref(false);
+let lyricTransitionTimer: ReturnType<typeof setTimeout> | undefined;
+
+watch(lyricVisible, () => {
+  lyricTransitioning.value = true;
+  if (lyricTransitionTimer) clearTimeout(lyricTransitionTimer);
+  lyricTransitionTimer = setTimeout(() => {
+    lyricTransitioning.value = false;
+    lyricTransitionTimer = undefined;
+  }, 520);
+});
+
+onBeforeUnmount(() => {
+  if (lyricTransitionTimer) clearTimeout(lyricTransitionTimer);
+});
+
 const toggleLyric = (): void => {
   if (status.fullQueueOpen) {
     status.fullQueueOpen = false;
@@ -57,9 +74,10 @@ const toggleLyric = (): void => {
     <!-- 右侧歌词 -->
     <div
       class="group absolute inset-y-0 right-0 w-[55%] pr-[8%] flex flex-col transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
-      :class="
-        lyricVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-6 pointer-events-none'
-      "
+      :class="[
+        lyricVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-6 pointer-events-none',
+        lyricTransitioning && 'will-change-[opacity,transform]',
+      ]"
     >
       <PlayerLyric :visible="lyricVisible" />
       <LyricActions />
