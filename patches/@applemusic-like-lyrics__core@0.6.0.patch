@@ -1,0 +1,152 @@
+diff --git a/dist/amll-core.cjs b/dist/amll-core.cjs
+index fbd090a..8099688 100644
+--- a/dist/amll-core.cjs
++++ b/dist/amll-core.cjs
+@@ -7023,10 +7023,14 @@ function generateFloatKeyframes(isBG) {
+ 	return new Array(ANIMATION_FRAME_QUANTITY).fill(0).map((_, j) => {
+ 		const x = (j + 1) / ANIMATION_FRAME_QUANTITY;
+ 		let y = Math.sin(x * Math.PI);
+-		if (isBG) y *= 2;
++		let up = 0.05;
++		if (isBG) {
++			y *= 2;
++			up *= 2;
++		}
+ 		return {
+ 			offset: x,
+-			transform: `translateY(${-y * .05}em)`
++			transform: `translateY(${-(y * 0.05 + x * up)}em)`
+ 		};
+ 	});
+ }
+@@ -7048,7 +7052,7 @@ function createCharFloatAnimation(el, wordDelay, isBG, params) {
+ 	const frames = generateFloatKeyframes(isBG);
+ 	const float = el.animate(frames, {
+ 		duration: params.animateDu * 1.4,
+-		delay: Number.isFinite(wordDelay) ? wordDelay - 400 : 0,
++		delay: Number.isFinite(wordDelay) ? wordDelay : 0,
+ 		id: "emphasize-word-float",
+ 		iterations: 1,
+ 		composite: "add",
+@@ -7487,7 +7491,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 	getRubySegments(word) {
+ 		return (word.ruby ?? []).filter((ruby) => (ruby?.word?.trim().length ?? 0) > 0);
+ 	}
+-	createWord(word, shouldEmphasize) {
++	createWord(word, shouldEmphasize, floatWord = word) {
+ 		const mainWordEl = document.createElement("span");
+ 		const subElements = [];
+ 		const romanWord = word.romanWord?.trim() ?? "";
+@@ -7542,8 +7546,8 @@ var LyricLineEl = class extends LyricLineBase {
+ 			...word,
+ 			mainElement: mainWordEl,
+ 			subElements,
+-			elementAnimations: [createFloatAnimation(mainWordEl, {
+-				word,
++			elementAnimations: shouldEmphasize ? [] : [createFloatAnimation(mainWordEl, {
++				word: floatWord,
+ 				lineStartTime: this.lyricLine.startTime,
+ 				isBG: this.lyricLine.isBG
+ 			})],
+@@ -7574,8 +7578,14 @@ var LyricLineEl = class extends LyricLineBase {
+ 			wordType: "normal",
+ 			obscene: false
+ 		});
+-		let emp = chunk.some((word) => LyricLineBase.shouldEmphasize(word));
+-		if (!isCJK(merged.word)) emp = emp || LyricLineBase.shouldEmphasize(merged);
++		const disableEmphasize = this.lyricLine.__amllDisableEmphasize === true;
++		const disableCjkEmphasize =
++			this.lyricLine.__amllDisableCjkEmphasis === true && isCJK(merged.word);
++		const emp = disableEmphasize || disableCjkEmphasize
++			? false
++			: isCJK(merged.word)
++				? chunk.some((word) => LyricLineBase.shouldEmphasize(word))
++				: LyricLineBase.shouldEmphasize(merged);
+ 		const wrapperWordEl = document.createElement("span");
+ 		wrapperWordEl.classList.add(lyric_player_module_default.emphasizeWrapper);
+ 		const characterElements = [];
+@@ -7584,7 +7594,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 				wrapperWordEl.appendChild(document.createTextNode(word.word));
+ 				continue;
+ 			}
+-			const realWord = this.createWord(word, emp);
++			const realWord = this.createWord(word, emp, emp ? merged : word);
+ 			if (emp) characterElements.push(...realWord.subElements);
+ 			this.splittedWords.push(realWord);
+ 			wrapperWordEl.appendChild(realWord.mainElement);
+diff --git a/dist/amll-core.mjs b/dist/amll-core.mjs
+index b38e570..91d5318 100644
+--- a/dist/amll-core.mjs
++++ b/dist/amll-core.mjs
+@@ -6990,10 +6990,14 @@ function generateFloatKeyframes(isBG) {
+ 	return new Array(ANIMATION_FRAME_QUANTITY).fill(0).map((_, j) => {
+ 		const x = (j + 1) / ANIMATION_FRAME_QUANTITY;
+ 		let y = Math.sin(x * Math.PI);
+-		if (isBG) y *= 2;
++		let up = 0.05;
++		if (isBG) {
++			y *= 2;
++			up *= 2;
++		}
+ 		return {
+ 			offset: x,
+-			transform: `translateY(${-y * .05}em)`
++			transform: `translateY(${-(y * 0.05 + x * up)}em)`
+ 		};
+ 	});
+ }
+@@ -7015,7 +7019,7 @@ function createCharFloatAnimation(el, wordDelay, isBG, params) {
+ 	const frames = generateFloatKeyframes(isBG);
+ 	const float = el.animate(frames, {
+ 		duration: params.animateDu * 1.4,
+-		delay: Number.isFinite(wordDelay) ? wordDelay - 400 : 0,
++		delay: Number.isFinite(wordDelay) ? wordDelay : 0,
+ 		id: "emphasize-word-float",
+ 		iterations: 1,
+ 		composite: "add",
+@@ -7454,7 +7458,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 	getRubySegments(word) {
+ 		return (word.ruby ?? []).filter((ruby) => (ruby?.word?.trim().length ?? 0) > 0);
+ 	}
+-	createWord(word, shouldEmphasize) {
++	createWord(word, shouldEmphasize, floatWord = word) {
+ 		const mainWordEl = document.createElement("span");
+ 		const subElements = [];
+ 		const romanWord = word.romanWord?.trim() ?? "";
+@@ -7509,8 +7513,8 @@ var LyricLineEl = class extends LyricLineBase {
+ 			...word,
+ 			mainElement: mainWordEl,
+ 			subElements,
+-			elementAnimations: [createFloatAnimation(mainWordEl, {
+-				word,
++			elementAnimations: shouldEmphasize ? [] : [createFloatAnimation(mainWordEl, {
++				word: floatWord,
+ 				lineStartTime: this.lyricLine.startTime,
+ 				isBG: this.lyricLine.isBG
+ 			})],
+@@ -7541,8 +7545,14 @@ var LyricLineEl = class extends LyricLineBase {
+ 			wordType: "normal",
+ 			obscene: false
+ 		});
+-		let emp = chunk.some((word) => LyricLineBase.shouldEmphasize(word));
+-		if (!isCJK(merged.word)) emp = emp || LyricLineBase.shouldEmphasize(merged);
++		const disableEmphasize = this.lyricLine.__amllDisableEmphasize === true;
++		const disableCjkEmphasize =
++			this.lyricLine.__amllDisableCjkEmphasis === true && isCJK(merged.word);
++		const emp = disableEmphasize || disableCjkEmphasize
++			? false
++			: isCJK(merged.word)
++				? chunk.some((word) => LyricLineBase.shouldEmphasize(word))
++				: LyricLineBase.shouldEmphasize(merged);
+ 		const wrapperWordEl = document.createElement("span");
+ 		wrapperWordEl.classList.add(lyric_player_module_default.emphasizeWrapper);
+ 		const characterElements = [];
+@@ -7551,7 +7561,7 @@ var LyricLineEl = class extends LyricLineBase {
+ 				wrapperWordEl.appendChild(document.createTextNode(word.word));
+ 				continue;
+ 			}
+-			const realWord = this.createWord(word, emp);
++			const realWord = this.createWord(word, emp, emp ? merged : word);
+ 			if (emp) characterElements.push(...realWord.subElements);
+ 			this.splittedWords.push(realWord);
+ 			wrapperWordEl.appendChild(realWord.mainElement);
