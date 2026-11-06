@@ -56,7 +56,7 @@ const toggleLyric = (): void => {
     </div>
     <!-- 右侧歌词 -->
     <div
-      class="group absolute inset-y-0 right-0 w-[55%] pr-[8%] flex flex-col transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.5,0,0.5,1)] will-change-[opacity,transform]"
+      class="group absolute inset-y-0 right-0 w-[55%] pr-[8%] flex flex-col transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
       :class="
         lyricVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-6 pointer-events-none'
       "
