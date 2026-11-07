@@ -21,7 +21,7 @@ export interface SMarqueeProps {
 const props = withDefaults(defineProps<SMarqueeProps>(), {
   speed: 45,
   delay: 1000,
-  pause: 5500,
+  pause: 5000,
   gap: 100,
   fit: false,
   mask: true,
@@ -67,25 +67,51 @@ const syncAnimation = (): void => {
   const scrollMs = (distance / props.speed) * 1000;
   const total = scrollMs + props.pause;
   const pauseRatio = props.pause / total;
-  // 全程一条缓动曲线：起步略缓、尾段明显减速停住（对齐 Apple 的收尾手感）
-  const scrollEasing = "cubic-bezier(0.22, 0, 0.12, 1)";
   animation?.cancel();
-  animation = track.animate(
-    [
-      { transform: "translateX(0px)", offset: 0, easing: "linear" },
-      { transform: "translateX(0px)", offset: pauseRatio, easing: scrollEasing },
-      { transform: `translateX(-${distance}px)`, offset: 1 },
-    ],
-    {
-      duration: total,
-      delay: props.delay,
-      iterations: Infinity,
-      easing: "linear",
-      fill: "both",
-    },
-  );
+  animation = track.animate(buildKeyframes(distance, pauseRatio), {
+    duration: total,
+    delay: props.delay,
+    iterations: Infinity,
+    easing: "linear",
+    fill: "both",
+  });
   animationKey = key;
   startPhaseTracking(props.delay);
+};
+
+/** 录屏实测速度曲线（归一化），用于生成位移关键帧 */
+const SPEED_PROFILE = [
+  0, 0.13, 0.78, 0.85, 0.89, 0.98, 0.98, 0.97, 1, 1, 0.96, 0.96, 0.88, 0.84, 0.76, 0.69, 0.59, 0.53,
+  0.45, 0.39, 0.31, 0.22, 0.15, 0.07, 0.02, 0,
+];
+
+/** 把速度曲线积分成归一化位移，供关键帧使用 */
+const buildTravelSteps = (): number[] => {
+  const cumulative: number[] = [];
+  let sum = 0;
+  for (const speed of SPEED_PROFILE) {
+    sum += speed;
+    cumulative.push(sum);
+  }
+  const total = sum || 1;
+  return cumulative.map((value) => value / total);
+};
+
+/** 位移关键帧：加速段 + 匀速段 + 长减速段，全部线性插值 */
+const buildKeyframes = (distance: number, pauseRatio: number): Keyframe[] => {
+  const steps = buildTravelSteps();
+  const frames: Keyframe[] = [
+    { transform: "translateX(0px)", offset: 0, easing: "linear" },
+    { transform: "translateX(0px)", offset: pauseRatio, easing: "linear" },
+  ];
+  for (let i = 1; i < steps.length; i += 1) {
+    frames.push({
+      transform: `translateX(-${steps[i] * distance}px)`,
+      offset: pauseRatio + (i / (steps.length - 1)) * (1 - pauseRatio),
+      easing: "linear",
+    });
+  }
+  return frames;
 };
 
 /** 跟踪动画相位：滚动段内侧也要渐隐，停留段只保留右侧渐隐 */

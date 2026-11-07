@@ -45,12 +45,14 @@ let transitionTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** AutoMix 时封面比文字晚切换的时长，对齐 Apple 的交接顺序 */
 const AUTOMIX_COVER_DELAY_MS = 1200;
+/** 等待动态封面就绪的时间，超时则退回静态图叠化 */
+const MOTION_GRACE_MS = 350;
 
 /** 进入过渡的类：减少动效时缩短时长且不做缩放 */
 const enterActiveClass = computed(() =>
   settings.reducedMotion
     ? "transition-opacity duration-200 ease-linear"
-    : "transition-opacity duration-650 ease-linear",
+    : "transition-opacity duration-900 ease-in",
 );
 
 /** 标记进入过渡，约 520ms 后撤销 */
@@ -80,6 +82,26 @@ watch(
 );
 
 // 新图解码后才淡入，淡入结束前底层旧图保持不动，最多两层
+/** 等待目标曲目的动态封面就绪 */
+const waitForMotion = (id: string, timeout: number): Promise<boolean> =>
+  new Promise((resolve) => {
+    const key = `${settings.player.motionCoverSource}:${id}`;
+    if (motion.value?.key === key) {
+      resolve(true);
+      return;
+    }
+    const stop = setInterval(() => {
+      if (motion.value?.key === key) {
+        clearInterval(stop);
+        resolve(true);
+      }
+    }, 30);
+    setTimeout(() => {
+      clearInterval(stop);
+      resolve(motion.value?.key === key);
+    }, timeout);
+  });
+
 let pendingLayerTimer: ReturnType<typeof setTimeout> | undefined;
 /** 最近一次 AutoMix 交接开始的时间戳，用于判断切歌是否发生在交接窗口内 */
 let automixStartedAt = 0;
@@ -110,6 +132,14 @@ watch([coverSrc, () => displayTrack.value?.cover], async () => {
       }, delay);
     });
   }
+  // AutoMix 交接时优先让视频单段淡入，命中则不叠加静态图；手动切歌保持原样
+  const id = displayTrack.value?.id;
+  const preferMotion =
+    inAutomix &&
+    settings.player.motionCoverSource !== "off" &&
+    !!id &&
+    (await waitForMotion(id, MOTION_GRACE_MS));
+  if (preferMotion) return;
   const decodes = [layer.src, layer.fallback].filter(Boolean).map((src) => {
     const image = new Image();
     image.src = src!;
@@ -239,7 +269,7 @@ onBeforeUnmount(() => {
         muted
         loop
         playsinline
-        class="absolute inset-0 z-2 size-full object-cover transition-opacity duration-500"
+        class="absolute inset-0 z-2 size-full object-cover transition-opacity duration-900 ease-in"
         :class="motionReady ? 'opacity-100' : 'opacity-0'"
         @loadeddata="motionReady = true"
       />
