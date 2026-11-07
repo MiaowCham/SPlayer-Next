@@ -50,7 +50,7 @@ const AUTOMIX_COVER_DELAY_MS = 1200;
 const enterActiveClass = computed(() =>
   settings.reducedMotion
     ? "transition-opacity duration-200 ease-linear"
-    : "transition-[opacity,transform] duration-500 ease-linear",
+    : "transition-opacity duration-650 ease-linear",
 );
 
 /** 标记进入过渡，约 520ms 后撤销 */
@@ -212,7 +212,7 @@ onBeforeUnmount(() => {
     <!-- 切歌交叉淡入 -->
     <TransitionGroup
       :enter-active-class="enterActiveClass"
-      :enter-from-class="settings.reducedMotion ? 'opacity-0' : 'opacity-0 scale-[1.02]'"
+      :enter-from-class="'opacity-0'"
       @after-enter="layers = layers.slice(-1)"
     >
       <DetailCover
@@ -222,7 +222,7 @@ onBeforeUnmount(() => {
         :fallback="layer.fallback"
         :crossfade="false"
         class="absolute! inset-0 size-full"
-        :class="transitioning && 'will-change-[opacity,transform]'"
+        :class="transitioning && '[will-change:opacity]'"
       />
     </TransitionGroup>
     <!-- 动态封面 -->
