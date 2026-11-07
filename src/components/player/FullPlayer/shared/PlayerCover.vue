@@ -7,6 +7,7 @@ import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
 import * as queueStore from "@/stores/queue";
+import * as player from "@/core/player";
 
 const media = useMediaStore();
 const status = useStatusStore();
@@ -115,9 +116,11 @@ watch(
 
 watch([coverSrc, () => displayTrack.value?.cover], async () => {
   // AutoMix 交叉淡化期间，文字先更新，封面延迟交接
+  const manual = player.isManualSwitchRecent();
   const inAutomix =
-    (status.transitioning && status.transitionMode === "automix") ||
-    Date.now() - automixStartedAt < 4000;
+    !manual &&
+    ((status.transitioning && status.transitionMode === "automix") ||
+      Date.now() - automixStartedAt < 4000);
   const delay = inAutomix ? AUTOMIX_COVER_DELAY_MS : 0;
   const layer = createLayer();
   if (pendingLayerTimer) {

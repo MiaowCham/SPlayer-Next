@@ -832,6 +832,7 @@ export const playFrom = async (
   items: readonly Track[],
   { startIndex, context }: PlayFromOptions = {},
 ): Promise<void> => {
+  markManualSwitch();
   if (items.length === 0) return;
   const status = useStatusStore();
   const media = useMediaStore();
@@ -1025,7 +1026,24 @@ export const dislikeFmTrack = async (): Promise<void> => {
  * 播放下一首
  * @param autoPlay - 是否自动播放
  */
+/** 最近一次用户主动切歌的时间戳，用于区分 AutoMix 自动交接 */
+let lastManualSwitchAt = 0;
+
+/** 记录一次用户主动切歌 */
+export const markManualSwitch = (): void => {
+  lastManualSwitchAt = Date.now();
+};
+
+/**
+ * 最近是否是用户主动切歌
+ * @param windowMs - 判定窗口
+ * @returns 是否在窗口内
+ */
+export const isManualSwitchRecent = (windowMs = 2500): boolean =>
+  Date.now() - lastManualSwitchAt < windowMs;
+
 export const nextTrack = async (autoPlay = true): Promise<void> => {
+  markManualSwitch();
   const status = useStatusStore();
   // 私人 FM
   if (status.fmMode) {
@@ -1198,6 +1216,7 @@ export const trySmartTransition = async (
  * @param index - 队列位置
  */
 export const playAtIndex = async (index: number): Promise<void> => {
+  markManualSwitch();
   const status = useStatusStore();
   if (index < 0 || index >= queue.queueLength.value) return;
   if (index === status.playIndex) {
@@ -1213,6 +1232,7 @@ export const playAtIndex = async (index: number): Promise<void> => {
 
 /** 播放上一首，首位时回绕到末尾 */
 export const prevTrack = async (): Promise<void> => {
+  markManualSwitch();
   const status = useStatusStore();
   if (status.fmMode) return;
   if (queue.queueLength.value === 0) return;
