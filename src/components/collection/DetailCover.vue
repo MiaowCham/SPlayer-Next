@@ -2,9 +2,10 @@
 import type { SImgProps } from "@/components/ui/SImg.vue";
 import defaultFallback from "@/assets/images/song.jpg";
 
-const props = withDefaults(defineProps<SImgProps>(), {
+const props = withDefaults(defineProps<SImgProps & { crossfade?: boolean }>(), {
   fallback: defaultFallback,
   alt: "",
+  crossfade: true,
 });
 
 const loaded = ref(false);
@@ -25,7 +26,7 @@ watch(
   () => props.src,
   (value, oldValue) => {
     loaded.value = false;
-    if (oldValue && value && oldValue !== value) {
+    if (props.crossfade && oldValue && value && oldValue !== value) {
       previousSrc.value = oldValue;
     }
   },

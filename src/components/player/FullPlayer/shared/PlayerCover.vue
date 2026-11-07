@@ -6,6 +6,7 @@ const hdCache = shallowRef<{ id: string; data: string } | null>(null);
 import { useMediaStore } from "@/stores/media";
 import { useStatusStore } from "@/stores/status";
 import { useSettingsStore } from "@/stores/settings";
+import * as queueStore from "@/stores/queue";
 
 const media = useMediaStore();
 const status = useStatusStore();
@@ -38,17 +39,86 @@ const createLayer = () => ({
 });
 
 const layers = shallowRef([createLayer()]);
+/** 封面正在交叉淡化：这段时间才给合成层提示 */
+const transitioning = ref(false);
+let transitionTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** AutoMix 时封面比文字晚切换的时长，对齐 Apple 的交接顺序 */
+const AUTOMIX_COVER_DELAY_MS = 1200;
+
+/** 进入过渡的类：减少动效时缩短时长且不做缩放 */
+const enterActiveClass = computed(() =>
+  settings.reducedMotion
+    ? "transition-opacity duration-200 ease-linear"
+    : "transition-[opacity,transform] duration-500 ease-linear",
+);
+
+/** 标记进入过渡，约 520ms 后撤销 */
+const markTransition = (): void => {
+  transitioning.value = true;
+  if (transitionTimer) clearTimeout(transitionTimer);
+  transitionTimer = setTimeout(() => {
+    transitioning.value = false;
+    transitionTimer = undefined;
+  }, 520);
+};
+
+/** 预取下一首封面，切歌时可直接命中解码缓存 */
+watch(
+  () => {
+    const next = queueStore.getTrack(status.playIndex + 1);
+    return next ? next.coverOriginal || next.cover : null;
+  },
+  (src) => {
+    if (!src) return;
+    const image = new Image();
+    image.decoding = "async";
+    image.src = src;
+    void image.decode().catch(() => {});
+  },
+  { immediate: true },
+);
 
 // 新图解码后才淡入，淡入结束前底层旧图保持不动，最多两层
+let pendingLayerTimer: ReturnType<typeof setTimeout> | undefined;
+/** 最近一次 AutoMix 交接开始的时间戳，用于判断切歌是否发生在交接窗口内 */
+let automixStartedAt = 0;
+
+watch(
+  () => status.transitioning,
+  (active) => {
+    if (active && status.transitionMode === "automix") automixStartedAt = Date.now();
+  },
+);
+
 watch([coverSrc, () => displayTrack.value?.cover], async () => {
+  // AutoMix 交叉淡化期间，文字先更新，封面延迟交接
+  const inAutomix =
+    (status.transitioning && status.transitionMode === "automix") ||
+    Date.now() - automixStartedAt < 4000;
+  const delay = inAutomix ? AUTOMIX_COVER_DELAY_MS : 0;
   const layer = createLayer();
+  if (pendingLayerTimer) {
+    clearTimeout(pendingLayerTimer);
+    pendingLayerTimer = undefined;
+  }
+  if (delay > 0) {
+    await new Promise<void>((resolve) => {
+      pendingLayerTimer = setTimeout(() => {
+        pendingLayerTimer = undefined;
+        resolve();
+      }, delay);
+    });
+  }
   const decodes = [layer.src, layer.fallback].filter(Boolean).map((src) => {
     const image = new Image();
     image.src = src!;
     return image.decode();
   });
   await Promise.any(decodes).catch(() => {});
-  if (layer.id === layerId) layers.value = [layers.value[0], layer];
+  if (layer.id !== layerId) return;
+  markTransition();
+  layers.value = [layers.value[0], layer];
 });
 
 const motion = shallowRef<{ key: string; src: string } | null>(null);
@@ -77,6 +147,38 @@ watch(
   { immediate: true },
 );
 
+// 动态封面已接管显示，底层只留一张图兜底
+watch(motionReady, (ready) => {
+  if (ready && layers.value.length > 1) layers.value = layers.value.slice(-1);
+});
+
+/** 已预取过动态封面的曲目，避免重复请求 */
+const prefetchedMotion = new Set<string>();
+
+/**
+ * AutoMix 临近交接时预取下一首的动态封面
+ *
+ * 只在这一首自己的动态封面已就绪后触发，避免打断当前曲目的解析
+ */
+watch(
+  () => [status.position, status.duration, displayTrack.value?.id] as const,
+  () => {
+    if (settings.player.transitionMode !== "automix") return;
+    const source = settings.player.motionCoverSource;
+    if (source === "off" || !status.isPlaying) return;
+    const current = displayTrack.value;
+    if (!current || !motion.value) return;
+    const remaining = status.duration - status.position;
+    if (remaining <= 0 || remaining > 20_000) return;
+    const next = queueStore.getTrack(status.playIndex + 1);
+    if (!next || next.id === current.id) return;
+    const key = `${source}:${next.id}`;
+    if (prefetchedMotion.has(key)) return;
+    prefetchedMotion.add(key);
+    void window.api.motionCover.resolve(toRaw(next), source).catch(() => {});
+  },
+);
+
 const visibility = useDocumentVisibility();
 
 // 跟随播放暂停，窗口隐藏时停止解码
@@ -97,7 +199,11 @@ const releaseVideo = (el: Element) => {
 };
 
 // 切换布局时组件直接卸载，不经过离场过渡
-onBeforeUnmount(() => videoRef.value && releaseVideo(videoRef.value));
+onBeforeUnmount(() => {
+  if (transitionTimer) clearTimeout(transitionTimer);
+  if (pendingLayerTimer) clearTimeout(pendingLayerTimer);
+  if (videoRef.value) releaseVideo(videoRef.value);
+});
 </script>
 
 <template>
@@ -105,9 +211,8 @@ onBeforeUnmount(() => videoRef.value && releaseVideo(videoRef.value));
   <div data-player-cover="full" class="relative overflow-hidden shrink-0">
     <!-- 切歌交叉淡入 -->
     <TransitionGroup
-      :css="!settings.reducedMotion"
-      enter-active-class="transition-opacity duration-500 ease-linear"
-      enter-from-class="opacity-0"
+      :enter-active-class="enterActiveClass"
+      :enter-from-class="settings.reducedMotion ? 'opacity-0' : 'opacity-0 scale-[1.02]'"
       @after-enter="layers = layers.slice(-1)"
     >
       <DetailCover
@@ -115,7 +220,9 @@ onBeforeUnmount(() => videoRef.value && releaseVideo(videoRef.value));
         :key="layer.id"
         :src="layer.src"
         :fallback="layer.fallback"
+        :crossfade="false"
         class="absolute! inset-0 size-full"
+        :class="transitioning && 'will-change-[opacity,transform]'"
       />
     </TransitionGroup>
     <!-- 动态封面 -->
