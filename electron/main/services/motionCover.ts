@@ -43,8 +43,8 @@ const CACHE_VERSION = "v2";
 const KANA_STOREFRONTS = ["jp", "kr", "tw", "hk", "us"];
 /** 韩文曲目优先韩国区，其次日本区 */
 const KOREAN_STOREFRONTS = ["kr", "jp", "tw", "hk", "us"];
-/** 中文曲目优先港台区 */
-const HAN_STOREFRONTS = ["cn", "tw", "hk", "sg", "us", "jp"];
+/** 中文曲目优先港台区；CN 区 Search 接口不返回结果，不浪费时间 */
+const HAN_STOREFRONTS = ["tw", "hk", "sg", "us", "jp"];
 /** 西文曲目优先美加区 */
 const LATIN_STOREFRONTS = ["us", "ca", "jp", "kr", "tw", "hk"];
 
@@ -383,8 +383,10 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
       extra: song.collectionId!,
     }));
     // 逐个候选验证：精确专辑名直接用，近似专辑要求封面指纹一致
+    let passed = 0;
     for (const candidate of candidates) {
       if (!pickBestCandidate([candidate], simplified)) continue;
+      passed += 1;
       const collectionKey = `collection|${CACHE_VERSION}|${storefront}|${candidate.extra}`;
       let video = getMotionCoverRecord(collectionKey);
       let artwork: string | null = null;
@@ -409,9 +411,21 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
         return video;
       }
     }
-    if (songs.length > 0) break;
+    if (songs.length > 0) {
+      if (passed === 0) {
+        motionCoverLog.info(
+          `${track.title}：${storefront} 候选全被筛掉，前三个=${candidates
+            .slice(0, 3)
+            .map((c) => `${c.name}/${c.artist}`)
+            .join(" | ")}`,
+        );
+      }
+      break;
+    }
   }
-  motionCoverLog.info(`${track.title}：AM 未匹配`);
+  motionCoverLog.info(
+    `${track.title}：AM 未匹配（artists=${track.artists.map((a) => a.name).join("/")} album=${track.album?.name ?? "-"} dur=${track.duration ?? "-"}）`,
+  );
   return null;
 };
 
