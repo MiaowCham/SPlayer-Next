@@ -391,10 +391,21 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
       let video = getMotionCoverRecord(collectionKey);
       let artwork: string | null = null;
       if (video === undefined) {
-        const info = await fetchAlbumInfo(candidate.extra, storefront, signal);
-        video = info.video;
-        artwork = info.artwork;
-        setMotionCoverRecord(collectionKey, video);
+        try {
+          const info = await fetchAlbumInfo(candidate.extra, storefront, signal);
+          video = info.video;
+          artwork = info.artwork;
+          motionCoverLog.info(
+            `${track.title}：候选 ${candidate.name} cid=${candidate.extra} video=${video ? "yes" : "no"}`,
+          );
+          setMotionCoverRecord(collectionKey, video);
+        } catch (err) {
+          if ((err as Error).name === "AbortError") throw err;
+          motionCoverLog.warn(
+            `${track.title}：专辑 ${candidate.extra} 读取失败 ${(err as Error).message}`,
+          );
+          continue;
+        }
       }
       if (!video) continue;
       const exact = !!album && normalize(candidate.album) === normalize(album);
