@@ -165,8 +165,16 @@ watch(
   async ([active, source, id]) => {
     const key = `${source}:${id}`;
     if (motion.value && motion.value.key !== key) {
-      motion.value = null;
-      motionReady.value = false;
+      // 旧视频先留着，等新封面淡入时再一起淡出，避免硬切
+      if (motionClearTimer) clearTimeout(motionClearTimer);
+      motionClearTimer = setTimeout(() => {
+        motionClearTimer = undefined;
+        const expected = `${settings.player.motionCoverSource}:${displayTrack.value?.id}`;
+        if (motion.value && motion.value.key !== expected) {
+          motion.value = null;
+          motionReady.value = false;
+        }
+      }, 400);
     }
     if (!active || source === "off" || !id || !displayTrack.value || motion.value) return;
     const src = await window.api.motionCover.resolve(toRaw(displayTrack.value), source);
@@ -209,6 +217,9 @@ watch(
   },
 );
 
+/** 旧视频的延迟清除定时器，保证与新封面叠化同步 */
+let motionClearTimer: ReturnType<typeof setTimeout> | undefined;
+
 const visibility = useDocumentVisibility();
 
 // 跟随播放暂停，窗口隐藏时停止解码
@@ -232,6 +243,7 @@ const releaseVideo = (el: Element) => {
 onBeforeUnmount(() => {
   if (transitionTimer) clearTimeout(transitionTimer);
   if (pendingLayerTimer) clearTimeout(pendingLayerTimer);
+  if (motionClearTimer) clearTimeout(motionClearTimer);
   if (videoRef.value) releaseVideo(videoRef.value);
 });
 </script>
@@ -257,7 +269,7 @@ onBeforeUnmount(() => {
     </TransitionGroup>
     <!-- 动态封面 -->
     <Transition
-      leave-active-class="transition-opacity duration-500"
+      leave-active-class="transition-opacity duration-900 ease-in"
       leave-to-class="opacity-0"
       @after-leave="releaseVideo"
     >

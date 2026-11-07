@@ -84,9 +84,11 @@ const buildSearchTerms = (track: Track): string[] => {
 /** 变体短边下限（px） */
 const TARGET_SIZE = 640;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
-/** iTunes Search 约 20 次/分钟限流；命中靠缓存，单曲只查一次 */
-const ITUNES_INTERVAL_MS = 1500;
+/** iTunes Search 约 20 次/分钟限流；超过会返回空结果，宁可慢也不能空 */
+const ITUNES_INTERVAL_MS = 3000;
 const TIMEOUT_MS = 15_000;
+/** 空结果后补一次搜索前的等待 */
+const ITUNES_RETRY_DELAY_MS = 2000;
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
 
@@ -148,7 +150,8 @@ const searchItunes = (
   signal: AbortSignal,
 ): Promise<ItunesSong[]> => {
   const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=song&limit=10&country=${storefront}`;
-  const task = itunesQueue.then(async () => {
+  /** 排队发起一次搜索 */
+  const searchOnce = async (): Promise<ItunesSong[]> => {
     // 已切走的曲目直接出队，不占限流间隔
     signal.throwIfAborted();
     await sleep(Math.max(0, lastSearchAt + ITUNES_INTERVAL_MS - Date.now()), undefined, {
@@ -157,6 +160,14 @@ const searchItunes = (
     lastSearchAt = Date.now();
     const body = (await (await request(url, signal)).json()) as { results?: ItunesSong[] };
     return body.results ?? [];
+  };
+  const task = itunesQueue.then(async () => {
+    const first = await searchOnce();
+    if (first.length > 0) return first;
+    // 限流时 Apple 会返回空结果而不是报错，间隔后补一次
+    motionCoverLog.info(`[iTunes] 空结果重试 ${term} @ ${storefront}`);
+    await sleep(ITUNES_RETRY_DELAY_MS, undefined, { signal });
+    return searchOnce();
   });
   itunesQueue = task.catch(() => {});
   return task;
