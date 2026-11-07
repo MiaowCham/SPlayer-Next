@@ -156,6 +156,14 @@ watch([coverSrc, () => displayTrack.value?.cover], async () => {
 
 const motion = shallowRef<{ key: string; src: string } | null>(null);
 const motionReady = ref(false);
+
+// 视频地址变化时重置就绪状态，让新视频重新淡入（动态切动态也有叠化）
+watch(
+  () => motion.value?.src,
+  () => {
+    motionReady.value = false;
+  },
+);
 const videoRef = ref<HTMLVideoElement>();
 
 watch(
@@ -168,7 +176,10 @@ watch(
   async ([active, source, id]) => {
     const key = `${source}:${id}`;
     if (motion.value && motion.value.key !== key) {
-      // 旧视频先留着，等新封面淡入时再一起淡出，避免硬切
+      const manual = player.isManualSwitchRecent();
+      videoLeavingFast.value = manual;
+      // 手动切歌时旧视频不该继续盖住新封面，立即开始淡出
+      const delay = manual ? 0 : 400;
       if (motionClearTimer) clearTimeout(motionClearTimer);
       motionClearTimer = setTimeout(() => {
         motionClearTimer = undefined;
@@ -177,7 +188,7 @@ watch(
           motion.value = null;
           motionReady.value = false;
         }
-      }, 400);
+      }, delay);
     }
     if (!active || source === "off" || !id || !displayTrack.value || motion.value) return;
     const src = await window.api.motionCover.resolve(toRaw(displayTrack.value), source);
@@ -222,6 +233,8 @@ watch(
 
 /** 旧视频的延迟清除定时器，保证与新封面叠化同步 */
 let motionClearTimer: ReturnType<typeof setTimeout> | undefined;
+/** 手动切歌时旧视频快速淡出，避免盖住新封面 */
+const videoLeavingFast = ref(false);
 
 const visibility = useDocumentVisibility();
 
@@ -272,7 +285,11 @@ onBeforeUnmount(() => {
     </TransitionGroup>
     <!-- 动态封面 -->
     <Transition
-      leave-active-class="transition-opacity duration-900 ease-in"
+      :leave-active-class="
+        videoLeavingFast
+          ? 'transition-opacity duration-200 ease-out'
+          : 'transition-opacity duration-900 ease-in'
+      "
       leave-to-class="opacity-0"
       @after-leave="releaseVideo"
     >
