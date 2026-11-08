@@ -177,8 +177,11 @@ watch(
     const key = `${source}:${id}`;
     if (motion.value && motion.value.key !== key) {
       const manual = player.isManualSwitchRecent();
-      videoLeavingFast.value = manual;
-      // 手动切歌时旧视频不该继续盖住新封面，立即开始淡出
+      if (manual) {
+        // 冻结在最后一帧，作为与静态封面叠化的底图
+        videoRef.value?.pause();
+      }
+      // 手动切歌立即开始淡出；自动交接保留 400ms 搭接
       const delay = manual ? 0 : 400;
       if (motionClearTimer) clearTimeout(motionClearTimer);
       motionClearTimer = setTimeout(() => {
@@ -233,9 +236,6 @@ watch(
 
 /** 旧视频的延迟清除定时器，保证与新封面叠化同步 */
 let motionClearTimer: ReturnType<typeof setTimeout> | undefined;
-/** 手动切歌时旧视频快速淡出，避免盖住新封面 */
-const videoLeavingFast = ref(false);
-
 const visibility = useDocumentVisibility();
 
 // 跟随播放暂停，窗口隐藏时停止解码
@@ -285,11 +285,7 @@ onBeforeUnmount(() => {
     </TransitionGroup>
     <!-- 动态封面 -->
     <Transition
-      :leave-active-class="
-        videoLeavingFast
-          ? 'transition-opacity duration-200 ease-out'
-          : 'transition-opacity duration-900 ease-in'
-      "
+      leave-active-class="transition-opacity duration-900 ease-in"
       leave-to-class="opacity-0"
       @after-leave="releaseVideo"
     >
