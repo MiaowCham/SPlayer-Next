@@ -496,9 +496,9 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
   color: transparent;
   background: linear-gradient(
     100deg,
-    rgb(var(--s-on-surface) / 0.7) 40%,
-    rgb(var(--s-primary)) 50%,
-    rgb(var(--s-on-surface) / 0.7) 60%
+    rgb(var(--s-cover) / 0.7) 40%,
+    rgb(var(--s-cover)) 50%,
+    rgb(var(--s-cover) / 0.7) 60%
   );
   background-size: 200% 100%;
   background-clip: text;
