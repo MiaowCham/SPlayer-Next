@@ -241,19 +241,22 @@ onBeforeUnmount(() => {
   transform-origin: left center;
 }
 
+/* 静态发光放在基础样式上，减少动效时停掉动画也仍然有光 */
 .apple-slider.is-glowing .apple-slider-track {
+  filter: drop-shadow(0 0 3px rgb(var(--s-cover) / 0.9))
+    drop-shadow(0 0 8px rgb(var(--s-cover) / 0.45));
   animation: apple-slider-glow 1.4s ease-in-out infinite alternate;
 }
 
 @keyframes apple-slider-glow {
   from {
-    filter: drop-shadow(0 0 3px rgb(var(--s-cover) / 0.8))
-      drop-shadow(0 0 8px rgb(var(--s-cover) / 0.35));
+    filter: drop-shadow(0 0 3px rgb(var(--s-cover) / 0.9))
+      drop-shadow(0 0 8px rgb(var(--s-cover) / 0.45));
   }
 
   to {
-    filter: drop-shadow(0 0 4px rgb(var(--s-cover) / 0.95))
-      drop-shadow(0 0 12px rgb(var(--s-cover) / 0.5));
+    filter: drop-shadow(0 0 5px rgb(var(--s-cover) / 1))
+      drop-shadow(0 0 14px rgb(var(--s-cover) / 0.6));
   }
 }
 

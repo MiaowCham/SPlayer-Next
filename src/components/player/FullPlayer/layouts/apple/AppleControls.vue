@@ -496,18 +496,18 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
   color: transparent;
   background: linear-gradient(
     100deg,
-    rgb(var(--s-cover) / 0.6) 40%,
-    rgb(var(--s-cover)) 50%,
-    rgb(var(--s-cover) / 0.6) 60%
+    rgb(var(--s-on-surface) / 0.7) 40%,
+    rgb(var(--s-primary)) 50%,
+    rgb(var(--s-on-surface) / 0.7) 60%
   );
   background-size: 200% 100%;
   background-clip: text;
   animation: apple-transition-shine 1.4s linear infinite;
 
   @media (prefers-reduced-motion: reduce) {
+    /* 减少动效时保留静态渐变，避免完全没有光效 */
     animation: none;
-    background: none;
-    color: rgb(var(--s-cover));
+    background-position: 50% center;
   }
 }
 
