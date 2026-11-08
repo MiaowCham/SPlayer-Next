@@ -333,6 +333,25 @@ const isSameArtwork = async (
 };
 
 /**
+ * 两个专辑名是否指向同一张专辑
+ *
+ * 既接受完全一致，也接受「一方是另一方前缀」的情况
+ * （如 `贫民百万歌星` 与 `贫民百万歌星 2009-2012 Best Singles Collection`），
+ * 但短名至少 4 个字符，避免过短的名字误吞其他专辑
+ * @param left - 专辑名 A
+ * @param right - 专辑名 B
+ * @returns 是否视为同一张专辑
+ */
+const isSameAlbumName = (left: string, right: string | undefined): boolean => {
+  const a = normalize(left);
+  const b = normalize(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  return shorter.length >= 4 && longer.startsWith(shorter);
+};
+
+/**
  * 匹配曲目所属专辑并取动态封面
  * @param track - 曲目
  * @param signal - 中止信号
@@ -408,9 +427,8 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
         }
       }
       if (!video) continue;
-      const exact = !!album && normalize(candidate.album) === normalize(album);
-      if (exact) {
-        // 专辑名一致才共享，避免一首歌的误匹配扩散到整张专辑
+      // 专辑名一致，或一方是另一方的前缀（同名专辑的不同版本/合集）
+      if (album && isSameAlbumName(album, candidate.album)) {
         if (albumKey) setMotionCoverRecord(albumKey, video);
         return video;
       }
