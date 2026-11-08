@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
-import { setPlayerExpanded } from "@/services/playerTransition";
+import { useFullPlayer } from "../../context";
+import "./amllMediaButton.css";
 
-const { t } = useI18n();
 const status = useStatusStore();
 const media = useMediaStore();
 const { showLyric, isPlaying } = storeToRefs(status);
+const { onBarEnter, onBarLeave } = useFullPlayer();
 
 const hasLyric = computed(() => media.parsedLyric.length > 0 || media.lyricLoading);
 
+/** 不看队列时信息列是否居中 */
+const centeredWithoutQueue = computed(() => !showLyric.value || !hasLyric.value);
+
 /** 歌词隐藏或无歌词时，信息列平移到屏幕中央 */
-const infoCentered = computed(() => !status.fullQueueOpen && (!showLyric.value || !hasLyric.value));
+const infoCentered = computed(() => !status.fullQueueOpen && centeredWithoutQueue.value);
 
 const lyricVisible = computed(() => showLyric.value && hasLyric.value && !status.fullQueueOpen);
 
@@ -40,30 +44,24 @@ const toggleLyric = (): void => {
     showLyric.value = !showLyric.value;
   }
 };
+
+/** 切换播放队列 */
+const toggleQueue = (): void => {
+  status.fullQueueOpen = !status.fullQueueOpen;
+};
 </script>
 
 <template>
   <PlayerTopBar />
-  <!-- 收起把手 -->
-  <div class="app-no-drag absolute top-4 left-1/2 -translate-x-1/2 z-20">
-    <SButton
-      type="cover"
-      variant="ghost"
-      size="auto"
-      class="px-4 py-3 rounded-full"
-      :aria-label="t('player.collapse')"
-      @click="setPlayerExpanded(false)"
-    >
-      <span class="block w-14 h-1.2 rounded-full bg-cover/40" />
-    </SButton>
-  </div>
   <div class="absolute top-14 inset-x-0 bottom-16">
     <!-- 左侧封面与控制 -->
     <div
-      class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center will-change-transform transition-transform duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
+      class="absolute inset-y-0 left-0 w-[45%] flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
       :style="{ transform: infoCentered ? 'translateX(calc(50vw - 50%))' : undefined }"
     >
-      <div class="w-[min(50vh,38vw)] flex flex-col gap-[4vh]">
+      <div class="w-[min(50vh,38vw)] flex flex-col items-center gap-[4vh]">
+        <!-- 妙控条：独立一行、居中、随封面列平移 -->
+        <AppleThumb />
         <PlayerCover
           class="w-full aspect-square rounded-xl shadow-[0_16px_40px_rgba(0,0,0,0.3)] [transition:transform_500ms_cubic-bezier(0.34,1.56,0.64,1),box-shadow_500ms_ease-out]"
           :class="isPlaying ? 'scale-100' : 'scale-90'"
@@ -73,10 +71,10 @@ const toggleLyric = (): void => {
     </div>
     <!-- 右侧歌词 -->
     <div
-      class="group absolute inset-y-0 right-0 w-[55%] pr-[8%] flex flex-col transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
+      class="group absolute inset-y-0 right-0 w-[55%] pr-20 flex flex-col transition-opacity duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
       :class="[
-        lyricVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-6 pointer-events-none',
-        lyricTransitioning && 'will-change-[opacity,transform]',
+        lyricVisible ? 'opacity-100' : 'opacity-0 pointer-events-none',
+        lyricTransitioning && '[will-change:opacity]',
       ]"
     >
       <PlayerLyric :visible="lyricVisible" />
@@ -84,14 +82,15 @@ const toggleLyric = (): void => {
     </div>
     <!-- 播放队列 -->
     <div
-      class="absolute inset-y-0 right-0 w-[55%] pr-[8%] py-6 flex items-center"
+      class="absolute inset-y-0 right-0 w-[55%] pl-4 py-6 flex items-center"
       :class="status.fullQueueOpen ? '' : 'pointer-events-none'"
     >
+      <!-- 封面需移开时延后淡入 -->
       <Transition
-        enter-active-class="transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
-        enter-from-class="opacity-0 translate-x-6"
-        leave-active-class="transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.5,0,0.5,1)]"
-        leave-to-class="opacity-0 translate-x-6"
+        :enter-active-class="`transition-opacity duration-500 ${centeredWithoutQueue ? 'delay-250' : ''}`"
+        enter-from-class="opacity-0"
+        leave-active-class="transition-opacity duration-500"
+        leave-to-class="opacity-0"
       >
         <div v-if="status.fullQueueOpen" class="w-full h-full">
           <QueuePanel @close="status.fullQueueOpen = false" />
@@ -102,7 +101,9 @@ const toggleLyric = (): void => {
   <!-- 右下角开关 -->
   <div
     data-player-layout="bottom-bar"
-    class="absolute bottom-4 right-6 h-16 z-10 flex items-center gap-4"
+    class="absolute bottom-4 right-0 h-16 z-10 flex items-center gap-9 pr-9"
+    @mouseenter="onBarEnter"
+    @mouseleave="onBarLeave"
   >
     <SButton
       type="cover"
@@ -120,7 +121,7 @@ const toggleLyric = (): void => {
       variant="text"
       size="auto"
       class="opacity-45 hover:opacity-80"
-      @click="status.fullQueueOpen = !status.fullQueueOpen"
+      @click="toggleQueue"
     >
       <IconSpAmPlaylistActive v-if="status.fullQueueOpen" class="size-9" />
       <IconSpAmPlaylist v-else class="size-9" />
