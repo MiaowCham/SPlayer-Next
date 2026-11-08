@@ -775,15 +775,28 @@ const findNeteaseId = async (track: Track): Promise<string | null> => {
  * @returns 在线 mp4 地址
  */
 const resolveNcm = async (track: Track, fingerprint: string): Promise<string | null> => {
-  const key = `ncm|${fingerprint}`;
-  const cached = getMotionCoverRecord(key);
-  if (cached !== undefined) return cached;
-  const id = track.source === "netease" ? track.id : await findNeteaseId(track);
+  // 网易云曲目直接用自身 id；其它源先按指纹缓存一次反查映射
+  let id: string | null;
+  if (track.source === "netease") {
+    id = track.id;
+  } else {
+    const matchKey = `ncm-match|${CACHE_VERSION}|${fingerprint}`;
+    const matched = getMotionCoverRecord(matchKey);
+    if (matched !== undefined) {
+      id = matched;
+    } else {
+      id = await findNeteaseId(track);
+      setMotionCoverRecord(matchKey, id);
+    }
+  }
   if (!id) {
-    setMotionCoverRecord(key, null);
     motionCoverLog.info(`${track.title}：NCM 未匹配`);
     return null;
   }
+  // 视频按网易云歌曲 id 缓存，同一首歌挂在不同专辑时也不会互相串
+  const key = `ncm|${CACHE_VERSION}|id:${id}`;
+  const cached = getMotionCoverRecord(key);
+  if (cached !== undefined) return cached;
   const { body } = await callNetease("song_dynamic_cover", { id });
   const url = (body as { data?: { videoPlayUrl?: string } } | undefined)?.data?.videoPlayUrl;
   setMotionCoverRecord(key, url || null);
