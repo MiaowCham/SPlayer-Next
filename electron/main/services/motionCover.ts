@@ -15,7 +15,12 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { ReadableStream } from "node:stream/web";
-import { normalize, pickBestCandidate, type LyricCandidate } from "@main/apis/common/lyric/utils";
+import {
+  normalize,
+  normalizeTrackArtists,
+  pickBestCandidate,
+  type LyricCandidate,
+} from "@main/apis/common/lyric/utils";
 import { callNetease } from "@main/apis/netease";
 import { buildFingerprint } from "@main/database/lyricMatchCache";
 import { getMotionCoverRecord, setMotionCoverRecord } from "@main/database/motionCoverCache";
@@ -37,7 +42,7 @@ const HAN_RE = /\p{Script=Han}/u;
 const JA_SHINJITAI_RE = /[楽図広気売駅円芸転伝沢浜桜鉄県検険厳塩縁剤斎徳]/u;
 
 /** 匹配缓存版本：匹配规则变化时递增，让旧的正/负缓存一次性失效 */
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 
 /** 日文曲目优先日本区，其次韩国区 */
 const KANA_STOREFRONTS = ["jp", "kr", "tw", "hk", "us"];
@@ -99,6 +104,7 @@ interface ItunesSong {
   collectionName?: string;
   trackTimeMillis?: number;
   collectionId?: number;
+  trackId?: number;
 }
 
 /** 专辑页数据中用到的部分 */
@@ -351,41 +357,59 @@ const isSameAlbumName = (left: string, right: string | undefined): boolean => {
   return shorter.length >= 4 && longer.startsWith(shorter);
 };
 
+/** 搜索阶段保存的候选，供不同专辑复用同一份搜索结果 */
+interface StoredCandidate {
+  /** Apple 区 */
+  storefront: string;
+  /** Apple 专辑 id */
+  collectionId: number;
+  /** Apple 曲目 id */
+  trackId?: number;
+  /** 归一化后的候选，供 pickBestCandidate 使用 */
+  candidate: LyricCandidate<number>;
+}
+
 /**
- * 匹配曲目所属专辑并取动态封面
+ * 搜索结果缓存键：同一首歌只搜一次
+ * @param track - 曲目
+ * @returns 缓存键
+ */
+const searchCacheKey = (track: Track): string =>
+  `search|${CACHE_VERSION}|${normalize(track.title)}|${normalizeTrackArtists(track).join(",")}|${
+    track.duration ? Math.round(track.duration / 1000) : 0
+  }`;
+
+/**
+ * 读取或执行 iTunes 搜索，候选列表按曲目缓存
  * @param track - 曲目
  * @param signal - 中止信号
- * @returns 主列表地址，未匹配或无动态封面时为 null
+ * @returns 候选列表
  */
-const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string | null> => {
+const searchCandidates = async (track: Track, signal: AbortSignal): Promise<StoredCandidate[]> => {
+  const key = searchCacheKey(track);
+  const record = getMotionCoverRecord(key);
+  if (record === null) return [];
+  if (typeof record === "string") {
+    try {
+      const parsed = JSON.parse(record) as StoredCandidate[];
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // 记录损坏时按未命中处理，重新搜索
+    }
+  }
   const terms = buildSearchTerms(track);
-  // 港台区返回繁体，双方统一转简体再比对
-  const [title, album, ...artistNames] = convertTexts(
-    [track.title, track.album?.name ?? "", ...track.artists.map((artist) => artist.name)],
-    "t2s",
-  );
-  const albumKey = album
-    ? `album|${CACHE_VERSION}|${normalize(album)}|${normalize(artistNames[0])}`
-    : null;
-  const albumRecord = albumKey ? getMotionCoverRecord(albumKey) : undefined;
-  if (albumRecord !== undefined) return albumRecord;
-  const simplified: Track = {
-    ...track,
-    title,
-    album: track.album && { ...track.album, name: album },
-    artists: track.artists.map((artist, index) => ({ ...artist, name: artistNames[index] })),
-  };
-  const coverUrl = track.coverOriginal || track.cover;
   const storefronts = resolveStorefrontOrder(
     track.title,
     track.artists.map((artist) => artist.name).join(" "),
   );
+  let found: StoredCandidate[] = [];
   for (const storefront of storefronts) {
     let songs: ItunesSong[] = [];
     for (const term of terms) {
       songs = (await searchItunes(term, storefront, signal)).filter((song) => song.collectionId);
       if (songs.length > 0) break;
     }
+    if (songs.length === 0) continue;
     const texts = convertTexts(
       songs.flatMap((song) => [
         song.trackName ?? "",
@@ -394,67 +418,130 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
       ]),
       "t2s",
     );
-    const candidates: LyricCandidate<number>[] = songs.map((song, index) => ({
-      name: texts[index * 3],
-      artist: texts[index * 3 + 1],
-      album: texts[index * 3 + 2],
-      duration: song.trackTimeMillis,
-      extra: song.collectionId!,
+    found = songs.map((song, index) => ({
+      storefront,
+      collectionId: song.collectionId!,
+      trackId: song.trackId,
+      candidate: {
+        name: texts[index * 3],
+        artist: texts[index * 3 + 1],
+        album: texts[index * 3 + 2],
+        duration: song.trackTimeMillis,
+        extra: song.collectionId!,
+      },
     }));
-    // 逐个候选验证：精确专辑名直接用，近似专辑要求封面指纹一致
-    let passed = 0;
-    for (const candidate of candidates) {
-      if (!pickBestCandidate([candidate], simplified)) continue;
-      passed += 1;
-      const collectionKey = `collection|${CACHE_VERSION}|${storefront}|${candidate.extra}`;
-      let video = getMotionCoverRecord(collectionKey);
-      let artwork: string | null = null;
-      if (video === undefined) {
-        try {
-          const info = await fetchAlbumInfo(candidate.extra, storefront, signal);
-          video = info.video;
-          artwork = info.artwork;
-          motionCoverLog.info(
-            `${track.title}：候选 ${candidate.name} cid=${candidate.extra} video=${video ? "yes" : "no"}`,
-          );
-          setMotionCoverRecord(collectionKey, video);
-        } catch (err) {
-          if ((err as Error).name === "AbortError") throw err;
-          motionCoverLog.warn(
-            `${track.title}：专辑 ${candidate.extra} 读取失败 ${(err as Error).message}`,
-          );
-          continue;
-        }
-      }
-      if (!video) continue;
-      // 专辑名一致，或一方是另一方的前缀（同名专辑的不同版本/合集）
-      if (album && isSameAlbumName(album, candidate.album)) {
-        if (albumKey) setMotionCoverRecord(albumKey, video);
-        return video;
-      }
-      if (!coverUrl) continue;
-      if (!artwork) artwork = await fetchAlbumArtwork(candidate.extra, storefront, signal);
-      if (!artwork) continue;
-      if (await isSameArtwork(coverUrl, artwork, signal)) {
-        motionCoverLog.info(`${track.title}：近似专辑封面匹配 ${candidate.album}`);
-        return video;
-      }
+    break;
+  }
+  setMotionCoverRecord(key, found.length > 0 ? JSON.stringify(found) : null);
+  return found;
+};
+
+/**
+ * 匹配曲目所属专辑并取动态封面
+ *
+ * 缓存分层：应用层专辑 id → Apple 曲目 id → Apple 专辑 id，
+ * 每层都只按自己的 id 命中，同名不同版本不会互相复用
+ * @param track - 曲目
+ * @param signal - 中止信号
+ * @returns 主列表地址，未匹配或无动态封面时为 null
+ */
+const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string | null> => {
+  // 港台区返回繁体，双方统一转简体再比对
+  const [title, album, ...artistNames] = convertTexts(
+    [track.title, track.album?.name ?? "", ...track.artists.map((artist) => artist.name)],
+    "t2s",
+  );
+  const simplified: Track = {
+    ...track,
+    title,
+    album: track.album && { ...track.album, name: album },
+    artists: track.artists.map((artist, index) => ({ ...artist, name: artistNames[index] })),
+  };
+  const coverUrl = track.coverOriginal || track.cover;
+  /** 应用层专辑缓存：按专辑 id 分开存，避免同曲目跨专辑串封面 */
+  const appAlbumKey = track.album?.id
+    ? `album|${CACHE_VERSION}|${track.source}:${track.album.id}`
+    : null;
+  if (appAlbumKey) {
+    const albumRecord = getMotionCoverRecord(appAlbumKey);
+    if (typeof albumRecord === "string") return albumRecord;
+    if (albumRecord === null) {
+      motionCoverLog.info(`${track.title}：AM 无动态封面`);
+      return null;
     }
-    if (songs.length > 0) {
-      if (passed === 0) {
+  }
+  /** 记住这张专辑的结果，后续同专辑曲目直接命中 */
+  const rememberAlbum = (video: string | null): void => {
+    if (appAlbumKey) setMotionCoverRecord(appAlbumKey, video);
+  };
+  const candidates = await searchCandidates(track, signal);
+  let passed = 0;
+  for (const stored of candidates) {
+    if (!pickBestCandidate([stored.candidate], simplified)) continue;
+    passed += 1;
+    const { storefront, collectionId, trackId } = stored;
+    // Apple 曲目 id 唯一，同一版本在不同专辑里也能直接复用
+    const appleKey = trackId ? `atrack|${CACHE_VERSION}|${storefront}|${trackId}` : null;
+    if (appleKey) {
+      const appleRecord = getMotionCoverRecord(appleKey);
+      if (typeof appleRecord === "string") {
+        rememberAlbum(appleRecord);
+        return appleRecord;
+      }
+      if (appleRecord === null) continue;
+    }
+    const collectionKey = `collection|${CACHE_VERSION}|${storefront}|${collectionId}`;
+    let video = getMotionCoverRecord(collectionKey);
+    let artwork: string | null = null;
+    if (video === undefined) {
+      try {
+        const info = await fetchAlbumInfo(collectionId, storefront, signal);
+        video = info.video;
+        artwork = info.artwork;
         motionCoverLog.info(
-          `${track.title}：${storefront} 候选全被筛掉，前三个=${candidates
-            .slice(0, 3)
-            .map((c) => `${c.name}/${c.artist}`)
-            .join(" | ")}`,
+          `${track.title}：候选 ${stored.candidate.name} cid=${collectionId} video=${video ? "yes" : "no"}`,
         );
+        setMotionCoverRecord(collectionKey, video);
+      } catch (err) {
+        if ((err as Error).name === "AbortError") throw err;
+        motionCoverLog.warn(
+          `${track.title}：专辑 ${collectionId} 读取失败 ${(err as Error).message}`,
+        );
+        continue;
       }
-      break;
     }
+    if (!video) {
+      if (appleKey) setMotionCoverRecord(appleKey, null);
+      continue;
+    }
+    // 专辑名一致，或一方是另一方的前缀（同名专辑的不同版本/合集）
+    if (album && isSameAlbumName(album, stored.candidate.album)) {
+      if (appleKey) setMotionCoverRecord(appleKey, video);
+      rememberAlbum(video);
+      return video;
+    }
+    if (!coverUrl) continue;
+    if (!artwork) artwork = await fetchAlbumArtwork(collectionId, storefront, signal);
+    if (!artwork) continue;
+    if (await isSameArtwork(coverUrl, artwork, signal)) {
+      motionCoverLog.info(`${track.title}：近似专辑封面匹配 ${stored.candidate.album}`);
+      if (appleKey) setMotionCoverRecord(appleKey, video);
+      rememberAlbum(video);
+      return video;
+    }
+  }
+  if (passed === 0) {
+    motionCoverLog.info(
+      `${track.title}：候选全被筛掉，前三个=${candidates
+        .slice(0, 3)
+        .map((item) => `${item.candidate.name}/${item.candidate.artist}`)
+        .join(" | ")}`,
+    );
   }
   motionCoverLog.info(
     `${track.title}：AM 未匹配（artists=${track.artists.map((a) => a.name).join("/")} album=${track.album?.name ?? "-"} dur=${track.duration ?? "-"}）`,
   );
+  rememberAlbum(null);
   return null;
 };
 
@@ -557,13 +644,21 @@ const clipPath = (videoUrl: string): string =>
   );
 
 /**
+ * 曲目级缓存键：按应用内曲目 id 分开存
+ * @param track - 曲目
+ * @returns 缓存键
+ */
+const trackCacheKey = (track: Track): string =>
+  `track|${CACHE_VERSION}|${track.source}:${track.id}`;
+
+/**
  * 已缓存的 AM 动态封面，刷新修改时间以保持 LRU
  * @param track - 曲目
- * @param fingerprint - 曲目指纹
+ * @param key - 缓存键
  * @returns cache:// 地址，未缓存时为 null
  */
-const cachedAm = async (track: Track, fingerprint: string): Promise<string | null> => {
-  const videoUrl = getMotionCoverRecord(fingerprint);
+const cachedAm = async (track: Track, key: string): Promise<string | null> => {
+  const videoUrl = getMotionCoverRecord(key);
   if (!videoUrl) return null;
   const file = clipPath(videoUrl);
   if (!existsSync(file)) return null;
@@ -576,28 +671,24 @@ const cachedAm = async (track: Track, fingerprint: string): Promise<string | nul
 /**
  * 解析 AM 动态封面并确保本地有缓存文件
  * @param track - 曲目
- * @param fingerprint - 曲目指纹
  * @param signal - 中止信号
  * @returns cache:// 地址
  */
-const resolveAmUncached = async (
-  track: Track,
-  fingerprint: string,
-  signal: AbortSignal,
-): Promise<string | null> => {
-  const cached = await cachedAm(track, fingerprint);
+const resolveAmUncached = async (track: Track, signal: AbortSignal): Promise<string | null> => {
+  const key = trackCacheKey(track);
+  const cached = await cachedAm(track, key);
   if (cached) return cached;
-  let videoUrl = getMotionCoverRecord(fingerprint);
+  let videoUrl = getMotionCoverRecord(key);
   if (videoUrl === null) {
     motionCoverLog.info(`${track.title}：AM 无动态封面`);
     return null;
   }
   if (videoUrl === undefined) {
     videoUrl = await matchVideoUrl(track, signal);
-    setMotionCoverRecord(fingerprint, videoUrl);
+    setMotionCoverRecord(key, videoUrl);
     if (!videoUrl) return null;
     // 同专辑其他曲目可能已下载过
-    const shared = await cachedAm(track, fingerprint);
+    const shared = await cachedAm(track, key);
     if (shared) return shared;
   }
   const file = clipPath(videoUrl);
@@ -633,7 +724,7 @@ const logFailure =
 const resolveAm = (track: Track, fingerprint: string): Promise<string | null> => {
   if (active?.fingerprint === fingerprint) return active.task;
   const controller = new AbortController();
-  const task: Promise<string | null> = resolveAmUncached(track, fingerprint, controller.signal)
+  const task: Promise<string | null> = resolveAmUncached(track, controller.signal)
     .catch(logFailure(track))
     .finally(() => {
       if (active?.task === task) active = null;
@@ -712,23 +803,24 @@ export const resolveMotionCover = async (
 ): Promise<string | null> => {
   if (source === "off" || !track.title || track.artists.length === 0) return null;
   const fingerprint = `${CACHE_VERSION}|${buildFingerprint(track)}`;
+  // 并发去重按「曲目 + 专辑」区分，避免同曲目跨专辑时复用错任务
+  const activeKey = `${fingerprint}|${track.album?.id ?? ""}`;
   // 切歌后旧曲目的匹配与下载不再需要
-  if (active && active.fingerprint !== fingerprint) {
+  if (active && active.fingerprint !== activeKey) {
     active.controller.abort();
     active = null;
   }
   if (source === "ncm") return resolveNcm(track, fingerprint).catch(logFailure(track));
-  if (source === "am") return resolveAm(track, fingerprint);
+  if (source === "am") return resolveAm(track, activeKey);
   // 网易云优先：NCM 直出在线 mp4，未命中再走 AM（AM 需要下载，作为兜底）
   if (source === "ncmFirst") {
     return (
-      (await resolveNcm(track, fingerprint).catch(logFailure(track))) ??
-      resolveAm(track, fingerprint)
+      (await resolveNcm(track, fingerprint).catch(logFailure(track))) ?? resolveAm(track, activeKey)
     );
   }
   // AM 优先：已缓存直接用；否则先放 NCM，AM 在后台下载供下次播放，不中途切换
-  const cached = await cachedAm(track, fingerprint);
+  const cached = await cachedAm(track, trackCacheKey(track));
   if (cached) return cached;
-  const am = resolveAm(track, fingerprint);
+  const am = resolveAm(track, activeKey);
   return (await resolveNcm(track, fingerprint).catch(logFailure(track))) ?? am;
 };
