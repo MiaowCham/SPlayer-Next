@@ -49,12 +49,21 @@ const AUTOMIX_COVER_DELAY_MS = 1200;
 /** 等待动态封面就绪的时间，超时则退回静态图叠化 */
 const MOTION_GRACE_MS = 350;
 
-/** 进入过渡的类：减少动效时缩短时长且不做缩放 */
-const enterActiveClass = computed(() =>
-  settings.reducedMotion
-    ? "transition-opacity duration-200 ease-linear"
-    : "transition-opacity duration-900 ease-in",
-);
+/** 叠化时长：减少动效时缩短 */
+const fadeDuration = computed(() => (settings.reducedMotion ? 200 : 900));
+
+/** 图层进入：显式用 WAAPI 淡入，避免主线程繁忙时 CSS 类时序被跳过 */
+const onLayerEnter = (el: Element, done: () => void): void => {
+  const animation = (el as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], {
+    duration: fadeDuration.value,
+    easing: "ease-in",
+    fill: "both",
+  });
+  animation.onfinish = () => {
+    animation.cancel();
+    done();
+  };
+};
 
 /** 标记进入过渡，约 520ms 后撤销 */
 const markTransition = (): void => {
@@ -245,6 +254,31 @@ watch([videoRef, () => status.isPlaying, visibility], ([video, playing, visible]
   else video.pause();
 });
 
+/** 视频离场：淡出后再释放 */
+const onVideoLeave = (el: Element, done: () => void): void => {
+  const animation = (el as HTMLElement).animate([{ opacity: 1 }, { opacity: 0 }], {
+    duration: fadeDuration.value,
+    easing: "ease-in",
+    fill: "both",
+  });
+  animation.onfinish = () => {
+    animation.cancel();
+    done();
+  };
+};
+
+/** 视频首帧就绪：先置零再淡入，动态切动态也有叠化 */
+const onVideoReady = (): void => {
+  motionReady.value = true;
+  const el = videoRef.value;
+  if (!el) return;
+  el.animate([{ opacity: 0 }, { opacity: 1 }], {
+    duration: fadeDuration.value,
+    easing: "ease-in",
+    fill: "both",
+  });
+};
+
 /**
  * 移除后立即释放解码器与缓冲，不等 GC
  * @param el - 离场的视频元素
@@ -268,11 +302,7 @@ onBeforeUnmount(() => {
   <!-- 外观由布局决定，这里只负责高清封面加载与共享过渡标记 -->
   <div data-player-cover="full" class="relative overflow-hidden shrink-0">
     <!-- 切歌交叉淡入 -->
-    <TransitionGroup
-      :enter-active-class="enterActiveClass"
-      :enter-from-class="'opacity-0'"
-      @after-enter="layers = layers.slice(-1)"
-    >
+    <TransitionGroup :css="false" @enter="onLayerEnter" @after-enter="layers = layers.slice(-1)">
       <DetailCover
         v-for="layer in layers"
         :key="layer.id"
@@ -284,11 +314,7 @@ onBeforeUnmount(() => {
       />
     </TransitionGroup>
     <!-- 动态封面 -->
-    <Transition
-      leave-active-class="transition-opacity duration-900 ease-in"
-      leave-to-class="opacity-0"
-      @after-leave="releaseVideo"
-    >
+    <Transition :css="false" @leave="onVideoLeave" @after-leave="releaseVideo">
       <video
         v-if="motion && status.isPlayerExpanded"
         ref="videoRef"
@@ -297,9 +323,9 @@ onBeforeUnmount(() => {
         muted
         loop
         playsinline
-        class="absolute inset-0 z-2 size-full object-cover transition-opacity duration-900 ease-in"
-        :class="motionReady ? 'opacity-100' : 'opacity-0'"
-        @loadeddata="motionReady = true"
+        class="absolute inset-0 z-2 size-full object-cover"
+        :style="{ opacity: motionReady ? 1 : 0 }"
+        @loadeddata="onVideoReady"
       />
     </Transition>
   </div>
