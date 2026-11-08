@@ -264,9 +264,5 @@ onBeforeUnmount(() => {
   .apple-slider-track {
     transition: none;
   }
-
-  .apple-slider.is-glowing .apple-slider-track {
-    animation: none;
-  }
 }
 </style>

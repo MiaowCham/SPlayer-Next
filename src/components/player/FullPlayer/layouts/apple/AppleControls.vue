@@ -503,12 +503,6 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
   background-size: 200% 100%;
   background-clip: text;
   animation: apple-transition-shine 1.4s linear infinite;
-
-  @media (prefers-reduced-motion: reduce) {
-    /* 减少动效时保留静态渐变，避免完全没有光效 */
-    animation: none;
-    background-position: 50% center;
-  }
 }
 
 @keyframes apple-transition-shine {
