@@ -220,12 +220,39 @@ onBeforeUnmount(() => {
 }
 
 .apple-slider-track {
+  position: relative;
   width: 100%;
   height: 8px;
   overflow: hidden;
   border-radius: 100px;
   background: rgb(var(--s-cover) / 0.25);
   transition: height 0.45s cubic-bezier(0.22, 1.3, 0.36, 1);
+}
+
+/* 过渡扫光：与文字一致的高光横扫 */
+.apple-slider.is-glowing .apple-slider-track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 40%,
+    rgb(var(--s-cover) / 0.85) 50%,
+    transparent 60%
+  );
+  background-size: 200% 100%;
+  animation: apple-slider-sweep 1.4s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes apple-slider-sweep {
+  from {
+    background-position: 100% center;
+  }
+
+  to {
+    background-position: -100% center;
+  }
 }
 
 .apple-slider-track.is-expanded {
