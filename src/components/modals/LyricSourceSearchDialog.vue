@@ -11,6 +11,8 @@ const props = defineProps<{
   source: LyricSearchSource;
   track: Track;
   mode: "auto" | "search" | "id";
+  /** 可切换的歌词来源列表，缺省时只保留当前来源 */
+  sources?: LyricSearchSource[];
 }>();
 const emit = defineEmits<{
   "update:open": [value: boolean];
@@ -18,6 +20,40 @@ const emit = defineEmits<{
 }>();
 const { t } = useI18n();
 const sourceFileOpen = ref(false);
+/** 当前选中的来源，允许在对话框内切换 */
+const activeSource = shallowRef<LyricSearchSource>(props.source);
+/** 来源唯一标识，用于下拉选项 */
+const sourceKey = (source: LyricSearchSource): string =>
+  source.origin === "amll" ? `amll:${source.platform ?? ""}` : source.origin;
+/** 下拉选项：标题 + 来源名 */
+const sourceOptions = computed(() =>
+  (props.sources?.length ? props.sources : [props.source]).map((source) => ({
+    value: sourceKey(source),
+    label:
+      t(`lyricManager.matchSource.${source.origin}`) +
+      (source.origin === "amll" && source.platform
+        ? ` · ${t("lyricManager.matchSource." + source.platform)}`
+        : ""),
+  })),
+);
+/** 切换来源后清空旧结果并重新搜索 */
+const onSourceChange = (value: string | number | boolean): void => {
+  const next = (props.sources ?? [props.source]).find((source) => sourceKey(source) === String(value));
+  if (!next || sourceKey(next) === sourceKey(activeSource.value)) return;
+  activeSource.value = next;
+  items.value = [];
+  candidate.value = null;
+  selected.value = null;
+  total.value = null;
+  offset.value = 0;
+  if (props.mode !== "id" && keyword.value.trim()) void search(0);
+};
+watch(
+  () => props.source,
+  (next) => {
+    if (next) activeSource.value = next;
+  },
+);
 const keyword = ref(
   [props.track.title, props.track.artists.map((artist) => artist.name).join(" ")].join(" ").trim(),
 );
@@ -35,9 +71,9 @@ let searchToken = 0;
 let lyricToken = 0;
 const sourceLabel = computed(
   () =>
-    t(`lyricManager.matchSource.${props.source.origin}`) +
-    (props.source.origin === "amll" && props.source.platform
-      ? ` · ${t("lyricManager.matchSource." + props.source.platform)}`
+    t(`lyricManager.matchSource.${activeSource.value.origin}`) +
+    (activeSource.value.origin === "amll" && activeSource.value.platform
+      ? ` · ${t("lyricManager.matchSource." + activeSource.value.platform)}`
       : ""),
 );
 
@@ -51,7 +87,7 @@ const choose = async (song: LyricSearchSong | string): Promise<void> => {
   candidate.value = null;
   lyricLoading.value = true;
   try {
-    const result = await window.api.lyrics.loadSourceVersion(toRaw(props.source), song);
+    const result = await window.api.lyrics.loadSourceVersion(toRaw(activeSource.value), song);
     if (token !== lyricToken) return;
     candidate.value = result;
     if (!result) toast.warning(t("lyricManager.versionHasNoLyrics"));
@@ -94,7 +130,7 @@ const search = async (nextOffset = 0, automatic = false): Promise<void> => {
   lyricLoading.value = false;
   loading.value = true;
   try {
-    const page = await searchLyricVersions(props.source, keyword.value.trim(), nextOffset);
+    const page = await searchLyricVersions(activeSource.value, keyword.value.trim(), nextOffset);
     if (token !== searchToken) return;
     items.value = page.items;
     offset.value = nextOffset;
@@ -120,7 +156,7 @@ const search = async (nextOffset = 0, automatic = false): Promise<void> => {
 
 /** 仅解析当前来源的官方链接或 ID，并在保存前先展示歌词 */
 const parseIdentifier = async (): Promise<void> => {
-  const id = parseLyricSourceId(props.source, identifier.value);
+  const id = parseLyricSourceId(activeSource.value, identifier.value);
   if (!id) {
     toast.warning(t("lyricManager.invalidSourceId"));
     return;
@@ -153,7 +189,16 @@ onBeforeUnmount(() => {
     @update:open="emit('update:open', $event)"
   >
     <div class="mb-4 shrink-0">
-      <h3 class="m-0 text-xl font-semibold">{{ sourceLabel }}</h3>
+      <div class="flex items-center gap-3">
+        <h3 class="m-0 min-w-0 text-xl font-semibold truncate">{{ sourceLabel }}</h3>
+        <SSelect
+          v-if="sourceOptions.length > 1"
+          :model-value="sourceKey(activeSource)"
+          :options="sourceOptions"
+          class="w-52 shrink-0"
+          @update:model-value="onSourceChange"
+        />
+      </div>
       <p class="mt-1 text-xs text-on-surface-variant/65">
         {{ track.title }} · {{ track.artists.map((artist) => artist.name).join(" / ") }}
       </p>

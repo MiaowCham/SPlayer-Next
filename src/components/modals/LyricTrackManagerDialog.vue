@@ -398,14 +398,36 @@ const selectSmart = async (): Promise<void> => {
   }
 };
 
+/** 可切换的歌词来源：按来源优先级排列，手动导入不参与搜索 */
+const searchSources = computed<LyricSearchSource[]>(() => {
+  const order = settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
+  return order
+    .filter((origin) => origin !== "manual")
+    .map((origin) =>
+      origin === "amll"
+        ? {
+            origin,
+            platform: isPlatform(currentTrack()?.source) ? currentTrack()!.source : "netease",
+          }
+        : { origin },
+    );
+});
+
 /**
- * 打开仅针对当前来源的版本搜索或 ID 导入
+ * 打开版本搜索或 ID 导入，支持指定来源
+ *
+ * 没有候选时也能打开，默认使用来源优先级最高的来源
  * @param mode - 自动替换、手动选择或 ID 导入
+ * @param source - 指定来源，缺省沿用当前候选来源
  */
-const openCustomSearch = (mode: "auto" | "search" | "id"): void => {
+const openCustomSearch = (mode: "auto" | "search" | "id", source?: LyricSearchSource): void => {
   const candidate = focusedCandidate.value;
-  if (!candidate || candidate.origin === "manual") return;
-  searchSource.value = { origin: candidate.origin, platform: candidate.platform };
+  const fallback = candidate
+    ? { origin: candidate.origin, platform: candidate.platform }
+    : (searchSources.value[0] ?? { origin: "netease" });
+  const next = source ?? fallback;
+  if (next.origin === "manual") return;
+  searchSource.value = next;
   customSearchMode.value = mode;
   customSearchOpen.value = true;
 };
@@ -874,6 +896,9 @@ watch(
                 </SButton>
               </template>
               <div class="flex min-w-36 flex-col gap-1">
+                <SButton variant="ghost" @click="openCustomSearch('search')">
+                  {{ t("lyricManager.searchSelectVersion") }}
+                </SButton>
                 <SButton variant="ghost" @click="openTrackLyricDirectory">
                   {{ t("lyricManager.openDirectory") }}
                 </SButton>
@@ -911,11 +936,15 @@ watch(
       />
       <div
         v-else
-        class="flex min-h-0 items-center justify-center rounded-xl border border-solid border-outline-variant/15 bg-surface-panel p-8 text-center text-on-surface-variant/60"
+        class="flex min-h-0 flex-col items-center justify-center gap-3 rounded-xl border border-solid border-outline-variant/15 bg-surface-panel p-8 text-center text-on-surface-variant/60"
       >
-        {{
-          t(matchLoading || onlineLoading ? "lyricManager.matching" : "lyricManager.chooseVersion")
-        }}
+        <span>
+          {{ t(matchLoading || onlineLoading ? "lyricManager.matching" : "lyricManager.chooseVersion") }}
+        </span>
+        <SButton variant="secondary" @click="openCustomSearch('search')">
+          <template #icon><IconLucideSearch /></template>
+          {{ t("lyricManager.searchSelectVersion") }}
+        </SButton>
       </div>
     </div>
   </SDialog>
@@ -924,6 +953,7 @@ watch(
     v-if="customSearchOpen && searchSource && lyricManager.track.value"
     v-model:open="customSearchOpen"
     :source="searchSource"
+    :sources="searchSources"
     :track="lyricManager.track.value"
     :mode="customSearchMode"
     @saved="applySourceVersion"

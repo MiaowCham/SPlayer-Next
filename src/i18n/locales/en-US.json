@@ -405,7 +405,8 @@
       "albums": "Albums",
       "artists": "Artists",
       "playlists": "Playlists"
-    }
+    },
+    "storefront": "Storefront"
   },
   "streaming": {
     "favoritesOnly": "Favorites only",

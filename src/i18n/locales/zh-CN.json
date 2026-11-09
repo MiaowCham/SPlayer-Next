@@ -405,7 +405,8 @@
       "albums": "专辑",
       "artists": "歌手",
       "playlists": "歌单"
-    }
+    },
+    "storefront": "曲库地区"
   },
   "streaming": {
     "favoritesOnly": "仅看收藏",
