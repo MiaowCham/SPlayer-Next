@@ -313,13 +313,15 @@ const applyReplacementTranslations = (ttml: string): string => {
 const fetchAppleMusicTTMLResultUncached = async (
   track: Track,
   targetSongId?: string,
+  allowLine = false,
 ): Promise<AppleMusicTTMLFetchResult> => {
   const config = store.get("lyric");
   if (!config.enableAppleMusicTTMLLyric) return fetchResult("disabled");
   const language = String(config.appleMusicTranslationLanguage ?? "zh-Hans-CN").trim();
   const script = String(config.appleMusicTranslationScript ?? "").trim();
   const cacheKey = buildCacheKey(track, language, script);
-  const cached = getCachedTTML("appleMusic", cacheKey);
+  // 手动选择版本时绕过缓存，避免旧的负缓存挡住逐行版本
+  const cached = allowLine ? "miss" : getCachedTTML("appleMusic", cacheKey);
   if (cached !== "miss") {
     if (!cached) return fetchResult("noMatch", null, "cache");
     // 旧版可能缓存了逐行歌词，校验不通过时清理并重抓
@@ -330,7 +332,7 @@ const fetchAppleMusicTTMLResultUncached = async (
     return fetchResult("available", cached, "cache");
   }
   const noMatch = (message?: string): AppleMusicTTMLFetchResult => {
-    setCachedTTML("appleMusic", cacheKey, null);
+    if (!allowLine) setCachedTTML("appleMusic", cacheKey, null);
     return fetchResult("noMatch", null, message);
   };
   const mediaUserToken = getAppleMusicMediaUserToken();
@@ -403,8 +405,8 @@ const fetchAppleMusicTTMLResultUncached = async (
     }
     const attributes = (await response.json())?.data?.[0]?.attributes;
     if (!attributes) return noMatch("empty");
-    // 仅保留逐字歌词：displayType=2 为逐行歌词，SPlayer 需要逐字时间轴
-    if (attributes.displayType === 2 || String(attributes.displayType) === "2") {
+    // 自动匹配只保留逐字歌词；用户手动选择版本时允许逐行
+    if (!allowLine && (attributes.displayType === 2 || String(attributes.displayType) === "2")) {
       coreLog.info(`[appleMusicLyrics] 歌词为逐行类型 (displayType=2)，丢弃: song=${songId}`);
       return noMatch("displayType");
     }
@@ -417,16 +419,20 @@ const fetchAppleMusicTTMLResultUncached = async (
       coreLog.info(`[appleMusicLyrics] 候选无可用 TTML: song=${songId}`);
       return noMatch("empty");
     }
-    // 严格校验逐字时间轴，避免逐行歌词被当作有效内容返回
-    if (!isSyllableTTML(lyric)) {
+    // 自动匹配严格校验逐字时间轴；手动选择时放行逐行
+    if (!allowLine && !isSyllableTTML(lyric)) {
       coreLog.info(`[appleMusicLyrics] TTML 为逐行歌词（无逐字 span 标记），丢弃: song=${songId}`);
       return noMatch("line");
     }
     // 预处理：将 Apple Music 简体替换段融合进主歌词
     lyric = applyReplacementTranslations(lyric);
-    cacheLyric(memoryCacheKey, lyric);
-    setCachedTTML("appleMusic", cacheKey, lyric);
-    coreLog.info(`[appleMusicLyrics] 获取 TTML 成功: song=${songId}, chars=${lyric.length}`);
+    if (!allowLine) {
+      cacheLyric(memoryCacheKey, lyric);
+      setCachedTTML("appleMusic", cacheKey, lyric);
+    }
+    coreLog.info(
+      `[appleMusicLyrics] 获取 TTML 成功: song=${songId}, chars=${lyric.length}${allowLine ? " (允许逐行)" : ""}`,
+    );
     return fetchResult("available", lyric, undefined, songId);
   } catch (err) {
     coreLog.warn(`[appleMusicLyrics] ${track.title} fetch failed:`, err);
@@ -559,4 +565,6 @@ export const loadAppleMusicLyricVersion = (
       duration: song.duration,
     },
     song.id,
+    // 用户明确选择的版本：逐行也放行
+    true,
   );
