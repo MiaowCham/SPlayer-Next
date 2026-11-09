@@ -2,6 +2,8 @@
 import type { Artist } from "@shared/types/player";
 import type { SSelectOption } from "@/components/ui/SSelect.vue";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
+import IconLucideMic from "~icons/lucide/mic";
+import IconLucideDisc3 from "~icons/lucide/disc-3";
 import type { QualityLevel } from "@/utils/quality";
 import { useLyricTrackManagerDialog } from "@/composables/useLyricTrackManagerDialog";
 import { useMediaStore } from "@/stores/media";
@@ -94,14 +96,18 @@ const artistMenuItems = computed<DropdownMenuItem[]>(() => {
     if (!isArtistLinkable(artist)) continue;
     items.push({
       key: `artist:${artist.id ?? artist.name}`,
-      label: `${t("player.artistAlbumLinks.artist")} · ${artist.name}`,
+      label: t("player.artistAlbumLinks.artist"),
+      description: artist.name,
+      icon: markRaw(IconLucideMic),
     });
   }
   const album = albumTarget.value;
   if (album && isAlbumLinkable.value) {
     items.push({
       key: "album",
-      label: `${t("player.artistAlbumLinks.album")} · ${album.name}`,
+      label: t("player.artistAlbumLinks.album"),
+      description: album.name,
+      icon: markRaw(IconLucideDisc3),
       separator: items.length > 0,
     });
   }
