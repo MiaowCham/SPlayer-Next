@@ -532,7 +532,11 @@
       "on": "Shuffle on",
       "off": "Shuffle off"
     },
-    "automixing": "AutoMix"
+    "automixing": "AutoMix",
+    "artistAlbumLinks": {
+      "artist": "Go to artist",
+      "album": "Go to album"
+    }
   },
   "lyricManager": {
     "trackTitle": "Lyric Management",

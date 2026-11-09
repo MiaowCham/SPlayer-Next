@@ -532,7 +532,11 @@
       "on": "随机播放",
       "off": "顺序播放"
     },
-    "automixing": "AutoMix"
+    "automixing": "AutoMix",
+    "artistAlbumLinks": {
+      "artist": "前往艺人",
+      "album": "前往专辑"
+    }
   },
   "lyricManager": {
     "trackTitle": "歌词管理",
