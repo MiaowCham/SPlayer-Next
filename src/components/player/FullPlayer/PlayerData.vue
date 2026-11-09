@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { Artist } from "@shared/types/player";
 import type { SSelectOption } from "@/components/ui/SSelect.vue";
+import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
+import IconLucideMic from "~icons/lucide/mic";
+import IconLucideDisc3 from "~icons/lucide/disc-3";
 import type { QualityLevel } from "@/utils/quality";
 import { useLyricTrackManagerDialog } from "@/composables/useLyricTrackManagerDialog";
 import { useMediaStore } from "@/stores/media";
@@ -84,6 +87,43 @@ const isAlbumLinkable = computed(() =>
  */
 const goToResource = (target: ResourceNavigationTarget | null): void => {
   if (target && navigateToResource(target)) setPlayerExpanded(false);
+};
+
+/** 歌手行菜单：前往艺人 / 前往专辑 */
+const artistMenuItems = computed<DropdownMenuItem[]>(() => {
+  const items: DropdownMenuItem[] = [];
+  for (const artist of artists.value) {
+    if (!isArtistLinkable(artist)) continue;
+    items.push({
+      key: `artist:${artist.id ?? artist.name}`,
+      label: t("player.artistAlbumLinks.artist"),
+      description: artist.name,
+      icon: markRaw(IconLucideMic),
+    });
+  }
+  const album = albumTarget.value;
+  if (album && isAlbumLinkable.value) {
+    items.push({
+      key: "album",
+      label: t("player.artistAlbumLinks.album"),
+      description: album.name,
+      icon: markRaw(IconLucideDisc3),
+      separator: items.length > 0,
+    });
+  }
+  return items;
+});
+
+/** 处理歌手行菜单选择 */
+const onArtistMenuSelect = (key: string): void => {
+  if (key === "album") {
+    goToResource(albumTarget.value);
+    return;
+  }
+  if (!key.startsWith("artist:")) return;
+  const id = key.slice("artist:".length);
+  const artist = artists.value.find((item) => String(item.id ?? item.name) === id);
+  if (artist) goToResource(artistTarget(artist));
 };
 
 /** 来源标签 */
@@ -214,7 +254,7 @@ const alignItems = computed(() => {
     :class="alignItems"
   >
     <!-- 标题 -->
-    <SMarquee fit class="max-w-full text-[2em] font-semibold leading-tight">
+    <SMarquee class="w-full min-w-0 text-[2em] font-semibold leading-tight">
       {{ displayTrack.title }}
     </SMarquee>
     <!-- 副标题/注释 -->
@@ -334,25 +374,33 @@ const alignItems = computed(() => {
         </div>
       </SPopover>
     </div>
-    <!-- 歌手 -->
+    <!-- 歌手：点击展开「前往艺人 / 前往专辑」 -->
     <div class="max-w-full flex items-center gap-1.5 text-[1.2em] text-cover/60">
       <IconLucideMic class="shrink-0 translate-y-px text-cover/40" />
-      <span class="truncate">
-        <template v-if="artists.length">
-          <template v-for="(artist, index) in artists" :key="artist.id ?? index">
-            <span
-              :class="
-                isArtistLinkable(artist) ? 'cursor-pointer transition-colors hover:text-cover' : ''
-              "
-              @click="goToResource(artistTarget(artist))"
-            >
-              {{ artist.name }}
-            </span>
-            <span v-if="index < artists.length - 1" class="mx-0.5 opacity-50">/</span>
-          </template>
+      <SDropdownMenu
+        v-if="artistMenuItems.length"
+        :items="artistMenuItems"
+        side="top"
+        align="start"
+        @select="onArtistMenuSelect"
+      >
+        <template #trigger>
+          <button
+            type="button"
+            class="min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-left text-inherit cursor-pointer transition-colors hover:text-cover"
+          >
+            <SMarquee class="w-full min-w-0">
+              <template v-for="(artist, index) in artists" :key="artist.id ?? index">
+                <span>{{ artist.name }}</span>
+                <span v-if="index < artists.length - 1" class="mx-0.5 opacity-50">/</span>
+              </template>
+            </SMarquee>
+          </button>
         </template>
-        <span v-else class="opacity-50">{{ t("playlist.unknownArtist") }}</span>
-      </span>
+      </SDropdownMenu>
+      <SMarquee v-else class="w-full min-w-0">
+        <span class="opacity-50">{{ t("playlist.unknownArtist") }}</span>
+      </SMarquee>
     </div>
     <!-- 专辑 -->
     <div v-if="albumText" class="max-w-full flex items-center gap-1.5 text-[1.2em] text-cover/60">
