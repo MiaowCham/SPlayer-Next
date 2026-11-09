@@ -419,9 +419,11 @@ const searchSources = computed<LyricSearchSource[]>(() => {
  */
 const openCustomSearch = (mode: "auto" | "search" | "id", source?: LyricSearchSource): void => {
   const candidate = focusedCandidate.value;
-  const fallback = candidate
-    ? { origin: candidate.origin, platform: candidate.platform }
-    : (searchSources.value[0] ?? { origin: "netease" });
+  // 手动导入不能作为搜索来源，此时回落到来源优先级第一项
+  const fallback =
+    candidate && candidate.origin !== "manual"
+      ? { origin: candidate.origin, platform: candidate.platform }
+      : (searchSources.value[0] ?? { origin: "netease" });
   const next = source ?? fallback;
   if (next.origin === "manual") return;
   searchSource.value = next;
