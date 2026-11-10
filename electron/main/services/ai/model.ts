@@ -79,7 +79,7 @@ const normalizeInput = (input: AiModelSaveInput): Omit<AiModelSaveInput, "id" | 
   if (!name || !model || !/^https?:\/\//i.test(baseUrl)) {
     throw new Error("请填写有效的模型名称、API 地址和模型 ID");
   }
-  if (input.protocol !== "openai-compatible" && input.protocol !== "anthropic") {
+  if (!["openai-compatible", "deepseek", "anthropic"].includes(input.protocol)) {
     throw new Error("不支持的 AI 模型协议");
   }
   return { name, protocol: input.protocol, baseUrl, model };

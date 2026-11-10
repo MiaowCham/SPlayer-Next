@@ -36,24 +36,41 @@ const pendingRemoveName = computed(
 
 const protocolOptions: { value: AiModelProtocol; label: string }[] = [
   { value: "openai-compatible", label: "OpenAI Compatible" },
+  { value: "deepseek", label: "DeepSeek" },
   { value: "anthropic", label: "Anthropic" },
 ];
 
 const protocolLabels: Record<AiModelProtocol, string> = {
   "openai-compatible": "OpenAI Compatible",
+  deepseek: "DeepSeek",
   anthropic: "Anthropic",
 };
 
+/** 各协议的默认 API 地址 */
+const PROTOCOL_DEFAULT_BASE_URLS: Record<AiModelProtocol, string> = {
+  "openai-compatible": "https://api.openai.com/v1",
+  deepseek: "https://api.deepseek.com/v1",
+  anthropic: "https://api.anthropic.com/v1",
+};
+
+/** 各协议的默认模型 ID，兼作输入框占位 */
+const PROTOCOL_DEFAULT_MODELS: Record<AiModelProtocol, string> = {
+  "openai-compatible": "gpt-5.6",
+  deepseek: "deepseek-chat",
+  anthropic: "claude-sonnet-4-5",
+};
+
+/** 当前协议的默认模型占位 */
+const protocolModelPlaceholder = computed(() => PROTOCOL_DEFAULT_MODELS[form.value.protocol] ?? "");
+
 const handleProtocolChange = (protocol: AiModelProtocol): void => {
-  const previousDefault =
-    form.value.protocol === "anthropic"
-      ? "https://api.anthropic.com/v1"
-      : "https://api.openai.com/v1";
+  const previousDefault = PROTOCOL_DEFAULT_BASE_URLS[form.value.protocol];
   form.value.protocol = protocol;
   if (form.value.baseUrl === previousDefault) {
-    form.value.baseUrl =
-      protocol === "anthropic" ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1";
+    form.value.baseUrl = PROTOCOL_DEFAULT_BASE_URLS[protocol];
   }
+  // 模型 ID 为空时填入该协议的默认模型，避免用户手动查名字
+  if (!form.value.model.trim()) form.value.model = PROTOCOL_DEFAULT_MODELS[protocol];
 };
 
 const applyState = (state: Awaited<ReturnType<typeof window.api.aiModel.list>>): void => {
@@ -280,11 +297,7 @@ onMounted(load);
           />
         </SFormItem>
         <SFormItem :label="t('settings.aiModel.model')">
-          <SInput
-            v-model="form.model"
-            :placeholder="form.protocol === 'anthropic' ? 'claude-sonnet-4-5' : 'gpt-5.6'"
-            spellcheck="false"
-          />
+          <SInput v-model="form.model" :placeholder="protocolModelPlaceholder" spellcheck="false" />
         </SFormItem>
         <div
           v-if="formError"

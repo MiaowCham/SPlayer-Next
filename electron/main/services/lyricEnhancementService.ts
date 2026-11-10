@@ -15,7 +15,7 @@ import {
 } from "./lyricEnhancementCore";
 
 type Model = {
-  protocol: "openai-compatible" | "anthropic";
+  protocol: "openai-compatible" | "deepseek" | "anthropic";
   baseUrl: string;
   model: string;
   apiKey: string;
