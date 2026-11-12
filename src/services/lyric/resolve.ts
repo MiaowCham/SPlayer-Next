@@ -1,5 +1,6 @@
 import type { Track, TrackDetail } from "@shared/types/player";
 import type { LyricData, LyricFormat, LyricInput, LyricMatchResult } from "@shared/types/lyrics";
+import { parseMainLines, verifyCandidate } from "./verify";
 import type { Platform } from "@shared/types/platform";
 import { isPlatform } from "@shared/types/platform";
 import { detectFormat } from "@/utils/lyric/parse";
@@ -156,11 +157,15 @@ const isOnlineResultUpgrade = (result: OnlineResult, localFormat: LyricFormat): 
 interface OnlinePreferenceOptions {
   hasLocal: boolean;
   localFormat: LyricFormat | null;
+  /** 已有本地歌词，用作候选验证基准 */
+  local?: ResolvedLyric | null;
   preference?: import("@/types/settings").LyricSourcePreference;
   onCandidate?: (result: OnlineResult) => void;
   shouldContinue?: () => boolean;
   /** 用户已指定搜索条件时，不得以当前平台 ID 绕过该条件。 */
   forceQuery?: boolean;
+  /** 后台场景逐个请求，结果已无法被超越时不再请求后续平台 */
+  sequential?: boolean;
 }
 
 /**
@@ -219,6 +224,9 @@ export const resolveOnlineByPreference = async (
       if (!current) return true;
       return rankOf(candidate) < rankOf(current);
     };
+    const baselineLines = options.local
+      ? parseMainLines(options.local.source.format, options.local.input.content)
+      : [];
     await Promise.all(
       candidates.map(async (platform) => {
         const result = await resolvePlatformLyric(platform, track, options.forceQuery);
@@ -227,10 +235,22 @@ export const resolveOnlineByPreference = async (
           logLyric("info", `  ${platform}: miss`);
           return;
         }
-        logLyric("info", `  ${platform}: hit ${result.source.format} rank=${rankOf(result)}`);
-        if (isBetter(result, best)) {
-          best = result;
-          options.onCandidate?.(result);
+        let accepted: OnlineResult | null = result;
+        if (baselineLines.length > 0) {
+          const candidateLines = parseMainLines(result.source.format, result.input.content);
+          accepted = candidateLines.length
+            ? await verifyCandidate(baselineLines, candidateLines, result, track)
+            : null;
+          if (!isCurrent()) return;
+          if (!accepted) {
+            logLyric("info", `  ${platform}: hit ${result.source.format} 但版本校验未通过`);
+            return;
+          }
+        }
+        logLyric("info", `  ${platform}: hit ${result.source.format} rank=${rankOf(accepted)}`);
+        if (isBetter(accepted, best)) {
+          best = accepted;
+          options.onCandidate?.(accepted);
         }
       }),
     );
@@ -242,6 +262,9 @@ export const resolveOnlineByPreference = async (
     return isCurrent() ? best : null;
   }
 
+  const baselineLines = options.local
+    ? parseMainLines(options.local.source.format, options.local.input.content)
+    : [];
   for (const platform of candidates) {
     const result = await resolvePlatformLyric(platform, track, options.forceQuery);
     if (!isCurrent()) return null;
@@ -257,8 +280,20 @@ export const resolveOnlineByPreference = async (
       logLyric("info", `  ${platform}: hit ${result.source.format} 但不优于本地`);
       continue;
     }
-    logLyric("info", `  ${platform}: hit ${result.source.format} → 采用`);
-    return result;
+    let accepted: OnlineResult | null = result;
+    if (baselineLines.length > 0) {
+      const candidateLines = parseMainLines(result.source.format, result.input.content);
+      accepted = candidateLines.length
+        ? await verifyCandidate(baselineLines, candidateLines, result, track)
+        : null;
+      if (!isCurrent()) return null;
+      if (!accepted) {
+        logLyric("info", `  ${platform}: hit ${result.source.format} 但版本校验未通过`);
+        continue;
+      }
+    }
+    logLyric("info", `  ${platform}: hit ${accepted.source.format} → 采用`);
+    return accepted;
   }
   return null;
 };

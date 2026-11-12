@@ -6,6 +6,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { watchLyricPreference } from "@/services/lyric/loader";
 import { parseLyric } from "@/utils/lyric/parse";
 import { applyLyricLanguages } from "@/utils/lyric/language";
+import { applyTimestampOffset } from "lyric-kit";
 import {
   extractLyricAuthorInfo,
   extractNeteaseCreators,
@@ -263,6 +264,12 @@ export const useMediaStore = defineStore("media", () => {
         });
         nextLines = applyLyricExclude(lines, track.value);
         normalizeLyricLines(nextLines);
+        // 候选与基准对比得出的时间校正量
+        if (source?.timeShiftMs)
+          applyTimestampOffset(
+            nextLines as Parameters<typeof applyTimestampOffset>[0],
+            source.timeShiftMs,
+          );
         // Fuck Mode
         if (settings.preset.uncensorProfanity) {
           applyProfanityUncensor(nextLines);

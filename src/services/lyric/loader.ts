@@ -521,6 +521,7 @@ export const loadForTrack = async (detail: TrackDetail | null): Promise<void> =>
       const online = await resolveOnlineByPreference(searchTrack, {
         hasLocal: hasUsableLocal,
         localFormat,
+        local: local ? { source: local.source, input: { content: local.content } } : null,
         preference: basePreference(choice),
         onCandidate: (result) => commit(token, result.source, result.input),
         shouldContinue: () => token === currentToken,
@@ -606,6 +607,7 @@ const refreshPreference = async (): Promise<void> => {
     const online = await resolveOnlineByPreference(searchTrack, {
       hasLocal: !!local,
       localFormat,
+      local: local ? { source: local.source, input: { content: local.content } } : null,
       preference: basePreference(choice),
       onCandidate: (result) => commit(token, result.source, result.input),
       shouldContinue: () => token === currentToken,

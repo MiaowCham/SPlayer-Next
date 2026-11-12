@@ -160,6 +160,20 @@ const lyricLabel = computed(() => {
   return t(`lyricManager.sourceDisplay.${lyric.source}`);
 });
 
+/** 当前歌曲是否手动选择过歌词，此时来源偏好不生效 */
+const manualPicked = ref(false);
+
+// 歌词每次重新加载（切歌、应用或恢复手动选择）都会变，借此刷新
+watch(
+  () => media.activeLyric,
+  async () => {
+    const track = media.track;
+    const picked = track ? Boolean(await window.api.lyrics.getManualMatch(toRaw(track))) : false;
+    if (track === media.track) manualPicked.value = picked;
+  },
+  { immediate: true },
+);
+
 /** 打开当前歌曲的歌词管理面板。 */
 const openLyricManager = (): void => {
   const track = displayTrack.value;
@@ -321,7 +335,11 @@ const alignItems = computed(() => {
           </button>
         </template>
         <div class="max-w-56 text-xs text-cover/70">
-          {{ t("lyricManager.sourceDisplayHint") }}
+          {{
+            manualPicked
+              ? t("player.lyricMatch.preferenceIgnored")
+              : t("lyricManager.sourceDisplayHint")
+          }}
         </div>
       </SPopover>
     </div>
