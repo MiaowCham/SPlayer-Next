@@ -52,6 +52,9 @@ const sourceTabs = computed<{ key: LyricMatchSource; label: string }[]>(() => [
     key: platform,
     label: PLATFORM_SHORT_NAME[platform],
   })),
+  ...(settings.system.lyric.enableAppleMusicTTMLLyric
+    ? [{ key: "appleMusic" as const, label: "Apple Music" }]
+    : []),
   ...(settings.system.lyric.enableOnlineTTMLLyric
     ? [{ key: "ttml" as const, label: TTML_LABEL }]
     : []),

@@ -549,6 +549,14 @@ export const requestManualLyric = async (
     if (!ttml.ok || !ttml.data) return null;
     return { source: { source: "online", format: "ttml" }, input: { content: ttml.data } };
   }
+  if (match.platform === "appleMusic") {
+    const ttml = await window.api.lyrics.fetchAppleMusicLyricById(match.id);
+    if (!ttml.ok || !ttml.data) return null;
+    return {
+      source: { source: "online", format: "ttml", platform: "appleMusic" },
+      input: { content: ttml.data },
+    };
+  }
   return requestPlatformMatch(track, match.platform, match);
 };
 

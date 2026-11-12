@@ -633,6 +633,9 @@ const api = {
       ipcRenderer.invoke("lyrics:searchCandidates", platform, keyword, track),
     // 按 AMLL 条目 id 取 TTML
     fetchTTMLById: (id: string) => ipcRenderer.invoke("lyrics:fetchTTMLById", id),
+    // 按 Apple Music catalog 歌曲 id 取 TTML
+    fetchAppleMusicLyricById: (id: string) =>
+      ipcRenderer.invoke("lyrics:fetchAppleMusicLyricById", id),
     // 读取手动选择
     getManualMatch: (track: unknown) => ipcRenderer.invoke("lyrics:getManualMatch", track),
     // 保存手动选择

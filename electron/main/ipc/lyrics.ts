@@ -26,6 +26,8 @@ import { setCachedTTML } from "@main/database/lyricTtmlCache";
 import { setCachedLyric, deleteLyricVersionCache } from "@main/database/lyricCache";
 import {
   fetchAppleMusicTTML,
+  loadAppleMusicLyricVersion,
+  searchAppleMusicLyricVersions,
   fetchAppleMusicTTMLResult,
   getCachedAppleMusicTTML,
   verifyAppleMusicTTMLToken,
@@ -200,6 +202,16 @@ const searchSource = async (
       }));
     case "ttml":
       return searchTTMLCandidates(keyword, track);
+    case "appleMusic": {
+      const page = await searchAppleMusicLyricVersions(keyword, 0);
+      return page.items.map((song) => ({
+        name: song.title,
+        artist: song.artists.join(" / "),
+        album: song.album,
+        duration: song.duration,
+        extra: String(song.id),
+      }));
+    }
     default:
       return [];
   }
@@ -1102,6 +1114,20 @@ export const registerLyricsIpc = (): void => {
       dedup(`candidates:${platform}:${keyword}:${track.id}`, () =>
         resolveCandidates(platform, keyword, track),
       ),
+  );
+  ipcMain.handle(
+    "lyrics:fetchAppleMusicLyricById",
+    async (_evt, id: string): Promise<LyricTTMLResponse> => {
+      const result = await loadAppleMusicLyricVersion({
+        id,
+        title: "",
+        artists: [],
+        duration: 0,
+      });
+      return result.lyric
+        ? { ok: true, data: result.lyric }
+        : { ok: false, error: result.message ?? "no lyric" };
+    },
   );
   ipcMain.handle("lyrics:fetchTTMLById", async (_evt, id: string): Promise<LyricTTMLResponse> => ({
     ok: true,

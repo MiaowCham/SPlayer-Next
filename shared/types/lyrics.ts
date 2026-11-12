@@ -429,6 +429,8 @@ export interface LyricsApi {
   ) => Promise<LyricSearchResponse>;
   /** 按 AMLL 条目 id 取 TTML 歌词 */
   fetchTTMLById: (id: string) => Promise<LyricTTMLResponse>;
+  /** 按 Apple Music catalog 歌曲 id 取 TTML 歌词 */
+  fetchAppleMusicLyricById: (id: string) => Promise<LyricTTMLResponse>;
   /** 读取歌曲的手动选择 */
   getManualMatch: (track: Track) => Promise<LyricManualMatch | null>;
   /** 保存歌曲的手动选择 */
