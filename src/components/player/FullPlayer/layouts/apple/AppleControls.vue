@@ -322,7 +322,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
           cover
           side="top"
           :side-offset="10"
-          content-class="!p-1 w-56"
+          content-class="!p-1 w-56 !rounded-lg"
         >
           <template #trigger>
             <span
@@ -379,7 +379,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
               :key="option.value"
               type="button"
               :aria-current="option.value === settings.player.songLevel ? 'true' : undefined"
-              class="relative flex items-center w-full h-8 px-2.5 pr-7 rounded-md text-left cursor-pointer outline-none transition-colors duration-200 hover:bg-white/10 focus-visible:bg-white/10"
+              class="relative flex items-center w-full h-8 px-2.5 pr-7 rounded-md text-left cursor-pointer appearance-none border-0 bg-transparent font-inherit outline-none transition-colors duration-200 hover:bg-white/10 focus-visible:bg-white/10"
               :class="option.value === settings.player.songLevel ? 'text-cover' : 'text-cover/80'"
               @click="onQualityChange(option.value)"
             >
@@ -397,7 +397,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
           >
             <button
               type="button"
-              class="flex items-center w-full h-8 px-2.5 rounded-md text-left cursor-pointer outline-none transition-colors duration-200 text-cover/55 hover:bg-white/10 hover:text-cover focus-visible:bg-white/10"
+              class="flex items-center w-full h-8 px-2.5 rounded-md text-left cursor-pointer appearance-none border-0 bg-transparent font-inherit outline-none transition-colors duration-200 text-cover/55 hover:bg-white/10 hover:text-cover focus-visible:bg-white/10"
               @click="openAudioInfo"
             >
               <span class="flex-1">{{ t("quality.outputInfo") }}</span>
