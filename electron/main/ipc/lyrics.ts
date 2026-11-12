@@ -16,7 +16,12 @@ import * as netease from "@main/apis/common/lyric/netease";
 import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
 import { callNetease } from "@main/apis/netease";
-import { fetchTTML, invalidateTTMLVersion } from "@main/apis/common/lyric/ttml";
+import {
+  fetchTTML,
+  fetchTTMLById,
+  invalidateTTMLVersion,
+  searchTTMLCandidates,
+} from "@main/apis/common/lyric/ttml";
 import { setCachedTTML } from "@main/database/lyricTtmlCache";
 import { setCachedLyric, deleteLyricVersionCache } from "@main/database/lyricCache";
 import {
@@ -35,7 +40,18 @@ import {
 } from "@main/services/appleMusicLyricsToken";
 import { matchLocalTTML } from "@main/services/localLyricRepo";
 import { importNeteaseTtmlDirectory } from "@main/services/managedLyricImport";
-import { buildFingerprint, getMatchedId } from "@main/database/lyricMatchCache";
+import {
+  buildFingerprint,
+  deleteMatchedId,
+  getMatchedId,
+  setMatchedId,
+} from "@main/database/lyricMatchCache";
+import {
+  getCandidateTags,
+  pickBestCandidate,
+  type LyricCandidate,
+} from "@main/apis/common/lyric/utils";
+import { clearManualMatch, getManualMatch, setManualMatch } from "@main/database/lyricManualMatch";
 import {
   deleteManagedLyric,
   deleteManagedLyricVersion,
@@ -71,6 +87,9 @@ import type {
   ManagedLyricImportResult,
   ManagedLyricMigrationResult,
   TrackLyricPreference,
+  LyricManualMatch,
+  LyricMatchSource,
+  LyricSearchResponse,
 } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
 import type { Track } from "@shared/types/player";
@@ -125,19 +144,20 @@ const dedup = <T>(key: string, run: () => Promise<T>): Promise<T> => {
 const resolveById = async (
   platform: Platform,
   id: string,
+  track?: Track,
   prefetch = true,
 ): Promise<LyricMatchResponse> => {
   try {
     let data: LyricMatchResult | null = null;
     switch (platform) {
       case "netease":
-        data = await netease.getByPlatformId(id as string);
+        data = await netease.getByPlatformId(id as string, prefetch);
         break;
       case "qqmusic":
         data = await qqmusic.getByPlatformId(id, undefined, prefetch);
         break;
       case "kugou":
-        data = await kugou.getByPlatformId(id);
+        data = await kugou.getByPlatformId(id, track);
         break;
       default:
         return { ok: false, error: `unsupported platform: ${platform}` };
@@ -146,6 +166,83 @@ const resolveById = async (
     return { ok: true, data };
   } catch (err) {
     coreLog.warn(`[lyrics] matchById(${platform}, ${id}) failed:`, err);
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+};
+
+/**
+ * 按关键词取某来源的候选，extra 统一为可保存的 id
+ * @param source - 歌词来源
+ * @param keyword - 搜索关键词
+ * @param track - 歌曲信息
+ * @returns 候选列表
+ */
+const searchSource = async (
+  source: LyricMatchSource,
+  keyword: string,
+  track: Track,
+): Promise<LyricCandidate<string>[]> => {
+  switch (source) {
+    case "netease":
+      return (await netease.searchCandidates(keyword)).map((song) => ({
+        ...song,
+        extra: song.extra.id,
+      }));
+    case "qqmusic":
+      return (await qqmusic.searchCandidates(keyword)).map((song) => ({
+        ...song,
+        extra: song.extra.id,
+      }));
+    case "kugou":
+      return (await kugou.searchCandidates(keyword)).map((song) => ({
+        ...song,
+        extra: song.extra.hash,
+      }));
+    case "ttml":
+      return searchTTMLCandidates(keyword, track);
+    default:
+      return [];
+  }
+};
+
+/**
+ * 按关键词搜索候选，并标出它们与歌曲的吻合情况
+ * @param platform - 歌词来源
+ * @param keyword - 搜索关键词
+ * @param track - 歌曲信息
+ * @returns 候选列表
+ */
+const resolveCandidates = async (
+  platform: LyricMatchSource,
+  keyword: string,
+  track: Track,
+): Promise<LyricSearchResponse> => {
+  try {
+    const candidates = await searchSource(platform, keyword, track);
+    const best = pickBestCandidate(candidates, track);
+    const autoIds =
+      platform === "ttml"
+        ? []
+        : [
+            getMatchedId(buildFingerprint(track), platform)?.platformId,
+            ...(track.source === platform ? [track.id, track.extId] : []),
+          ];
+    return {
+      ok: true,
+      data: candidates.map((candidate) => {
+        const { extra, ...song } = candidate;
+        return {
+          ...song,
+          platform,
+          id: extra,
+          tags: getCandidateTags(candidate, track),
+          best: candidate === best,
+          autoMatched: platform === "ttml" ? candidate === best : autoIds.includes(extra),
+        };
+      }),
+    };
+  } catch (err) {
+    coreLog.warn(`[lyrics] searchCandidates(${platform}, ${keyword}) failed:`, err);
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -369,7 +466,7 @@ const getTrackCandidates = async (
         const lookupId = platform === "qqmusic" ? (track.extId ?? track.id) : track.id;
         try {
           return !search.forceQuery && track.source === platform
-            ? await resolveById(platform, lookupId, !onlyOrigin)
+            ? await resolveById(platform, lookupId, search.track, !onlyOrigin)
             : await resolveByQuery(platform, searchTrack, !onlyOrigin);
         } catch (err) {
           coreLog.warn(`[lyrics] candidate lookup(${platform}) failed:`, err);
@@ -988,9 +1085,33 @@ export const registerLyricsIpc = (): void => {
       return confirmation.response === 0;
     });
   });
-  ipcMain.handle("lyrics:matchById", (_evt, platform: Platform, id: string) =>
-    dedup(`byId:${platform}:${id}`, () => resolveById(platform, id)),
+  ipcMain.handle(
+    "lyrics:matchById",
+    (_evt, platform: Platform, id: string, track?: Track, prefetch?: boolean) =>
+      dedup(`byId:${platform}:${id}`, () => resolveById(platform, id, track, prefetch)),
   );
+  ipcMain.handle("lyrics:forgetMatch", (_evt, track: Track, platform: Platform) =>
+    deleteMatchedId(buildFingerprint(track), platform),
+  );
+  ipcMain.handle("lyrics:rememberMatch", (_evt, track: Track, platform: Platform, id: string) =>
+    setMatchedId(buildFingerprint(track), platform, id),
+  );
+  ipcMain.handle(
+    "lyrics:searchCandidates",
+    (_evt, platform: LyricMatchSource, keyword: string, track: Track) =>
+      dedup(`candidates:${platform}:${keyword}:${track.id}`, () =>
+        resolveCandidates(platform, keyword, track),
+      ),
+  );
+  ipcMain.handle("lyrics:fetchTTMLById", async (_evt, id: string): Promise<LyricTTMLResponse> => ({
+    ok: true,
+    data: await fetchTTMLById(id),
+  }));
+  ipcMain.handle("lyrics:getManualMatch", (_evt, track: Track) => getManualMatch(track));
+  ipcMain.handle("lyrics:setManualMatch", (_evt, track: Track, match: LyricManualMatch) =>
+    setManualMatch(track, match),
+  );
+  ipcMain.handle("lyrics:clearManualMatch", (_evt, track: Track) => clearManualMatch(track));
   ipcMain.handle("lyrics:matchByQuery", (_evt, platform: Platform, track: Track) =>
     dedup(
       `byQuery:${platform}:${track.id}:${track.title}:${track.artists.map((artist) => artist.name).join("/")}`,

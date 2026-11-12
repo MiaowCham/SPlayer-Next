@@ -561,6 +561,25 @@
     "artistAlbumLinks": {
       "artist": "Go to Artist",
       "album": "Go to Album"
+    },
+    "lyricMatch": {
+      "title": "Match lyrics",
+      "searchPlaceholder": "Search title or artist",
+      "search": "Search",
+      "searchFailed": "Search failed, please try again",
+      "saveFailed": "Save failed, please try again",
+      "noResults": "No candidates found",
+      "noLyric": "No lyrics available for this song",
+      "previewHint": "Select a candidate to preview lyrics",
+      "current": "Current",
+      "tagBest": "Best match",
+      "tagName": "Title match",
+      "tagArtist": "Artist match",
+      "tagDuration": "Duration close",
+      "currentPick": "Manually picked: {name} ({platform})",
+      "restoreAuto": "Restore automatic matching",
+      "preferenceIgnored": "Lyrics manually picked",
+      "apply": "Use these lyrics"
     }
   },
   "lyricManager": {

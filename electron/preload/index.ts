@@ -620,8 +620,26 @@ const api = {
     // 批量导入带网易云元数据的 TTML
     importNeteaseTtmlDirectory: () => ipcRenderer.invoke("lyrics:importNeteaseTtmlDirectory"),
     // 按 id 直取某平台歌词
-    matchById: (platform: string, id: string) =>
-      ipcRenderer.invoke("lyrics:matchById", platform, id),
+    matchById: (platform: string, id: string, track?: unknown, prefetch?: boolean) =>
+      ipcRenderer.invoke("lyrics:matchById", platform, id, track, prefetch),
+    // 删除验证不通过的模糊匹配映射
+    forgetMatch: (track: unknown, platform: string) =>
+      ipcRenderer.invoke("lyrics:forgetMatch", track, platform),
+    // 记住验证通过的替代候选
+    rememberMatch: (track: unknown, platform: string, id: string) =>
+      ipcRenderer.invoke("lyrics:rememberMatch", track, platform, id),
+    // 按关键词搜索候选
+    searchCandidates: (platform: string, keyword: string, track: unknown) =>
+      ipcRenderer.invoke("lyrics:searchCandidates", platform, keyword, track),
+    // 按 AMLL 条目 id 取 TTML
+    fetchTTMLById: (id: string) => ipcRenderer.invoke("lyrics:fetchTTMLById", id),
+    // 读取手动选择
+    getManualMatch: (track: unknown) => ipcRenderer.invoke("lyrics:getManualMatch", track),
+    // 保存手动选择
+    setManualMatch: (track: unknown, match: unknown) =>
+      ipcRenderer.invoke("lyrics:setManualMatch", track, match),
+    // 清除手动选择
+    clearManualMatch: (track: unknown) => ipcRenderer.invoke("lyrics:clearManualMatch", track),
     // 按 Track 元数据在某平台模糊搜索歌词
     matchByQuery: (platform: string, track: unknown) =>
       ipcRenderer.invoke("lyrics:matchByQuery", platform, track),

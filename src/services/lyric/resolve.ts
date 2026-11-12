@@ -23,7 +23,13 @@ const TTML_PLATFORMS = ["netease", "qqmusic"] as const;
 
 /** 单个平台返回的在线歌词 */
 export interface OnlineResult {
-  source: { source: "online"; format: LyricFormat; platform: Platform };
+  source: {
+    source: "online";
+    format: LyricFormat;
+    platform: Platform;
+    /** 与基准比较得出的时间校正量 */
+    timeShiftMs?: number;
+  };
   input: LyricInput;
 }
 
@@ -31,6 +37,8 @@ export interface OnlineResult {
 export interface ResolvedLyric {
   source: NonNullable<LyricData>;
   input: LyricInput;
+  /** 用户手动指定，后续来源不再覆盖 */
+  pinned?: boolean;
 }
 
 /** 本地歌词读取结果 */
@@ -219,10 +227,7 @@ export const resolveOnlineByPreference = async (
           logLyric("info", `  ${platform}: miss`);
           return;
         }
-        logLyric(
-          "info",
-          `  ${platform}: hit ${result.source.format} rank=${rankOf(result)}`,
-        );
+        logLyric("info", `  ${platform}: hit ${result.source.format} rank=${rankOf(result)}`);
         if (isBetter(result, best)) {
           best = result;
           options.onCandidate?.(result);
@@ -230,7 +235,10 @@ export const resolveOnlineByPreference = async (
       }),
     );
     const chosen = best as OnlineResult | null;
-    logLyric("info", `  best=${chosen ? `${chosen.source.platform}:${chosen.source.format}` : "null"}`);
+    logLyric(
+      "info",
+      `  best=${chosen ? `${chosen.source.platform}:${chosen.source.format}` : "null"}`,
+    );
     return isCurrent() ? best : null;
   }
 
@@ -502,4 +510,59 @@ export const resolveLyricForPreload = async (
   // Apple Music 搜索由当前歌曲加载器异步执行，避免预载阶段阻塞首屏歌词。
   const plugin = await resolvePluginLyric(track);
   return shouldContinue() ? plugin : null;
+};
+
+/**
+ * 按平台歌曲 id 请求歌词
+ * KG 取词依赖歌名和时长，歌曲信息与候选不一致时要用候选自己的信息
+ * @param track - 歌曲信息
+ * @param platform - 平台
+ * @param match - 候选
+ * @returns 对应歌词，不存在则返回 null
+ */
+const requestPlatformMatch = async (
+  track: Track,
+  platform: Platform,
+  match: import("@shared/types/lyrics").LyricManualMatch,
+): Promise<OnlineResult | null> => {
+  const resp = await window.api.lyrics.matchById(
+    platform,
+    match.id,
+    { ...track, title: match.name, duration: match.duration ?? track.duration },
+    false,
+  );
+  return resp.ok && resp.data ? toOnlineResult(resp.data) : null;
+};
+
+/**
+ * 请求手动选择或候选对应的歌词
+ * @param track - 歌曲信息
+ * @param match - 手动选择或候选
+ * @returns 对应歌词，不存在则返回 null
+ */
+export const requestManualLyric = async (
+  track: Track,
+  match: import("@shared/types/lyrics").LyricManualMatch,
+): Promise<ResolvedLyric | null> => {
+  if (match.platform === "ttml") {
+    const ttml = await window.api.lyrics.fetchTTMLById(match.id);
+    if (!ttml.ok || !ttml.data) return null;
+    return { source: { source: "online", format: "ttml" }, input: { content: ttml.data } };
+  }
+  return requestPlatformMatch(track, match.platform, match);
+};
+
+/**
+ * 解析用户指定的歌词，手动选择优先于本地歌词库
+ * 选择的歌词暂时取不到时不阻塞播放，继续走后续来源
+ * @param track - 歌曲信息
+ * @returns 用户指定的歌词，不存在则返回 null
+ */
+export const resolveUserLyric = async (track: Track): Promise<ResolvedLyric | null> => {
+  const match = await window.api.lyrics.getManualMatch(track);
+  const lyric = match && (await requestManualLyric(track, match));
+  if (lyric) return { ...lyric, pinned: true };
+  const managed = await resolveManagedLyric(track);
+  if (managed) return managed;
+  return resolveLocalRepoLyric(track);
 };

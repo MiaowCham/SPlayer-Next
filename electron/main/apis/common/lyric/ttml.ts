@@ -11,6 +11,8 @@
 import { appVersion } from "@main/utils/config";
 import { coreLog } from "@main/utils/logger";
 import { store } from "@main/store";
+import type { Track } from "@shared/types/player";
+import { getTTMLSearchText, normalize, type LyricCandidate } from "./utils";
 import {
   getCachedTTML,
   deleteTtmlVersionCache,
@@ -140,4 +142,68 @@ export const invalidateTTMLVersion = async (
       .map(([, request]) => request),
   );
   return deleteTtmlVersionCache(platform, content, id);
+};
+
+/**
+ * 按 AMLL 条目 id 取 TTML，开关关闭时不发请求
+ * @param id - AMLL 条目 id
+ * @returns TTML 文本，不存在时为 null
+ */
+export const fetchTTMLById = async (id: string): Promise<string | null> => {
+  if (!store.get("lyric.enableOnlineTTMLLyric")) return null;
+  const cached = getCachedTTML("amll", id);
+  if (cached?.fresh) return cached.content;
+  const stale = cached?.content ?? null;
+  try {
+    const res = await fetch(`${OFFICIAL_API}?id=${encodeURIComponent(id)}`, {
+      headers: { "User-Agent": USER_AGENT },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) return stale;
+    const lyrics = ((await res.json()) as { data?: { lyrics?: string } }).data?.lyrics;
+    if (!lyrics?.trim()) return stale;
+    setCachedTTML("amll", id, lyrics);
+    return lyrics;
+  } catch (err) {
+    coreLog.warn(`[ttml] get ${id} failed:`, err);
+    return stale;
+  }
+};
+
+/**
+ * 按关键词搜索 TTML 候选，开关关闭时不发请求
+ * @param keyword - 搜索关键词
+ * @param track - 歌曲信息，条目有多个歌名时优先展示与它一致的
+ * @returns 归一化后的候选列表，extra 为 AMLL 条目 id
+ */
+export const searchTTMLCandidates = async (
+  keyword: string,
+  track: Track,
+): Promise<LyricCandidate<string>[]> => {
+  if (!store.get("lyric.enableOnlineTTMLLyric")) return [];
+  const base = OFFICIAL_API.replace(/\/get$/, "");
+  const query = new URLSearchParams({
+    q: getTTMLSearchText(keyword, track),
+    pageSize: "50",
+  });
+  const res = await fetch(`${base}/search?${query}`, {
+    headers: { "User-Agent": USER_AGENT },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) return [];
+  const items = ((await res.json()) as { data?: { items?: unknown[] } }).data?.items ?? [];
+  const title = normalize(track.title);
+  return (
+    items as {
+      id: number;
+      musicNames?: string[];
+      artistNames?: string[];
+      albumNames?: string[];
+    }[]
+  ).map((item) => ({
+    name: item.musicNames?.find((name) => normalize(name) === title) ?? item.musicNames?.[0] ?? "",
+    artist: (item.artistNames ?? []).join(" / "),
+    album: (item.albumNames ?? [])[0],
+    extra: String(item.id),
+  }));
 };

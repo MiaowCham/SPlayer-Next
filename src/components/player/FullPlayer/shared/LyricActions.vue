@@ -5,6 +5,7 @@ import { useStatusStore } from "@/stores/status";
 import { useSettingsDialog } from "@/settings/useSettingsDialog";
 import { formatLyricOffset } from "@/utils/time";
 import IconLucideLanguages from "~icons/lucide/languages";
+import LyricMatchDialog from "@/components/modals/LyricMatchDialog.vue";
 
 defineProps<{
   /** 是否处于沉浸模式（由布局决定） */
@@ -30,6 +31,9 @@ const offsetPopoverOpen = ref(false);
 
 /** 翻译与发音快捷开关是否打开 */
 const contentPopoverOpen = ref(false);
+
+/** 手动匹配歌词弹窗是否打开 */
+const matchDialogOpen = ref(false);
 
 const hasTrack = computed(() => !!media.track);
 
@@ -113,6 +117,17 @@ const resetLyricOffset = (): void => writeOffset(0);
       @click="emit('locate')"
     >
       <template #icon><IconLucideLocateFixed /></template>
+    </SButton>
+    <SButton
+      type="cover"
+      variant="ghost"
+      circle
+      :size="40"
+      :disabled="!hasTrack"
+      :title="t('player.lyricMatch.title')"
+      @click="matchDialogOpen = true"
+    >
+      <template #icon><IconLucideTextSearch /></template>
     </SButton>
     <div class="h-px w-6 bg-cover/25 my-1" />
     <SButton
@@ -210,6 +225,7 @@ const resetLyricOffset = (): void => writeOffset(0);
     <SButton type="cover" variant="ghost" circle :size="40" @click="settingsDialog.show('lyric')">
       <template #icon><IconLucideSettings2 /></template>
     </SButton>
+    <LyricMatchDialog v-model:open="matchDialogOpen" />
     <CopyLyricsDialog v-model:open="copyDialogOpen" />
   </div>
 </template>

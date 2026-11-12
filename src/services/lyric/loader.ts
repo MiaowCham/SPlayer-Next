@@ -16,6 +16,7 @@ import {
   resolveAppleMusicTTML,
   resolveManagedLyric,
   resolveLocalRepoLyric,
+  requestManualLyric,
   resolveOnlineByPreference,
   resolvePluginLyric,
   resolveStreamingByPreference,
@@ -204,13 +205,18 @@ const tryLocalRepo = async (
   return resolved ? commitResolvedAndHasParsed(token, resolved) : false;
 };
 
-/** 手动管理歌词最高优先级。 */
+/** 手动选择与手动管理歌词最高优先级。 */
 const tryManaged = async (
   token: number,
   track: Track,
   choice: TrackLyricPreference,
 ): Promise<boolean> => {
   if (choice.source !== "auto" && choice.source !== "local") return false;
+  // 用户在「匹配歌词」里手动选择的版本优先
+  const match = await window.api.lyrics.getManualMatch(track);
+  const manual = match ? await requestManualLyric(track, match) : null;
+  if (token !== currentToken) return false;
+  if (manual) return commitResolvedAndHasParsed(token, manual);
   const resolved = await resolveManagedLyric(track);
   if (token !== currentToken) return false;
   return resolved ? commitResolvedAndHasParsed(token, resolved) : false;

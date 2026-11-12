@@ -25,7 +25,7 @@ export type Platform = "netease" | "qqmusic" | "appleMusic";
  * @returns content 为 null 表示负缓存；fresh 表示仍在有效期内；未命中返回 null
  */
 export const getCachedTTML = (
-  platform: Platform,
+  platform: Platform | "search" | "amll",
   id: string,
 ): { content: string | null; fresh: boolean } | null => {
   const row = getDb()
@@ -37,7 +37,11 @@ export const getCachedTTML = (
 };
 
 /** upsert TTML；content 为 null 表示负缓存 */
-export const setCachedTTML = (platform: Platform, id: string, content: string | null): void => {
+export const setCachedTTML = (
+  platform: Platform | "search" | "amll",
+  id: string,
+  content: string | null,
+): void => {
   getDb()
     .prepare(
       `INSERT INTO lyric_ttml_cache (platform, id, content, fetched_at) VALUES (?, ?, ?, ?)

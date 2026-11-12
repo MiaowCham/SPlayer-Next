@@ -53,9 +53,12 @@ const pickSub = (
  * 按 id 直取歌词
  * @param id 歌曲 id
  */
-export const getByPlatformId = async (id: string): Promise<LyricMatchResult | null> => {
+export const getByPlatformId = async (
+  id: string,
+  prefetch = true,
+): Promise<LyricMatchResult | null> => {
   // 立刻预热 TTML 抓取
-  prefetchTTML("netease", [id]);
+  if (prefetch) prefetchTTML("netease", [id]);
   const result = await withLyricCache("netease", id, async () => {
     try {
       const { status, body } = await callNetease("lyric_new", { id });
@@ -84,6 +87,37 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
   if (result?.translationFormat === "yrc") result.translationFormat = "lrc";
   if (result?.romajiFormat === "yrc") result.romajiFormat = "lrc";
   return result;
+};
+
+/**
+ * 搜索歌词候选
+ * @param keyword 搜索关键词
+ * @returns 归一化后的候选列表
+ */
+export const searchCandidates = async (
+  keyword: string,
+): Promise<LyricCandidate<{ id: string }>[]> => {
+  const { status, body } = await callNetease("cloudsearch", {
+    keywords: keyword,
+    type: 1,
+    limit: 20,
+  });
+  if (status !== 200) throw new Error(`cloudsearch status=${status}`);
+  return (body.result?.songs ?? []).map(
+    (song: {
+      id: number | string;
+      name: string;
+      ar?: { name: string }[];
+      al?: { name?: string };
+      dt?: number;
+    }) => ({
+      name: song.name,
+      artist: (song.ar ?? []).map((artist) => artist.name).join(" / "),
+      album: song.al?.name,
+      duration: song.dt,
+      extra: { id: String(song.id) },
+    }),
+  );
 };
 
 /**

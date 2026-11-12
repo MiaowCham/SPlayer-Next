@@ -84,6 +84,25 @@ export const getByPlatformId = async (
  * @param prefetch - 是否允许预热 AMLL，单来源操作时关闭
  * @returns 带匹配元数据的歌词
  */
+/**
+ * 搜索歌词候选
+ * @param keyword - 搜索关键词
+ * @returns 归一化后的候选列表
+ */
+export const searchCandidates = async (
+  keyword: string,
+): Promise<LyricCandidate<{ id: string; mid: string }>[]> => {
+  const body = await callQQMusic("search", { keywords: keyword, limit: 25 });
+  if (body.code !== 200) throw new Error(`search code=${body.code}`);
+  return (body.songs ?? []).map((song) => ({
+    name: song.name,
+    artist: song.artist,
+    album: song.album,
+    duration: song.duration,
+    extra: { id: song.id, mid: song.mid },
+  }));
+};
+
 export const getByQuery = async (
   track: Track,
   prefetch = true,
