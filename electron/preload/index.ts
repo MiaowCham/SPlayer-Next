@@ -1,6 +1,7 @@
-import type { LyricEnhancementRequest } from "@shared/types/lyricEnhancement";
 import os from "os";
 import type { PlaybackQueueSnapshot } from "@shared/types/music";
+import type { LyricEnhancementRequest } from "@shared/types/lyricEnhancement";
+import type { AppleMusicSearchParams } from "@shared/types/appleMusic";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import type { ExternalApiStatus, McpStatus, TaskbarLyricSettings } from "@shared/types/settings";
@@ -33,7 +34,7 @@ import type { UpdateEvent } from "@shared/types/update";
 import type { CloudUploadProgress } from "@shared/types/cloudUpload";
 import type { MusicCommentQuery } from "@shared/types/comment";
 import type { AiModelSaveInput } from "@shared/types/ai";
-import type { DesktopLyricUnlockButtonBounds } from "@shared/types/window";
+import type { DesktopLyricUnlockButtonBounds, TaskbarLyricLayoutEvent } from "@shared/types/window";
 import type {
   LegacyPlaylistRecord,
   PlaylistCreateInput,
@@ -279,9 +280,9 @@ const api = {
     listFonts: () => ipcRenderer.invoke("system:listFonts"),
     // 拉远端字节回渲染层
     fetchRemoteBytes: (url: string) => ipcRenderer.invoke("system:fetchRemoteBytes", url),
-    // 保存文件到下载目录
-    saveFile: (data: ArrayBuffer, defaultName: string) =>
-      ipcRenderer.invoke("system:saveFile", data, defaultName),
+    // 弹出保存对话框让用户选择位置
+    saveFile: (data: ArrayBuffer, defaultName: string, title?: string) =>
+      ipcRenderer.invoke("system:saveFile", data, defaultName, title),
     // 重启应用
     relaunch: () => ipcRenderer.invoke("system:relaunch"),
     // 测试当前网络代理
@@ -321,6 +322,8 @@ const api = {
     getTracksByIds: (ids: string[]) => ipcRenderer.invoke("library:getTracksByIds", ids),
     // 搜索曲目
     searchTracks: (query: string) => ipcRenderer.invoke("library:searchTracks", query),
+    // 搜索窗分组搜索（歌曲 / 专辑 / 歌手）
+    quickSearch: (keyword: string) => ipcRenderer.invoke("library:quickSearch", keyword),
     // 获取曲目总数
     getTrackCount: () => ipcRenderer.invoke("library:getTrackCount"),
     // 随机取一首曲目
@@ -460,22 +463,8 @@ const api = {
   taskbarLyric: {
     setContentWidth: (width: number) => ipcRenderer.send("taskbarLyric:setContentWidth", width),
     // 订阅布局变化（锚定方向、是否居中、系统类型、任务栏主题）
-    onLayout: (
-      callback: (data: {
-        isCentered: boolean;
-        systemType: string;
-        isLight: boolean;
-        anchor: "left" | "right";
-        maxWidth: number;
-      }) => void,
-    ) =>
-      subscribe<{
-        isCentered: boolean;
-        systemType: string;
-        isLight: boolean;
-        anchor: "left" | "right";
-        maxWidth: number;
-      }>("taskbarLyric:layout", callback),
+    onLayout: (callback: (data: TaskbarLyricLayoutEvent) => void) =>
+      subscribe<TaskbarLyricLayoutEvent>("taskbarLyric:layout", callback),
     // 订阅任务栏歌词配置变化
     onConfigChange: (callback: (config: TaskbarLyricSettings) => void) =>
       subscribe<TaskbarLyricSettings>("taskbarLyric:configChange", callback),
@@ -574,6 +563,9 @@ const api = {
       ipcRenderer.removeAllListeners("lyricPreview:state");
       return subscribe("lyricPreview:state", callback);
     },
+  },
+  appleMusic: {
+    search: (params: AppleMusicSearchParams) => ipcRenderer.invoke("appleMusic:search", params),
   },
   lyrics: {
     // 渲染进程歌词加载日志 → 主进程文件日志
@@ -738,6 +730,7 @@ const api = {
       ipcRenderer.send("nowPlaying:setDeviceLatency", latencyMs),
     onDeviceLatencyChange: (callback: (data: number) => void) =>
       subscribe("nowPlaying:device-latency-change", callback),
+
     // 渲染进程同步当前播放状态到主进程
     update: (payload: unknown) => ipcRenderer.send("nowPlaying:update", payload),
     // 拉取当前完整快照
@@ -757,6 +750,11 @@ const api = {
     // 订阅当前曲目歌词偏移变化
     onLyricOffsetChange: (callback: (data: unknown) => void) =>
       subscribe("nowPlaying:lyric-offset-change", callback),
+  },
+  motionCover: {
+    // 解析曲目的动态封面
+    resolve: (track: unknown, source: string): Promise<string | null> =>
+      ipcRenderer.invoke("motionCover:resolve", track, source),
   },
   theme: {
     // 弹出文件选择框
@@ -1015,6 +1013,8 @@ const api = {
     getStatsSummary: () => ipcRenderer.invoke("stats:getStatsSummary"),
     // 取最常播放的曲目
     getTopTracks: (limit: number) => ipcRenderer.invoke("stats:getTopTracks", limit),
+    // 取最近播放的曲目
+    getRecentTracks: (limit: number) => ipcRenderer.invoke("stats:getRecentTracks", limit),
     // 取音乐库统计概览
     getLibraryStats: () => ipcRenderer.invoke("stats:getLibraryStats"),
     // 取最近 N 天的每日播放统计

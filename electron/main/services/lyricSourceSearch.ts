@@ -19,9 +19,9 @@ import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
 import { callNetease } from "@main/apis/netease";
 import { callQQMusic } from "@main/apis/qqmusic";
-import { fetchTTML } from "@main/apis/common/lyric/ttml";
+import { fetchTTML, fetchTTMLById, searchTTMLVersions } from "@main/apis/common/lyric/ttml";
 import { loadAppleMusicLyricVersion, searchAppleMusicLyricVersions } from "./appleMusicLyrics";
-import { readLocalLyricVersion, searchLocalLyricVersions } from "./localLyricRepo";
+import { extractTtmlMeta, readLocalLyricVersion, searchLocalLyricVersions } from "./localLyricRepo";
 import { getVersionOffset, setVersionOffset } from "./nowPlaying";
 import {
   getManagedLyric,
@@ -109,6 +109,7 @@ export const searchSourceTracks = (
   const start = Math.max(0, Math.trunc(offset));
   if (source.origin === "appleMusic") return searchAppleMusicLyricVersions(keyword, start);
   if (source.origin === "localTtml") return searchLocalLyricVersions(keyword, start);
+  if (source.origin === "amll" && !source.platform) return searchTTMLVersions(keyword, start);
   throw new Error("该来源请使用平台搜索入口");
 };
 
@@ -142,6 +143,20 @@ export const loadSourceVersion = async (
   } else if (source.origin === "appleMusic") {
     const apple = await loadAppleMusicLyricVersion(song);
     if (apple.lyric) result = { content: apple.lyric, format: "ttml" };
+  } else if (source.origin === "amll" && !source.platform) {
+    if (!/^\d+$/.test(song.id)) return null;
+    const content = await fetchTTMLById(song.id);
+    if (content) {
+      if (!song.title) {
+        const metadata = extractTtmlMeta(content);
+        song = {
+          ...song,
+          title: metadata.name ?? "",
+          artists: metadata.artist ? [metadata.artist] : [],
+        };
+      }
+      result = { content, format: "ttml" };
+    }
   } else if (platform) {
     if (platform === "qqmusic" && !/^\d+$/.test(song.id)) {
       const body = await callQQMusic("song_info", { mid: song.mid ?? song.id });
@@ -168,10 +183,10 @@ export const loadSourceVersion = async (
         };
     }
     if (source.origin === "amll") {
-      if (platform === "kugou") return null;
+      if (platform !== "netease" && platform !== "qqmusic") return null;
       const content = await fetchTTML(platform, song.mid ? [song.mid, song.id] : [song.id]);
       if (content) result = { content, format: "ttml" };
-    } else if (platform === "netease") result = await netease.getByPlatformId(song.id);
+    } else if (platform === "netease") result = await netease.getByPlatformId(song.id, false);
     else if (platform === "qqmusic")
       result = await qqmusic.getByPlatformId(song.id, song.mid, false);
     else
@@ -194,7 +209,12 @@ export const loadSourceVersion = async (
       album: result.content.match(/\[al:([^\]\n]*)\]/i)?.[1]?.trim(),
     };
   }
-  const extra = platform === "kugou" ? { hash: song.id } : { id: song.id, mid: song.mid };
+  const extra =
+    source.origin === "amll" && !source.platform
+      ? { amllId: song.id }
+      : platform === "kugou"
+        ? { hash: song.id }
+        : { id: song.id, mid: song.mid };
   return {
     ...result,
     id: lyricVersionId(source.origin, platform, result.content),
@@ -219,7 +239,8 @@ export const saveSourceVersion = (
   track: Track,
   candidate: LyricMatchCandidate,
 ): LyricMatchCandidate => {
-  const filename = `${candidate.origin}-${candidate.platform ?? "source"}-${candidate.extra?.hash ?? candidate.extra?.id ?? candidate.id}.${candidate.format}`;
+  const sourceId = candidate.extra?.amllId ?? candidate.extra?.hash ?? candidate.extra?.id;
+  const filename = `${candidate.origin}-${candidate.platform ?? "source"}-${sourceId ?? candidate.id}.${candidate.format}`;
   const existed = listManagedLyricVersions(track).some((item) => item.filename === filename);
   const offset = getVersionOffset(track, candidate);
   setManagedLyric(

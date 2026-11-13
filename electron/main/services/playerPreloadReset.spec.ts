@@ -16,9 +16,14 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("@main/utils/nativeLoader", () => ({
-  loadNativeModule: () => ({ AudioPlayer: mocks.MockPlayer, initLogger: vi.fn() }),
+  loadNativeModule: () => ({
+    AudioPlayer: mocks.MockPlayer,
+    initLogger: vi.fn(),
+    setHttpProxy: vi.fn(),
+  }),
 }));
 vi.mock("@main/utils/config", () => ({ getCoverCacheDir: () => "covers", isDev: true }));
+vi.mock("@main/utils/proxy", () => ({ getNetworkProxyUrl: () => null }));
 vi.mock("@main/utils/logger", () => ({
   playerLog: { info: vi.fn(), warn: vi.fn() },
   nativeLogsDir: "logs",

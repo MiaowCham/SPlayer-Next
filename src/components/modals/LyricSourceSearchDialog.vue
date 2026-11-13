@@ -22,9 +22,23 @@ const { t } = useI18n();
 const sourceFileOpen = ref(false);
 /** 当前选中的来源，允许在对话框内切换 */
 const activeSource = shallowRef<LyricSearchSource>(props.source);
-/** 来源唯一标识，用于下拉选项 */
+/**
+ * 生成来源唯一标识，用于下拉选项
+ * @param source - 来源及关联平台
+ * @returns 来源唯一标识
+ */
 const sourceKey = (source: LyricSearchSource): string =>
   source.origin === "amll" ? `amll:${source.platform ?? ""}` : source.origin;
+/**
+ * 为不绑定平台的 AMLL 数据库使用曲名查询
+ * @param source - 当前歌词来源
+ * @returns 搜索框的初始关键词
+ */
+const initialKeyword = (source: LyricSearchSource): string => {
+  if (source.origin === "amll" && !source.platform) return props.track.title.trim();
+  return [props.track.title, ...props.track.artists.map((artist) => artist.name)].join(" ").trim();
+};
+
 /** 下拉选项：标题 + 来源名 */
 const sourceOptions = computed(() =>
   (props.sources?.length ? props.sources : [props.source]).map((source) => ({
@@ -36,16 +50,27 @@ const sourceOptions = computed(() =>
         : ""),
   })),
 );
-/** 切换来源后清空旧结果并重新搜索 */
+/**
+ * 切换来源后使旧请求失效，清空结果并重新搜索
+ * @param value - 下拉选中的来源标识
+ */
 const onSourceChange = (value: string | number | boolean): void => {
-  const next = (props.sources ?? [props.source]).find((source) => sourceKey(source) === String(value));
+  const next = (props.sources ?? [props.source]).find(
+    (source) => sourceKey(source) === String(value),
+  );
   if (!next || sourceKey(next) === sourceKey(activeSource.value)) return;
+  if (keyword.value === initialKeyword(activeSource.value)) keyword.value = initialKeyword(next);
+  searchToken++;
+  lyricToken++;
+  loading.value = false;
+  lyricLoading.value = false;
   activeSource.value = next;
   items.value = [];
   candidate.value = null;
   selected.value = null;
   total.value = null;
   offset.value = 0;
+  hasMore.value = false;
   if (props.mode !== "id" && keyword.value.trim()) void search(0);
 };
 watch(
@@ -54,9 +79,7 @@ watch(
     if (next) activeSource.value = next;
   },
 );
-const keyword = ref(
-  [props.track.title, props.track.artists.map((artist) => artist.name).join(" ")].join(" ").trim(),
-);
+const keyword = ref(initialKeyword(props.source));
 const identifier = ref("");
 const items = shallowRef<LyricSearchSong[]>([]);
 const selected = shallowRef<LyricSearchSong | null>(null);

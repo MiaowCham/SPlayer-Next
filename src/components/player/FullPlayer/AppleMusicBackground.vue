@@ -90,6 +90,9 @@ watch(
   () => props.album,
   (album) => {
     void renderer?.setAlbum(album);
+    // 换曲后丢掉上一首的平滑状态
+    pulse = 0;
+    previousFft = undefined;
   },
 );
 watch(

@@ -1,0 +1,17 @@
+{
+  "name": "@applemusic-like-lyrics/core-bg",
+  "version": "0.6.0-titanium",
+  "description": "AMLL core built from source, includes unreleased Titanium renderer",
+  "type": "module",
+  "main": "./dist/amll-core.mjs",
+  "module": "./dist/amll-core.mjs",
+  "types": "./dist/amll-core.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/amll-core.d.mts",
+      "import": "./dist/amll-core.mjs"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "license": "AGPL-3.0-only"
+}

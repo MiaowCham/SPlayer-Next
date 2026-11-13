@@ -121,7 +121,9 @@ export const pickBestCandidate = <E>(
       if (!bothContains(candName, trackName)) continue;
       const longer = Math.max(candName.length, trackName.length);
       const shorter = Math.min(candName.length, trackName.length);
-      if (shorter / longer < NAME_CONTAIN_MIN_RATIO) continue;
+      const prefixMatch =
+        shorter >= 4 && (candName.startsWith(trackName) || trackName.startsWith(candName));
+      if (shorter / longer < NAME_CONTAIN_MIN_RATIO && !prefixMatch) continue;
     }
 
     if (durationFar(candidate.duration, trackDuration)) continue;

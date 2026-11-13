@@ -401,16 +401,11 @@ const selectSmart = async (): Promise<void> => {
 /** 可切换的歌词来源：按来源优先级排列，手动导入不参与搜索 */
 const searchSources = computed<LyricSearchSource[]>(() => {
   const order = settings.lyric.lyricSourceOrder ?? DEFAULT_LYRIC_SOURCE_ORDER;
-  return order
-    .filter((origin) => origin !== "manual")
-    .map((origin) =>
-      origin === "amll"
-        ? {
-            origin,
-            platform: isPlatform(currentTrack()?.source) ? currentTrack()!.source : "netease",
-          }
-        : { origin },
-    );
+  const trackSource = currentTrack()?.source;
+  return order.flatMap((origin): LyricSearchSource[] => {
+    if (origin !== "amll") return [{ origin }];
+    return [{ origin, platform: trackSource === "qqmusic" ? "qqmusic" : "netease" }, { origin }];
+  });
 });
 
 /**
@@ -901,6 +896,9 @@ watch(
                 <SButton variant="ghost" @click="openCustomSearch('search')">
                   {{ t("lyricManager.searchSelectVersion") }}
                 </SButton>
+                <SButton variant="ghost" @click="openCustomSearch('id')">
+                  {{ t("lyricManager.importVersionId") }}
+                </SButton>
                 <SButton variant="ghost" @click="openTrackLyricDirectory">
                   {{ t("lyricManager.openDirectory") }}
                 </SButton>
@@ -941,12 +939,23 @@ watch(
         class="flex min-h-0 flex-col items-center justify-center gap-3 rounded-xl border border-solid border-outline-variant/15 bg-surface-panel p-8 text-center text-on-surface-variant/60"
       >
         <span>
-          {{ t(matchLoading || onlineLoading ? "lyricManager.matching" : "lyricManager.chooseVersion") }}
+          {{
+            t(
+              matchLoading || onlineLoading
+                ? "lyricManager.matching"
+                : "lyricManager.chooseVersion",
+            )
+          }}
         </span>
-        <SButton variant="secondary" @click="openCustomSearch('search')">
-          <template #icon><IconLucideSearch /></template>
-          {{ t("lyricManager.searchSelectVersion") }}
-        </SButton>
+        <div class="flex flex-wrap justify-center gap-2">
+          <SButton variant="secondary" @click="openCustomSearch('search')">
+            <template #icon><IconLucideSearch /></template>
+            {{ t("lyricManager.searchSelectVersion") }}
+          </SButton>
+          <SButton variant="secondary" @click="openCustomSearch('id')">
+            {{ t("lyricManager.importVersionId") }}
+          </SButton>
+        </div>
       </div>
     </div>
   </SDialog>

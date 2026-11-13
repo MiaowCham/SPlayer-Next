@@ -308,3 +308,35 @@ export const getTopArtists = (limit: number): TopArtist[] => {
     return [];
   }
 };
+
+/**
+ * 取最近播放的曲目（同一曲目只保留一条）
+ * @param limit - 取前 N 条
+ * @returns 按最后播放时间倒序的曲目
+ */
+export const getRecentTracks = (limit: number): Track[] => {
+  try {
+    // 播放记录只增不减，沿时间索引倒序遍历并在凑够后停止，避免全表分组
+    const rows = getDb()
+      .prepare(
+        `SELECT source, track_id, track_json
+         FROM play_history
+         WHERE source != 'streaming'
+         ORDER BY started_at DESC`,
+      )
+      .iterate() as IterableIterator<{ source: string; track_id: string; track_json: string }>;
+    const seen = new Set<string>();
+    const tracks: Track[] = [];
+    for (const row of rows) {
+      const key = `${row.source}:${row.track_id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      tracks.push(JSON.parse(row.track_json) as Track);
+      if (tracks.length >= limit) break;
+    }
+    return tracks;
+  } catch (error) {
+    libraryLog.error("读取最近播放失败:", error);
+    return [];
+  }
+};

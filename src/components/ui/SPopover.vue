@@ -143,7 +143,7 @@ const bridgeClasses = computed(() =>
         :collision-padding="12"
         :style="{ zIndex }"
         :class="[
-          'rounded-xl shadow-lg p-3 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
+          'cover-popover rounded-xl shadow-lg p-3 text-sm data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
           cover
             ? 'bg-black/55 backdrop-blur-xl backdrop-saturate-160 border border-solid border-white/10 text-cover'
             : 'bg-surface-bright text-on-surface',

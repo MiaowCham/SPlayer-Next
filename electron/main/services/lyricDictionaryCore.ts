@@ -16,9 +16,8 @@ function tokenReading(token: DictionaryToken): string {
     if (token.surface_form === "へ") return "エ";
     if (token.surface_form === "を") return "オ";
   }
-  return (
-    token.reading ?? (/^[\u3040-\u30ffー]+$/u.test(token.surface_form) ? token.surface_form : "")
-  );
+  if (token.reading && token.reading !== "*") return token.reading;
+  return /^[\u3040-\u30ffー]+$/u.test(token.surface_form) ? token.surface_form : "";
 }
 
 /**
@@ -90,6 +89,10 @@ export function optimizeJapaneseLine(
         (needsWordSpace(previousWhole, token, text.slice(wholeCursor, start)) ? " " : "") +
         toRomaji(reading);
     else if (/^[\p{P}\p{S}\s]+$/u.test(token.surface_form)) wholeLine += token.surface_form.trim();
+    else if (/^[\p{Script=Latin}\p{N}]+$/u.test(token.surface_form))
+      wholeLine +=
+        (needsWordSpace(previousWhole, token, text.slice(wholeCursor, start)) ? " " : "") +
+        token.surface_form;
     else {
       validWholeLine = false;
       break;

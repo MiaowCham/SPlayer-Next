@@ -109,3 +109,15 @@ test("活用词素连写，助词按实际读音分隔，原文空格保持分�
   assert.equal(fallback.romanLyric, "ashimoto ni sutekirenakute");
   assert.equal(fallback.generatedPronunciation?.alignment, "line");
 });
+
+test("词典未收录的片假名与拉丁词仍可生成逐行发音", () => {
+  const input = line(["シャララ", " Love"]);
+  const result = optimizeJapaneseLine(input, {
+    tokenize: () => [
+      { surface_form: "シャララ", reading: "*" },
+      { surface_form: "Love", reading: "*" },
+    ],
+  });
+  assert.equal(result.romanLyric, "sharara Love");
+  assert.equal(result.generatedPronunciation?.alignment, "line");
+});

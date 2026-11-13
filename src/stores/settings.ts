@@ -17,9 +17,10 @@ import {
   SPRING_PRESETS,
 } from "@/types/settings";
 import type { SystemConfig, LocaleCode } from "@shared/types/settings";
+import { usePreferredReducedMotion } from "@vueuse/core";
 import { defaultSystemConfig } from "@shared/defaults/settings";
-import { setByPath } from "@shared/utils/path";
 import { DEFAULT_SKIP_TRACK_KEYWORDS } from "@/utils/preset/skipKeywords";
+import { setByPath } from "@shared/utils/path";
 
 /**
  * 对账有序集合：保留存档中仍有效的项（顺序不变），
@@ -106,10 +107,7 @@ export const useSettingsStore = defineStore(
     /** 外观 */
     const appearance = reactive<AppearanceSettings>({
       layoutMode: "default",
-      songListStyle: "comfortable",
       routeTransition: "fade",
-      seamlessTransition: false,
-      reduceMotion: false,
       sidebarCollapsed: false,
       sidebarShortcutToggle: false,
       sidebarPlaylistCover: false,
@@ -121,22 +119,32 @@ export const useSettingsStore = defineStore(
       sidebarKeepEmptyDivider: false,
       sidebarNameWithDivider: false,
       sidebarPlaylistOrder: { myLocal: [], myOnline: [], subscribed: [] },
+      showStatsInSidebar: true,
       showQualitySwitch: false,
       closeAction: "hide",
       rememberCloseChoice: false,
       fontFamily: "",
       showPerformanceMonitor: false,
+      seamlessTransition: false,
+      songListStyle: "comfortable",
+      reduceMotion: false,
+      marqueeScroll: true,
     });
-
-    const systemMotion = usePreferredReducedMotion();
-    const reducedMotion = computed(
-      () => appearance.reduceMotion || systemMotion.value === "reduce",
-    );
 
     /** 播放器 */
     const player = reactive<PlayerSettings>({
+      layout: "classic",
+      barLyricMode: "translation",
       playerBgType: "blur",
       playerBgRenderer: "mesh",
+      playerBgLightWave: false,
+      playerBgIsolationDithering: true,
+      playerBgIsolationPalette: "auto",
+      playerBgTitaniumGrain: 0.7,
+      playerBgTitaniumSparkle: 0.75,
+      playerBgTitaniumSheen: 0.5,
+      playerBgTitaniumMetalness: 0.35,
+      playerBgTitaniumCrestShiftMs: 2000,
       playerBgFps: 30,
       playerBgFlowSpeed: 4,
       playerBgRenderScale: 0.5,
@@ -147,12 +155,10 @@ export const useSettingsStore = defineStore(
       autoCenterCover: true,
       showPlaybackSource: false,
       followCoverColor: true,
+      motionCoverSource: "off",
       autoImmersive: true,
       outputDevice: null,
       pauseOnDeviceSwitch: false,
-      rememberDeviceVolume: false,
-      deviceLatencyDefault: 0,
-      deviceLatencies: {},
       enableSpectrum: false,
       spectrumBarWidth: 4,
       reverseSpectrum: false,
@@ -165,26 +171,33 @@ export const useSettingsStore = defineStore(
       followLyricOnProgressDrag: false,
       showLyricInBar: true,
       preloadNextTrack: false,
+      searchPlayBehavior: "current",
+      appleMusicStorefront: "us",
+      rememberDeviceVolume: false,
+      deviceLatencyDefault: 0,
+      deviceLatencies: {},
       transitionMode: "none",
       transitionPreference: "standard",
       automixCrossfadeFallback: true,
-      searchPlayBehavior: "current",
       songListPlayBehavior: "current",
     });
 
     /** 强迫症设置 */
     const preset = reactive<PresetSettings>({
-      skipKeywordsSongs: false,
-      skipTrackKeywords: [...DEFAULT_SKIP_TRACK_KEYWORDS],
+      fuckDjMode: false,
+      uncensorProfanity: false,
       hideVipTag: false,
       hideQualityTag: false,
       showSubtitle: true,
+      skipKeywordsSongs: false,
+      skipTrackKeywords: [...DEFAULT_SKIP_TRACK_KEYWORDS],
     });
 
     /** 歌词 */
     const lyric = reactive<LyricSettings>({
       llmTranslation: false,
       pronunciationOptimization: "off",
+      pronunciationAlignment: "auto",
       lyricSourcePreference: "auto",
       lyricSourceOrder: [...DEFAULT_LYRIC_SOURCE_ORDER],
       lyricFormatOrder: [...DEFAULT_LYRIC_FORMAT_ORDER],
@@ -375,14 +388,20 @@ export const useSettingsStore = defineStore(
       }
     };
 
+    /** 减少动态效果：用户设置或系统偏好二选一 */
+    const systemReducedMotion = usePreferredReducedMotion();
+    const reducedMotion = computed(
+      () => appearance.reduceMotion || systemReducedMotion.value === "reduce",
+    );
+
     return {
       locale,
       appearance,
-      reducedMotion,
       player,
       preset,
       lyric,
       system,
+      reducedMotion,
       isDesktopLyricOpen,
       isDynamicIslandOpen,
       isTaskbarLyricOpen,
@@ -448,6 +467,26 @@ export const useSettingsStore = defineStore(
           player.transitionPreference !== "eager"
         ) {
           player.transitionPreference = "standard";
+        }
+        let persistedLayout: unknown;
+        try {
+          persistedLayout = JSON.parse(localStorage.getItem("settings") ?? "{}").player?.layout;
+        } catch {
+          persistedLayout = undefined;
+        }
+        if (
+          !(["classic", "fullCover", "fullLyric", "apple"] as const).some(
+            (layout) => layout === persistedLayout,
+          )
+        ) {
+          if (
+            player.playerBgType === "apple-music" ||
+            player.playerBgType === "apple-music-classic"
+          ) {
+            player.layout = "apple";
+          } else if (player.coverLayout === "fullscreen") {
+            player.layout = "fullCover";
+          }
         }
         if (typeof player.automixCrossfadeFallback !== "boolean")
           player.automixCrossfadeFallback = true;

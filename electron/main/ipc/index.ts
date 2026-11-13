@@ -1,4 +1,3 @@
-import { registerLyricEnhancementIpc } from "./lyricEnhancement";
 import { registerSystemIpc } from "./system";
 import { registerPlayerIpc } from "./player";
 import { registerConfigIpc } from "./config";
@@ -24,7 +23,10 @@ import { registerAiModelIpc } from "./aiModel";
 import { registerPlaylistIpc } from "./playlist";
 import { registerRecognitionIpc } from "./recognition";
 import { registerOpenccIpc } from "./opencc";
+import { registerMotionCoverIpc } from "./motionCover";
 import { registerAutoMixIpc } from "./automix";
+import { registerAppleMusicIpc } from "./appleMusic";
+import { registerLyricEnhancementIpc } from "./lyricEnhancement";
 
 /**
  * 注册所有 IPC 处理
@@ -34,6 +36,7 @@ export const registerIpcHandlers = (onStartupComplete: () => void): void => {
   registerSystemIpc();
   registerPlayerIpc();
   registerAutoMixIpc();
+  registerAppleMusicIpc();
   registerConfigIpc();
   registerLibraryIpc();
   registerNowPlayingIpc();
@@ -45,6 +48,7 @@ export const registerIpcHandlers = (onStartupComplete: () => void): void => {
   registerLyricsIpc();
   registerLyricEnhancementIpc();
   registerOpenccIpc();
+  registerMotionCoverIpc();
   registerHotkeyIpc();
   registerThemeIpc();
   registerStreamingIpc();

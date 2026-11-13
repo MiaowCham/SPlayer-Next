@@ -101,8 +101,12 @@ const fetchDeveloperToken = async (): Promise<TokenCacheEntry> => {
   return selected;
 };
 
-/** 获取可用的 Apple Music 开发者令牌，并合并并发刷新。 */
-const getDeveloperToken = async (force = false): Promise<string> => {
+/**
+ * 获取 Apple Music 开发者令牌并合并并发刷新
+ * @param force - 是否立即刷新已有令牌
+ * @returns 可用的开发者令牌
+ */
+export const getDeveloperToken = async (force = false): Promise<string> => {
   const now = Math.floor(Date.now() / 1000);
   if (!force && developerToken && developerToken.expiresAt > now + 300) return developerToken.token;
   if (!developerTokenTask) {

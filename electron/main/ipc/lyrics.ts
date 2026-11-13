@@ -16,7 +16,7 @@ import * as netease from "@main/apis/common/lyric/netease";
 import * as qqmusic from "@main/apis/common/lyric/qqmusic";
 import * as kugou from "@main/apis/common/lyric/kugou";
 import { callNetease } from "@main/apis/netease";
-import { fetchTTML, invalidateTTMLVersion } from "@main/apis/common/lyric/ttml";
+import { fetchTTML, fetchTTMLById, invalidateTTMLVersion } from "@main/apis/common/lyric/ttml";
 import { setCachedTTML } from "@main/database/lyricTtmlCache";
 import { setCachedLyric, deleteLyricVersionCache } from "@main/database/lyricCache";
 import {
@@ -132,7 +132,7 @@ const resolveById = async (
     let data: LyricMatchResult | null = null;
     switch (platform) {
       case "netease":
-        data = await netease.getByPlatformId(id);
+        data = await netease.getByPlatformId(id, prefetch);
         break;
       case "qqmusic":
         data = await qqmusic.getByPlatformId(id, undefined, prefetch);
@@ -167,7 +167,7 @@ const resolveByQuery = async (
     let data: LyricMatchResult | null = null;
     switch (platform) {
       case "netease":
-        data = await netease.getByQuery(track);
+        data = await netease.getByQuery(track, prefetch);
         break;
       case "qqmusic":
         data = await qqmusic.getByQuery(track, prefetch);
@@ -583,8 +583,11 @@ const invalidateCandidate = async (
     await invalidateAppleMusicLyricVersion(getSearchTrack(track).track, candidate.content);
     return [];
   }
-  if (candidate.origin === "amll" && candidate.platform !== "kugou" && candidate.platform) {
-    return invalidateTTMLVersion(candidate.platform, candidate.content, candidate.extra?.id);
+  if (candidate.origin === "amll") {
+    if (candidate.extra?.amllId)
+      return invalidateTTMLVersion("amll", candidate.content, candidate.extra.amllId);
+    if (candidate.platform === "netease" || candidate.platform === "qqmusic")
+      return invalidateTTMLVersion(candidate.platform, candidate.content, candidate.extra?.id);
   }
   if (
     candidate.origin === "netease" ||
@@ -632,7 +635,19 @@ const refetchCandidate = async (
       : null;
   }
   const ids = await invalidateCandidate(track, candidate);
-  if (candidate.origin === "amll" && candidate.platform && candidate.platform !== "kugou") {
+  if (candidate.origin === "amll" && candidate.extra?.amllId) {
+    const id = candidate.extra.amllId;
+    const content = await fetchTTMLById(id);
+    if (!content) {
+      setCachedTTML("amll", id, candidate.content);
+      return null;
+    }
+    return { ...candidate, content, id: candidateId("amll", undefined, content) };
+  }
+  if (
+    candidate.origin === "amll" &&
+    (candidate.platform === "netease" || candidate.platform === "qqmusic")
+  ) {
     const exactIds = candidate.extra?.id ? [candidate.extra.id] : ids;
     const result = exactIds.length
       ? { ok: true as const, data: await fetchTTML(candidate.platform, exactIds) }

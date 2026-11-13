@@ -9,6 +9,8 @@ export interface DropdownMenuItem {
   label: string;
   /** 图标组件 */
   icon?: Component;
+  /** 副标题（第二行小字） */
+  description?: string;
   /** 是否禁用 */
   disabled?: boolean;
   /** 是否显示 */
@@ -31,12 +33,15 @@ const props = withDefaults(
     sideOffset?: number;
     /** 封面主题模式 */
     cover?: boolean;
+    /** 触发元素容器的类名 */
+    triggerClass?: string;
   }>(),
   {
     side: "bottom",
     align: "center",
     sideOffset: 4,
     cover: false,
+    triggerClass: "inline-flex",
   },
 );
 
@@ -86,7 +91,7 @@ const menuItemClass = computed(() =>
 
 <template>
   <DropdownMenuRoot @update:open="onOpenChange">
-    <DropdownMenuTrigger as="div" class="inline-flex">
+    <DropdownMenuTrigger as="div" :class="triggerClass">
       <slot name="trigger" />
     </DropdownMenuTrigger>
 
@@ -101,7 +106,7 @@ const menuItemClass = computed(() =>
         :class="contentClass"
       >
         <template v-for="(item, index) in visibleItems" :key="item.key">
-          <SDivider v-if="item.separator && index > 0" class="mx-1.5 my-0.5" />
+          <SDivider v-if="item.separator && index > 0" class="mx-1.5 my-0.5" :cover="cover" />
           <!-- 子菜单 -->
           <DropdownMenuSub v-if="item.children">
             <DropdownMenuSubTrigger :disabled="item.disabled" :class="menuItemClass">
@@ -118,7 +123,11 @@ const menuItemClass = computed(() =>
                 :class="[contentClass, 'max-h-60 overflow-y-auto']"
               >
                 <template v-for="(child, childIndex) in item.children" :key="child.key">
-                  <SDivider v-if="child.separator && childIndex > 0" class="mx-1.5 my-0.5" />
+                  <SDivider
+                    v-if="child.separator && childIndex > 0"
+                    class="mx-1.5 my-0.5"
+                    :cover="cover"
+                  />
                   <DropdownMenuItem
                     v-else
                     :disabled="child.disabled"
@@ -144,7 +153,16 @@ const menuItemClass = computed(() =>
             @select="handleSelect(item)"
           >
             <component :is="item.icon" v-if="item.icon" class="size-3.5 opacity-60 shrink-0" />
-            <span>{{ item.label }}</span>
+            <span class="flex flex-col min-w-0">
+              <span class="truncate">{{ item.label }}</span>
+              <span
+                v-if="item.description"
+                class="truncate text-xs leading-snug"
+                :class="cover ? 'text-cover/70' : 'text-on-surface-variant/80'"
+              >
+                {{ item.description }}
+              </span>
+            </span>
           </DropdownMenuItem>
         </template>
       </DropdownMenuContent>

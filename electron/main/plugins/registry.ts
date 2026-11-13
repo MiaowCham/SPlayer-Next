@@ -247,7 +247,12 @@ class PluginRegistry extends EventEmitter {
    */
   private settingsOf(id: string): Record<string, unknown> {
     const all = store.get("plugins.perPlugin");
-    return Object.hasOwn(all, id) ? all[id] : {};
+    if (Object.hasOwn(all, id)) return all[id] as Record<string, unknown>;
+    // 兼容被按点号展开成嵌套结构的旧存档：1412.applemusic → 1412 → applemusic
+    const nested = store.get(`plugins.perPlugin.${id}` as never);
+    return nested && typeof nested === "object" && !Array.isArray(nested)
+      ? (nested as Record<string, unknown>)
+      : {};
   }
 
   /**
@@ -833,6 +838,8 @@ class PluginRegistry extends EventEmitter {
       [key]: sanitized,
     };
     store.set("plugins.perPlugin", { ...store.get("plugins.perPlugin"), [id]: all });
+    // 带点号的插件 ID 同时写嵌套路径，兼容按路径读取的逻辑
+    if (id.includes(".")) store.set(`plugins.perPlugin.${id}` as never, all);
     if (pluginHost.isReady(id)) pluginHost.sendSettingsUpdate(id, { [key]: sanitized });
   }
 

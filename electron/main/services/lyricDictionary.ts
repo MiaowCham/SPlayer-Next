@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { LyricLine } from "@shared/types/lyrics";
+import { store as configStore } from "@main/store";
 import { defaultCacheDir } from "@main/utils/paths";
 import { optimizeJapaneseLine } from "./lyricDictionaryCore";
 import { createLyricDictionaryStore } from "./lyricDictionaryStore";
@@ -71,5 +72,26 @@ export async function optimizeWithJapaneseDictionary(lines: LyricLine[]): Promis
   indexes.forEach((index, position) => {
     output[index] = optimizeJapaneseLine(lines[index], { tokenize: () => results[position] });
   });
+  const alignment = configStore.get("lyric.pronunciationAlignment");
+  const hasLineFallback = indexes.some(
+    (index) =>
+      output[index].generatedPronunciation?.method === "dictionary" &&
+      output[index].generatedPronunciation?.alignment === "line",
+  );
+  if (alignment === "line" || (alignment === "auto" && hasLineFallback)) {
+    for (const index of indexes) {
+      const line = output[index];
+      if (
+        line.generatedPronunciation?.method !== "dictionary" ||
+        line.generatedPronunciation.alignment !== "word"
+      )
+        continue;
+      output[index] = {
+        ...line,
+        words: line.words.map(({ romanWord: _romanWord, ...word }) => word),
+        generatedPronunciation: { method: "dictionary", alignment: "line" },
+      };
+    }
+  }
   return output;
 }

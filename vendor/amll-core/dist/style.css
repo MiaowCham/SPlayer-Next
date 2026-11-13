@@ -1,0 +1,377 @@
+/*
+    给不需要重命名的全局类名的样式
+*/
+
+/* 给歌词视图元素应用的样式 */
+.amll-lyric-player {
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	max-width: 100%;
+	color: var(--amll-lp-color, white);
+	contain: strict;
+	mix-blend-mode: plus-lighter;
+	font-size: var(--amll-lp-font-size, max(max(5vh, 2.5vw), 12px));
+
+	@media screen and (max-width: 768px) {
+		font-size: var(--amll-lp-font-size, max(8vw, 12px));
+	}
+
+	&.dom {
+		--amll-lp-line-width-aspect: 0.8;
+		--amll-lp-line-padding-x: 1em;
+		--amll-lp-bg-line-scale: 0.7;
+		user-select: none;
+		box-sizing: content-box;
+		z-index: 1;
+		line-height: 1.2;
+	}
+}
+
+@media screen and (max-width: 768px) {
+	.amll-lyric-player {
+		--amll-lp-line-width-aspect: 1;
+		--amll-lp-line-padding-x: 0;
+	}
+}
+._lyricLineWrapper_1266s_1 {
+	position: absolute;
+	top: 0;
+	left: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0.4em var(--lyric-line-padding-x);
+	border-radius: 0.25em;
+
+	gap: 0.3em;
+
+	will-change: transform;
+	transition:
+		opacity 0.4s ease,
+		filter 0.4s ease,
+		background-color 0.25s ease;
+
+	&:not(._bottomLineWrapper_1266s_21):hover {
+		background-color: var(--amll-lp-hover-bg-color, #fff1);
+	}
+
+	&:not(._bottomLineWrapper_1266s_21):active {
+		background-color: var(--amll-lp-hover-bg-color, #ffffff05);
+	}
+}
+
+._lyricLine_1266s_1 {
+	position: relative;
+	box-sizing: border-box;
+	width: var(--amll-lp-width, 100%);
+	min-width: var(--amll-lp-width, 100%);
+	max-width: var(--amll-lp-width, 100%);
+	height: fit-content;
+
+	padding: 0.2em;
+	margin: -0.2em;
+
+	contain: layout style paint;
+	content-visibility: auto;
+	contain-intrinsic-size: auto 40px;
+	backface-visibility: hidden;
+	transform-origin: left;
+
+	--bright-mask-alpha: 0.2;
+	--dark-mask-alpha: 0.2;
+
+	transition: box-shadow 0.25s;
+
+	/* 作为高亮状态的降级兜底方案，若某行已进入高亮态但尚未生成亮度层，仍维持基础的对比度显示 */
+	&._gradientMask_1266s_53 {
+		--bright-mask-alpha: 1;
+		--dark-mask-alpha: 0.4;
+	}
+}
+
+._lyricDuetLine_1266s_59 {
+	text-align: right;
+	transform-origin: right;
+}
+
+._lyricMainLine_1266s_64 {
+	margin: -1em;
+	padding: 1em;
+	transition: opacity 0.3s 0.1s;
+	contain: layout style;
+
+	& span {
+		display: inline-block;
+		text-align: start;
+		vertical-align: bottom;
+	}
+
+	._romanWord_1266s_76 {
+		display: flex;
+		padding-inline-end: 0.3em;
+		font-size: 0.5em;
+		line-height: 1em;
+	}
+
+	._rubyWord_1266s_83 {
+		display: flex;
+		justify-content: center;
+		min-height: 1em;
+		font-size: 0.5em;
+		line-height: 1em;
+	}
+
+	._wordWithRuby_1266s_91 {
+		display: inline-flex;
+		flex-direction: column;
+		align-items: center;
+		vertical-align: bottom;
+	}
+
+	._wordBody_1266s_98 {
+		display: flex;
+		flex-direction: column;
+	}
+
+	._rubyBaseWord_1266s_103 {
+		display: inline-flex;
+		flex-wrap: nowrap;
+		white-space: nowrap;
+		justify-content: center;
+	}
+
+	& > span,
+	span._emphasizeWrapper_1266s_111 {
+		display: inline-block;
+		margin: -1em;
+		padding: 1em;
+		white-space: pre-wrap;
+		vertical-align: bottom;
+		contain: layout style;
+
+		& > span {
+			margin: -1em;
+			padding: 1em;
+		}
+
+		&._emphasize_1266s_111,
+		span._emphasize_1266s_111 {
+			backface-visibility: hidden;
+
+			& > span {
+				margin: -1em;
+				padding: 1em;
+				backface-visibility: hidden;
+			}
+		}
+	}
+}
+
+._lyricBgLine_1266s_137 {
+	opacity: 0.4;
+	font-size: max(calc(1em * var(--amll-lp-bg-line-scale, 0.7)), 10px);
+	transition:
+		background-color 0.25s,
+		box-shadow 0.25s;
+
+	._lyricMainLine_1266s_64 {
+		padding: 1.2em 1em;
+	}
+
+	&._active_1266s_148 {
+		opacity: 0.4;
+	}
+}
+
+._lyricMainLineBright_1266s_153,
+._lyricMainLineDim_1266s_154 {
+	transition: opacity 0.45s ease-out;
+	mix-blend-mode: plus-lighter;
+}
+
+._lyricMainLineBright_1266s_153 {
+	--bright-mask-alpha: 1;
+	--dark-mask-alpha: 0.4;
+	opacity: 0;
+}
+
+._lyricMainLineDim_1266s_154 {
+	position: absolute;
+	/* 四向偏移由 LineBrightness 根据原件的边框盒计算得出，已包含原件外边距 */
+	margin: 0;
+	opacity: 0.2;
+	pointer-events: none;
+	user-select: none;
+}
+
+._lyricLine_1266s_1._gradientMask_1266s_53 {
+	& > ._lyricMainLineBright_1266s_153 {
+		opacity: 1;
+		transition-duration: 0.3s;
+	}
+
+	& > ._lyricMainLineDim_1266s_154 {
+		opacity: 0;
+		transition-duration: 0.3s;
+	}
+}
+
+._lyricSubLine_1266s_186 {
+	opacity: 0.3;
+	font-size: max(0.5em, 10px);
+	line-height: 1.5em;
+	transition: opacity 0.2s 0.25s;
+
+	@supports (mix-blend-mode: plus-lighter) {
+		opacity: 0.3;
+	}
+}
+
+._bottomLine_1266s_21 {
+	padding-top: 0;
+	padding-bottom: 0;
+	font-size: var(--amll-lp-bottom-line-font-size, max(0.7em, 10px));
+	line-height: 1.8em;
+	cursor: default;
+	opacity: 0.2;
+	transition: opacity 0.4s ease;
+
+	&._gradientMask_1266s_53 {
+		opacity: 0.85;
+	}
+
+	&:empty {
+		display: none;
+		height: 0;
+		margin: 0;
+		padding: 0;
+	}
+}
+
+._bgWrapper_1266s_218 {
+	position: absolute;
+	top: 100%;
+	left: var(--lyric-line-padding-x);
+	z-index: -1;
+	display: flex;
+	flex-direction: column;
+	align-items: inherit;
+	width: calc(100% - var(--lyric-line-padding-x) * 2);
+
+	visibility: visible;
+	pointer-events: auto;
+	opacity: 0;
+	transform-origin: left top;
+	transition: opacity 0.3s ease;
+}
+
+._bgWrapperTop_1266s_235 {
+	position: relative;
+	left: 0;
+	width: 100%;
+	top: auto;
+	bottom: auto;
+	transform-origin: left bottom;
+}
+
+._bgWrapperActive_1266s_244 {
+	position: relative;
+	left: 0;
+	width: 100%;
+	top: auto;
+	bottom: auto;
+	opacity: 1;
+}
+
+._bgWrapperHidden_1266s_253 {
+	visibility: hidden;
+	pointer-events: none;
+}
+
+._interludeDots_1266s_258 {
+	position: absolute;
+	left: 0;
+	display: flex;
+	align-items: center;
+	/* gap 应和圆点直径保持 0.6:1 的比例 */
+	gap: 0.18em;
+	width: fit-content;
+	height: clamp(0.5em, 1vh, 3em);
+	padding: 0.4em var(--lyric-line-padding-x);
+
+	transform-origin: center;
+
+	& > * {
+		display: inline-block;
+		width: 0.3em;
+		height: 0.3em;
+		border-radius: 50%;
+		background-color: var(--amll-lp-color, white);
+		aspect-ratio: 1 / 1;
+	}
+}
+
+._disableSpring_1266s_281 > *,
+._disableSpring_1266s_281 ._lyricLine_1266s_1 {
+	transition:
+		filter 0.25s,
+		transform 0.5s,
+		background-color 0.25s,
+		box-shadow 0.25s;
+}
+
+._tmpDisableTransition_1266s_290 {
+	/* biome-ignore lint/complexity/noImportantStyles: 覆盖内联样式 */
+	transition: none !important;
+}
+
+.amll-lyric-player {
+	--lyric-line-padding-x: 1em;
+
+	touch-action: pan-x;
+
+	@media screen and (max-width: 500px) {
+		--lyric-line-padding-x: 20px;
+	}
+
+	&:hover ._lyricLine_1266s_1,
+	&:hover ._lyricLineWrapper_1266s_1 {
+		/* biome-ignore lint/complexity/noImportantStyles: 覆盖内联样式 */
+		filter: unset !important;
+	}
+
+	&:not(._playing_1266s_310) ._bgWrapper_1266s_218 {
+		position: relative;
+		top: auto;
+		bottom: auto;
+		opacity: 1;
+		left: 0;
+		width: 100%;
+	}
+
+	&._hasDuetLine_1266s_319 {
+		._lyricLine_1266s_1:not(._lyricDuetLine_1266s_59) {
+			padding-right: 15%;
+		}
+
+		._lyricDuetLine_1266s_59 {
+			padding-left: 15%;
+		}
+
+		._isDuetWrapper_1266s_328 {
+			align-items: flex-end;
+
+			._bgWrapper_1266s_218 {
+				transform-origin: right top;
+			}
+
+			._bgWrapperTop_1266s_235 {
+				transform-origin: right bottom;
+			}
+		}
+	}
+}
+/*$vite$:1*/

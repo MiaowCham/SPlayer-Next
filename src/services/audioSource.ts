@@ -16,6 +16,7 @@ const PLATFORM_TO_PLUGIN_SOURCE: Record<Platform, string> = {
   netease: "wy",
   qqmusic: "tx",
   kugou: "kg",
+  appleMusic: "am",
 };
 
 /** 解析选项 */
@@ -302,9 +303,38 @@ export const resolveTrackSource = async (
   }
   const settings = useSettingsStore();
   const songLevel = settings.player.songLevel;
+  // Apple Music 目录曲目：先按插件元数据尝试解析整曲，插件不可用或失败时退回 30 秒试听
+  if (track.source === "appleMusic") {
+    if (track.plugin && !options.skipPluginIds?.includes(track.plugin.pluginId)) {
+      const resolved = await resolveByPlugin(
+        { ...track, source: "plugin" },
+        songLevel,
+        options.skipPluginIds,
+      );
+      if (resolved.ok) {
+        return {
+          source: resolved.url,
+          fromCache: false,
+          provider: "plugin",
+          pluginId: resolved.pluginId,
+        };
+      }
+      console.warn("[audio-source] appleMusic plugin resolve failed, fallback to preview");
+    }
+    if (!track.previewUrl) {
+      reportLoadError(ErrorCode.URL_RESOLVE_FAILED, options);
+      return null;
+    }
+    return { source: track.previewUrl, fromCache: false, provider: "trial" };
+  }
   if (track.source === "plugin") {
     const resolved = await resolveByPlugin(track, songLevel, options.skipPluginIds);
     if (!resolved.ok) {
+      // Apple Music 目录曲目：插件上游不可用时退回 30 秒试听，别让整首歌直接失败
+      if (track.previewUrl) {
+        console.warn("[audio-source] plugin resolve failed, fallback to preview:", track.id);
+        return { source: track.previewUrl, fromCache: false, provider: "trial" };
+      }
       reportLoadError(resolved.errorCode, options);
       return null;
     }

@@ -189,6 +189,12 @@ const appearanceCategory: SettingCategory = {
           defaultValue: false,
         },
         {
+          key: "marqueeScroll",
+          type: "switch",
+          binding: { store: "settings", path: "appearance.marqueeScroll" },
+          defaultValue: true,
+        },
+        {
           key: "routeTransition",
           type: "select",
           binding: { store: "settings", path: "appearance.routeTransition" },
@@ -216,6 +222,19 @@ const appearanceCategory: SettingCategory = {
           type: "switch",
           binding: { store: "settings", path: "player.showLyricInBar" },
           defaultValue: true,
+          children: [
+            {
+              key: "barLyricMode",
+              type: "select",
+              binding: { store: "settings", path: "player.barLyricMode" },
+              options: [
+                { value: "lyric", labelKey: "settings.barLyricMode.lyric" },
+                { value: "translation", labelKey: "settings.barLyricMode.translation" },
+                { value: "word", labelKey: "settings.barLyricMode.word" },
+              ],
+              defaultValue: "translation",
+            },
+          ],
         },
         {
           key: "showProgressTooltip",
@@ -252,7 +271,83 @@ const appearanceCategory: SettingCategory = {
       ],
     },
     {
-      id: "nowPlaying",
+      id: "fullPlayer",
+      items: [
+        {
+          key: "playerLayout",
+          type: "select",
+          binding: { store: "settings", path: "player.layout" },
+          options: [
+            { value: "classic", labelKey: "settings.playerLayout.classic" },
+            { value: "fullCover", labelKey: "settings.playerLayout.fullCover" },
+            { value: "fullLyric", labelKey: "settings.playerLayout.fullLyric" },
+            { value: "apple", labelKey: "settings.playerLayout.apple" },
+          ],
+          defaultValue: "classic",
+          // 封面占比与自动居中只作用于经典布局
+          childrenCondition: () => useSettingsStore().player.layout === "classic",
+          hideChildren: true,
+          children: [
+            {
+              key: "coverLyricRatio",
+              type: "slider",
+              binding: { store: "settings", path: "player.coverLyricRatio" },
+              min: 0.3,
+              max: 0.6,
+              step: 0.05,
+              defaultValue: 0.45,
+              marks: { 0.3: "30%", 0.45: "45%", 0.6: "60%" },
+            },
+            {
+              key: "autoCenterCover",
+              type: "switch",
+              binding: { store: "settings", path: "player.autoCenterCover" },
+              defaultValue: true,
+            },
+          ],
+        },
+        {
+          key: "showPlaybackSource",
+          type: "switch",
+          binding: { store: "settings", path: "player.showPlaybackSource" },
+          defaultValue: false,
+        },
+        {
+          key: "followCoverColor",
+          type: "switch",
+          binding: { store: "settings", path: "player.followCoverColor" },
+          defaultValue: true,
+        },
+        {
+          key: "motionCover",
+          type: "select",
+          binding: { store: "settings", path: "player.motionCoverSource" },
+          options: [
+            { value: "off", labelKey: "settings.motionCover.off" },
+            { value: "ncm", labelKey: "settings.motionCover.ncm" },
+            { value: "ncmFirst", labelKey: "settings.motionCover.ncmFirst" },
+            { value: "am", labelKey: "settings.motionCover.am" },
+            { value: "amFirst", labelKey: "settings.motionCover.amFirst" },
+          ],
+          defaultValue: "off",
+          tag: { text: "Beta" },
+        },
+        {
+          key: "autoImmersive",
+          type: "switch",
+          binding: { store: "settings", path: "player.autoImmersive" },
+          defaultValue: false,
+        },
+        {
+          key: "keepScreenAwake",
+          type: "switch",
+          binding: { store: "settings", path: "system.player.keepScreenAwake" },
+          defaultValue: false,
+        },
+      ],
+    },
+    {
+      id: "playerBackground",
       items: [
         {
           key: "playerBgType",
@@ -262,19 +357,25 @@ const appearanceCategory: SettingCategory = {
             { value: "blur", labelKey: "settings.playerBgType.blur" },
             { value: "solid", labelKey: "settings.playerBgType.solid" },
             { value: "animation", labelKey: "settings.playerBgType.animation" },
+            { value: "isolation", labelKey: "settings.playerBgType.isolation" },
+            { value: "titanium", labelKey: "settings.playerBgType.titanium" },
             { value: "apple-music", labelKey: "settings.playerBgType.appleMusic" },
             { value: "apple-music-classic", labelKey: "settings.playerBgType.appleMusicClassic" },
           ],
           defaultValue: "blur",
           confirm: {
             when: (next) =>
-              next === "animation" || next === "apple-music" || next === "apple-music-classic",
+              next === "animation" ||
+              next === "isolation" ||
+              next === "titanium" ||
+              next === "apple-music" ||
+              next === "apple-music-classic",
             titleKey: "settings.confirm.highResourceTitle",
             contentKey: "settings.confirm.highResourceContent",
             type: "warning",
           },
           childrenCondition: () =>
-            ["animation", "apple-music", "apple-music-classic"].includes(
+            ["animation", "isolation", "titanium", "apple-music", "apple-music-classic"].includes(
               useSettingsStore().player.playerBgType,
             ),
           hideChildren: true,
@@ -282,14 +383,120 @@ const appearanceCategory: SettingCategory = {
             {
               key: "playerBgRenderer",
               type: "select",
-              visible: () => useSettingsStore().player.playerBgType === "animation",
               binding: { store: "settings", path: "player.playerBgRenderer" },
+              // 仅流体动画背景依赖 Metal/Pixi 渲染器，Apple Music 两种背景用不到
+              visible: () => useSettingsStore().player.playerBgType === "animation",
               options: [
                 { value: "mesh", labelKey: "settings.playerBgRenderer.mesh" },
                 { value: "isolation", labelKey: "settings.playerBgRenderer.isolation" },
                 { value: "pixi", labelKey: "settings.playerBgRenderer.pixi" },
+                { value: "titanium", labelKey: "settings.playerBgRenderer.titanium" },
               ],
               defaultValue: "mesh",
+            },
+            {
+              key: "playerBgLightWave",
+              type: "switch",
+              binding: { store: "settings", path: "player.playerBgLightWave" },
+              // 光波是 isolation 独有的明度调制；独立 isolation 背景与 isolation 引擎都能用
+              // Apple Music 两种背景不提供 isolation 选项
+              visible: () =>
+                useSettingsStore().player.playerBgType === "isolation" ||
+                (useSettingsStore().player.playerBgType === "animation" &&
+                  useSettingsStore().player.playerBgRenderer === "isolation"),
+              defaultValue: false,
+            },
+            {
+              key: "playerBgIsolationPalette",
+              type: "select",
+              binding: { store: "settings", path: "player.playerBgIsolationPalette" },
+              // Apple Music 两种背景不提供 isolation 选项
+              visible: () =>
+                useSettingsStore().player.playerBgType === "isolation" ||
+                (useSettingsStore().player.playerBgType === "animation" &&
+                  useSettingsStore().player.playerBgRenderer === "isolation"),
+              options: [
+                { value: "auto", labelKey: "settings.playerBgIsolationPalette.auto" },
+                { value: "kmeans", labelKey: "settings.playerBgIsolationPalette.kmeans" },
+                { value: "octtree", labelKey: "settings.playerBgIsolationPalette.octtree" },
+              ],
+              defaultValue: "auto",
+            },
+            {
+              key: "playerBgIsolationDithering",
+              type: "switch",
+              binding: { store: "settings", path: "player.playerBgIsolationDithering" },
+              // Apple Music 两种背景不提供 isolation 选项
+              visible: () =>
+                useSettingsStore().player.playerBgType === "isolation" ||
+                (useSettingsStore().player.playerBgType === "animation" &&
+                  useSettingsStore().player.playerBgRenderer === "isolation"),
+              defaultValue: true,
+            },
+            {
+              key: "playerBgTitaniumGrain",
+              type: "slider",
+              binding: { store: "settings", path: "player.playerBgTitaniumGrain" },
+              // 独立 Titanium 背景与流体下的 titanium 引擎共用这批参数
+              visible: () =>
+                useSettingsStore().player.playerBgType === "titanium" ||
+                useSettingsStore().player.playerBgRenderer === "titanium",
+              min: 0,
+              max: 1,
+              step: 0.05,
+              defaultValue: 0.7,
+            },
+            {
+              key: "playerBgTitaniumSparkle",
+              type: "slider",
+              binding: { store: "settings", path: "player.playerBgTitaniumSparkle" },
+              // 独立 Titanium 背景与流体下的 titanium 引擎共用这批参数
+              visible: () =>
+                useSettingsStore().player.playerBgType === "titanium" ||
+                useSettingsStore().player.playerBgRenderer === "titanium",
+              min: 0,
+              max: 1,
+              step: 0.05,
+              defaultValue: 0.75,
+            },
+            {
+              key: "playerBgTitaniumSheen",
+              type: "slider",
+              binding: { store: "settings", path: "player.playerBgTitaniumSheen" },
+              // 独立 Titanium 背景与流体下的 titanium 引擎共用这批参数
+              visible: () =>
+                useSettingsStore().player.playerBgType === "titanium" ||
+                useSettingsStore().player.playerBgRenderer === "titanium",
+              min: 0,
+              max: 1,
+              step: 0.05,
+              defaultValue: 0.5,
+            },
+            {
+              key: "playerBgTitaniumMetalness",
+              type: "slider",
+              binding: { store: "settings", path: "player.playerBgTitaniumMetalness" },
+              // 独立 Titanium 背景与流体下的 titanium 引擎共用这批参数
+              visible: () =>
+                useSettingsStore().player.playerBgType === "titanium" ||
+                useSettingsStore().player.playerBgRenderer === "titanium",
+              min: 0,
+              max: 1,
+              step: 0.05,
+              defaultValue: 0.35,
+            },
+            {
+              key: "playerBgTitaniumCrestShiftMs",
+              type: "slider",
+              binding: { store: "settings", path: "player.playerBgTitaniumCrestShiftMs" },
+              // 独立 Titanium 背景与流体下的 titanium 引擎共用这批参数
+              visible: () =>
+                useSettingsStore().player.playerBgType === "titanium" ||
+                useSettingsStore().player.playerBgRenderer === "titanium",
+              min: 0,
+              max: 6000,
+              step: 100,
+              defaultValue: 2000,
             },
             {
               key: "playerBgFlowSpeed",
@@ -305,6 +512,13 @@ const appearanceCategory: SettingCategory = {
               key: "playerBgRenderScale",
               type: "slider",
               binding: { store: "settings", path: "player.playerBgRenderScale" },
+              // 钛金属细颗粒固定原生分辨率，缩放比对其无效，直接隐藏避免空拖
+              visible: () =>
+                useSettingsStore().player.playerBgType !== "titanium" &&
+                !(
+                  useSettingsStore().player.playerBgType === "animation" &&
+                  useSettingsStore().player.playerBgRenderer === "titanium"
+                ),
               min: 0.5,
               max: 2,
               step: 0.1,
@@ -330,64 +544,15 @@ const appearanceCategory: SettingCategory = {
             {
               key: "playerBgBeat",
               type: "switch",
-              binding: { store: "settings", path: "player.playerBgBeat" },
+              // 经典版 Apple Music 背景采用静态渐变
               visible: () =>
-                useSettingsStore().player.playerBgType === "apple-music" ||
-                (useSettingsStore().player.playerBgType === "animation" &&
-                  useSettingsStore().player.playerBgRenderer === "mesh"),
+                ["animation", "isolation", "titanium", "apple-music"].includes(
+                  useSettingsStore().player.playerBgType,
+                ),
+              binding: { store: "settings", path: "player.playerBgBeat" },
               defaultValue: false,
             },
           ],
-        },
-        {
-          key: "coverLayout",
-          type: "select",
-          binding: { store: "settings", path: "player.coverLayout" },
-          options: [
-            { value: "default", labelKey: "settings.coverLayout.default" },
-            { value: "fullscreen", labelKey: "settings.coverLayout.fullscreen" },
-          ],
-          defaultValue: "default",
-        },
-        {
-          key: "coverLyricRatio",
-          type: "slider",
-          binding: { store: "settings", path: "player.coverLyricRatio" },
-          min: 0.3,
-          max: 0.6,
-          step: 0.05,
-          defaultValue: 0.45,
-          marks: { 0.3: "30%", 0.45: "45%", 0.6: "60%" },
-        },
-        {
-          key: "autoCenterCover",
-          type: "switch",
-          binding: { store: "settings", path: "player.autoCenterCover" },
-          defaultValue: true,
-        },
-        {
-          key: "showPlaybackSource",
-          type: "switch",
-          binding: { store: "settings", path: "player.showPlaybackSource" },
-          defaultValue: false,
-        },
-        {
-          key: "followCoverColor",
-          type: "switch",
-          binding: { store: "settings", path: "player.followCoverColor" },
-          defaultValue: true,
-        },
-        {
-          key: "autoImmersive",
-          type: "switch",
-          binding: { store: "settings", path: "player.autoImmersive" },
-          defaultValue: false,
-        },
-        {
-          key: "keepScreenAwake",
-          type: "switch",
-          binding: { store: "settings", path: "system.player.keepScreenAwake" },
-          defaultValue: false,
         },
       ],
     },

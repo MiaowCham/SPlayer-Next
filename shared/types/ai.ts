@@ -1,5 +1,5 @@
 /** AI 模型接口协议 */
-export type AiModelProtocol = "openai-compatible" | "anthropic";
+export type AiModelProtocol = "openai-compatible" | "deepseek" | "anthropic";
 
 /** AI 模型公开配置 */
 export interface AiModelConfig {

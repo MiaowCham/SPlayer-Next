@@ -120,6 +120,8 @@ export interface Track {
   originalId?: string;
   /** 流媒体账号或地址变更后的媒体身份代次 */
   serverRevision?: number;
+  /** 试听地址（仅 source==='appleMusic' 且未安装音源插件时使用） */
+  previewUrl?: string;
   /** 标题 */
   title: string;
   /** 注释/副标题 */
@@ -152,12 +154,20 @@ export interface Track {
   fee?: TrackFee;
   /** 云盘歌曲 */
   cloud?: boolean;
+  /** 心动模式：是否为 AI 推荐曲目 */
+  recommended?: boolean;
+  /** 心动模式：推荐算法标记 */
+  algorithm?: string;
+  /** 心动模式：是否为「更多推荐」续推曲目 */
+  moreRcmd?: boolean;
 }
 
 /** 播放队列项，将曲目元数据与本次播放上下文分离 */
 export interface PlaybackQueueItem {
   track: Track;
   context?: PlaybackContext;
+  /** 心动模式：本轮是否已播放过至少一次 */
+  playedOnce?: boolean;
 }
 
 /** 歌曲详细信息 */
@@ -230,6 +240,9 @@ export interface AudioDevice {
 /** 主进程推送给渲染进程的播放事件 */
 /** 曲尾交接时机与淡化时长偏好 */
 export type TransitionPreference = "conservative" | "standard" | "eager";
+
+/** 动态封面来源 */
+export type MotionCoverSource = "off" | "ncm" | "ncmFirst" | "am" | "amFirst";
 
 export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }
@@ -407,8 +420,8 @@ export interface PlayerApi {
   setOutputDevice: (deviceId: string | null, pauseBeforeSwitch?: boolean) => Promise<IpcResponse>;
   /** 获取当前选择的输出设备 ID（None = 跟随系统默认） */
   getSelectedDeviceName: () => Promise<IpcResponse<string | null>>;
-  /** 同步播放模式到托盘 */
-  syncPlayMode: (repeatMode: string, shuffleMode: string) => void;
+  /** 渲染进程同步播放模式到托盘与系统媒体控件 */
+  syncPlayMode: (repeatMode: RepeatMode, shuffleMode: ShuffleMode) => void;
   /**
    * 同步主窗口当前队列索引
    * @param index - 当前队列索引，无当前队列项时为 -1

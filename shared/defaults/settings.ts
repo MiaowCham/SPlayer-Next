@@ -107,6 +107,7 @@ export const defaultSystemConfig: SystemConfig = {
     appleMusicSearchRegions: "cn,jp,tw,kr",
     appleMusicTranslationLanguage: "zh-Hans-CN",
     appleMusicTranslationScript: "",
+    pronunciationAlignment: "auto",
   },
   localLyric: {
     enableLocalTTMLOverride: false,
@@ -120,6 +121,7 @@ export const defaultSystemConfig: SystemConfig = {
       cacheStreaming: false,
       sizeLimitGb: 10,
     },
+    motionCoverSizeLimitMb: 300,
   },
   download: {
     enabled: false,

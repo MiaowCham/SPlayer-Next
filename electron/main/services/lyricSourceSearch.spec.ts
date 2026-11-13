@@ -6,6 +6,8 @@ const state = vi.hoisted(() => ({
   qq: vi.fn(),
   kugou: vi.fn(),
   ttml: vi.fn(),
+  ttmlById: vi.fn(),
+  ttmlSearch: vi.fn(),
   detail: vi.fn(),
   qqDetail: vi.fn(),
   write: vi.fn(),
@@ -20,11 +22,17 @@ vi.mock("@main/database/lyricMatchCache", () => ({
 vi.mock("@main/apis/common/lyric/netease", () => ({ getByPlatformId: state.netease }));
 vi.mock("@main/apis/common/lyric/qqmusic", () => ({ getByPlatformId: state.qq }));
 vi.mock("@main/apis/common/lyric/kugou", () => ({ getByPlatformId: state.kugou }));
-vi.mock("@main/apis/common/lyric/ttml", () => ({ fetchTTML: state.ttml }));
+vi.mock("@main/apis/common/lyric/ttml", () => ({
+  fetchTTML: state.ttml,
+  fetchTTMLById: state.ttmlById,
+  searchTTMLVersions: state.ttmlSearch,
+}));
 vi.mock("@main/apis/netease", () => ({ callNetease: state.detail }));
 vi.mock("@main/apis/qqmusic", () => ({ callQQMusic: state.qqDetail }));
 vi.mock("./appleMusicLyrics", () => ({}));
-vi.mock("./localLyricRepo", () => ({}));
+vi.mock("./localLyricRepo", () => ({
+  extractTtmlMeta: () => ({ name: "词库曲目", artist: "词库歌手" }),
+}));
 vi.mock("./nowPlaying", () => ({ getVersionOffset: () => 250, setVersionOffset: state.setOffset }));
 vi.mock("@main/database/managedLyrics", () => ({
   getManagedLyric: () => ({ versionId: "previous" }),
@@ -34,6 +42,7 @@ vi.mock("@main/database/managedLyrics", () => ({
 import {
   loadSourceVersion,
   saveSourceVersion,
+  searchSourceTracks,
   resolveLyricSourceMatchId,
 } from "./lyricSourceSearch";
 const song = { id: "123", mid: "mid", title: "来源歌曲", artists: ["来源歌手"], duration: 2000 };
@@ -67,6 +76,26 @@ describe("精确来源搜索版本的读取与保存", () => {
     });
     expect(state.ttml).toHaveBeenCalledExactlyOnceWith("qqmusic", ["mid", "123"]);
     expect(state.qq).not.toHaveBeenCalled();
+  });
+  it("独立 AMLL 词库搜索与条目 ID 导入不触发平台查询", async () => {
+    const entry = { id: "245924626813758", title: "词库曲目", artists: ["词库歌手"], duration: 0 };
+    const page = { items: [entry], total: 51, hasMore: false };
+    state.ttmlSearch.mockResolvedValue(page);
+    state.ttmlById.mockResolvedValue("<tt/>");
+    const source = { origin: "amll" } as const;
+    expect(await searchSourceTracks(source, "词库曲目", 50)).toEqual(page);
+    expect(state.ttmlSearch).toHaveBeenCalledExactlyOnceWith("词库曲目", 50);
+    const candidate = await loadSourceVersion(source, entry.id);
+    expect(candidate).toMatchObject({
+      origin: "amll",
+      platform: undefined,
+      sourceTrack: entry,
+      extra: { amllId: entry.id },
+    });
+    expect(state.ttmlById).toHaveBeenCalledExactlyOnceWith(entry.id);
+    expect(state.ttml).not.toHaveBeenCalled();
+    expect(state.detail).not.toHaveBeenCalled();
+    expect(state.qqDetail).not.toHaveBeenCalled();
   });
   it("通过 ID 导入时先读取真实曲目元数据，不能套用目标歌曲的标题", async () => {
     state.detail.mockResolvedValue({

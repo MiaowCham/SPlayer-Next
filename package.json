@@ -52,7 +52,8 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
-    "prepare": "husky"
+    "prepare": "husky",
+    "fetch:native": "node --experimental-strip-types scripts/fetch-native.ts"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -68,6 +69,7 @@
     "hono": "^4.13.13",
     "kuromoji": "0.1.2",
     "lyric-kit": "^0.6.1",
+    "pinyin-pro": "3.29.3",
     "undici": "^8.12.3",
     "wanakana": "5.3.1",
     "ws": "^8.22.0",
@@ -76,6 +78,7 @@
   },
   "devDependencies": {
     "@applemusic-like-lyrics/core": "^0.6.0",
+    "@applemusic-like-lyrics/core-bg": "file:vendor/amll-core",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@electron/rebuild": "^4.2.1",
@@ -109,6 +112,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.11.1",
     "happy-dom": "^21.0.3",
+    "hls.js": "^1.7.3",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "localforage": "^1.10.0",
@@ -117,7 +121,6 @@
     "marked": "^18.1.1",
     "pinia": "^4.1.0",
     "pinia-plugin-persistedstate": "^4.7.1",
-    "pinyin-pro": "3.29.3",
     "prettier": "^3.9.10",
     "reka-ui": "^2.11.0",
     "rimraf": "^6.1.3",

@@ -126,7 +126,9 @@
     "totalSongs": "{count} songs",
     "totalAlbums": "{count} albums",
     "totalArtists": "{count} artists",
-    "totalPlaylists": "{count} playlists"
+    "totalPlaylists": "{count} playlists",
+    "play": "Play",
+    "playFailed": "Playback failed"
   },
   "recognition": {
     "title": "Music Recognition",
@@ -173,7 +175,10 @@
     "empty": "No comments yet",
     "noSource": "No comment source available",
     "location": "From {location}",
-    "page": "Page {page} / {total}"
+    "page": "Page {page} / {total}",
+    "copy": "Copy",
+    "copyComment": "Copy Comment",
+    "copyReply": "Copy Reply"
   },
   "equalizer": {
     "title": "Equalizer",
@@ -249,7 +254,9 @@
     "searchSection": {
       "quick": "Quick",
       "history": "Recent searches",
-      "hot": "Trending"
+      "hot": "Trending",
+      "pages": "Pages",
+      "actions": "Actions"
     },
     "searchMenu": {
       "copy": "Copy",
@@ -265,6 +272,15 @@
       "album": "Go to album [{id}]",
       "artist": "Go to artist [{id}]",
       "playlist": "Go to playlist [{id}]"
+    },
+    "ranking": "Listening Ranking",
+    "searchCommandHint": "Search songs, or type / for commands",
+    "searchCommandTip": "Type to jump to a setting or page, or run a common action",
+    "searchHistoryClearConfirm": "Clear all search history?",
+    "searchFooter": {
+      "select": "Select",
+      "run": "Run",
+      "command": "Commands"
     }
   },
   "home": {
@@ -406,7 +422,8 @@
       "artists": "Artists",
       "playlists": "Playlists"
     },
-    "storefront": "Storefront"
+    "storefront": "Storefront",
+    "appleMusicPreviewOnly": "Apple Music source plugin is not installed; only 30-second previews are available"
   },
   "streaming": {
     "favoritesOnly": "Favorites only",
@@ -477,7 +494,12 @@
       "loading": "Starting Heart Mode…",
       "entered": "Heart Mode started",
       "already": "Already in Heart Mode",
-      "failed": "Failed to start Heart Mode, please try again later"
+      "failed": "Failed to start Heart Mode, please try again later",
+      "failedFallback": "Failed to start Heart Mode, switched to list loop",
+      "moreRcmd": "More picks",
+      "aiRcmd": "AI pick",
+      "wantMore": "Auto more recommendations",
+      "wantMoreHint": "Stop appending More recommendations automatically"
     },
     "fm": {
       "needLogin": "Sign in to use Personal FM",
@@ -523,7 +545,9 @@
       "saved": "Saved to Downloads",
       "fileSuffix": "Lyrics",
       "exportFailed": "Failed to export image",
-      "empty": "Nothing to copy"
+      "empty": "Nothing to copy",
+      "saveDialogTitle": "Save lyrics image",
+      "background": "Background lines"
     },
     "repeatMode": {
       "list": "Repeat all",
@@ -533,7 +557,32 @@
       "on": "Shuffle on",
       "off": "Shuffle off"
     },
-    "automixing": "AutoMix"
+    "automixing": "AutoMix",
+    "collapse": "Collapse Player",
+    "lyricCreator": "Creator",
+    "artistAlbumLinks": {
+      "artist": "Go to Artist",
+      "album": "Go to Album"
+    },
+    "lyricMatch": {
+      "title": "Match lyrics",
+      "searchPlaceholder": "Search title or artist",
+      "search": "Search",
+      "searchFailed": "Search failed, please try again",
+      "saveFailed": "Save failed, please try again",
+      "noResults": "No candidates found",
+      "noLyric": "No lyrics available for this song",
+      "previewHint": "Select a candidate to preview lyrics",
+      "current": "Current",
+      "tagBest": "Best match",
+      "tagName": "Title match",
+      "tagArtist": "Artist match",
+      "tagDuration": "Duration close",
+      "currentPick": "Manually picked: {name} ({platform})",
+      "restoreAuto": "Restore automatic matching",
+      "preferenceIgnored": "Lyrics manually picked",
+      "apply": "Use these lyrics"
+    }
   },
   "lyricManager": {
     "trackTitle": "Lyric Management",
@@ -826,7 +875,8 @@
       "needLogin": "Please log in first",
       "unsupported": "This source does not support liking",
       "failed": "Action failed, please try again"
-    }
+    },
+    "copyToClipboard": "Copy to Clipboard"
   },
   "cloud": {
     "title": "My Cloud",
@@ -1011,7 +1061,9 @@
       "debug": "Debug",
       "preset": "OCD Settings",
       "envInfo": "Environment Info",
-      "mediaStatistics": "Statistics scope"
+      "mediaStatistics": "Statistics scope",
+      "fullPlayer": "Player",
+      "playerBackground": "Player Background"
     },
     "about": {
       "checkUpdate": "Check for Updates",
@@ -1932,14 +1984,17 @@
       "solid": "Solid",
       "animation": "Fluid",
       "appleMusic": "Apple Music",
-      "appleMusicClassic": "Apple Music Classic"
+      "appleMusicClassic": "Apple Music Classic",
+      "isolation": "Isolation",
+      "titanium": "Titanium"
     },
     "playerBgRenderer": {
       "label": "Render Engine",
       "description": "Select the rendering engine for fluid animation background",
       "mesh": "Mesh Gradient Renderer",
       "isolation": "Isolation Renderer",
-      "pixi": "PixiJS Renderer"
+      "pixi": "PixiJS Renderer",
+      "titanium": "Titanium"
     },
     "playerBgFlowSpeed": {
       "label": "Flow Speed",
@@ -2486,7 +2541,8 @@
         "apiLevel": "API level",
         "installed": "Installed",
         "updated": "Updated",
-        "homepage": "Homepage"
+        "homepage": "Homepage",
+        "autoGranted": "Auto-granted"
       },
       "grant": {
         "network": {
@@ -2509,7 +2565,9 @@
           "label": "Platform APIs",
           "desc": "Call music platform APIs using the current session"
         }
-      }
+      },
+      "sectionSource": "Source Plugins",
+      "sectionControl": "Control Plugins"
     },
     "pluginManager": {
       "label": "Plugin Manager",
@@ -2560,7 +2618,8 @@
       "songs": "Song Files",
       "lyric": "Lyric Content Cache",
       "lyricTTML": "TTML Lyric Cache",
-      "lyricMatch": "Lyric Match Cache"
+      "lyricMatch": "Lyric Match Cache",
+      "motionCovers": "Animated Covers"
     },
     "enableSongCache": {
       "label": "Song Cache",
@@ -2700,6 +2759,113 @@
     "includeRemoteStats": {
       "label": "Include platforms and streaming in statistics",
       "description": "Include played platform and streaming tracks and synced streaming libraries. Turning this off shows local statistics and keeps playback history"
+    },
+    "fuckDjMode": {
+      "label": "Fuck DJ Mode",
+      "description": "Auto skip songs with DJ, TikTok, 0.9, 0.8, viral, car, hot, slow rock in the title"
+    },
+    "uncensorProfanity": {
+      "label": "Fuck ** Mode",
+      "description": "Restore masked profanity in lyrics to original words"
+    },
+    "amllConvertExcessiveBackgroundLines": {
+      "label": "Convert Excessive Background Lines",
+      "description": "Convert consecutive multi-line background vocals into a single-line background vocal attached to the main line"
+    },
+    "motionCover": {
+      "label": "Animated Cover",
+      "description": "Play the album's animated cover in the full player",
+      "off": "Off",
+      "ncm": "NCM Only",
+      "ncmFirst": "Prefer NCM",
+      "am": "AM Only",
+      "amFirst": "Prefer AM"
+    },
+    "showStatsInSidebar": {
+      "label": "Show Play Stats Entry",
+      "description": "Show the play statistics page entry in the sidebar"
+    },
+    "checkUpdate": {
+      "label": "Check for Updates",
+      "description": "Check for a new version now"
+    },
+    "motionCoverSizeLimit": {
+      "label": "Animated Cover Cache Limit",
+      "description": "Least recently played covers are removed when the limit is exceeded"
+    },
+    "enableFloatAnimation": {
+      "label": "Word Float",
+      "description": "Active words float up slightly"
+    },
+    "playerBgLightWave": {
+      "label": "Light wave",
+      "description": "Adds a brightness ripple driven by low frequencies; isolation engine only"
+    },
+    "playerBgTitaniumGrain": {
+      "label": "Grain",
+      "description": "Fine particle (powder) strength for Titanium"
+    },
+    "playerBgTitaniumSparkle": {
+      "label": "Sparkle",
+      "description": "Metallic sparkle strength"
+    },
+    "playerBgTitaniumSheen": {
+      "label": "Sheen",
+      "description": "Metallic sheen strength"
+    },
+    "playerBgTitaniumMetalness": {
+      "label": "Metalness",
+      "description": "How far the image is desaturated toward luminance"
+    },
+    "playerBgTitaniumCrestShiftMs": {
+      "label": "Crest shift",
+      "description": "Crest shift duration on cover change (ms); 0 jumps instantly"
+    },
+    "playerBgIsolationPalette": {
+      "label": "Palette algorithm",
+      "description": "Algorithm used to extract the palette from the cover",
+      "auto": "Auto (K-Means / Octree)",
+      "kmeans": "K-Means",
+      "octtree": "Octree"
+    },
+    "playerBgIsolationDithering": {
+      "label": "Dithering",
+      "description": "Adds faint noise to remove gradient banding"
+    },
+    "enableBalancedWrap": {
+      "label": "Balanced Line Wrap",
+      "description": "Wrap long lines into lines of similar length, breaking at punctuation and spaces first"
+    },
+    "barLyricMode": {
+      "label": "Player Bar Lyric Mode",
+      "description": "Choose lyric content and highlighting; long lines scroll with playback progress",
+      "lyric": "Lyrics",
+      "translation": "Lyrics + Translation",
+      "word": "Word by Word"
+    },
+    "autoGenerateWordByWord": {
+      "label": "Auto-generate Word Effect",
+      "description": "Generate word-by-word effects for line-timed lyrics"
+    },
+    "playerLayout": {
+      "label": "Player Layout",
+      "description": "Overall layout of the full-screen player",
+      "classic": "Classic",
+      "fullCover": "Fullscreen Cover",
+      "fullLyric": "Fullscreen Lyrics",
+      "apple": "AM Style"
+    },
+    "pronunciationAlignment": {
+      "label": "Auto pronunciation alignment",
+      "description": "Word: align per word; Line: one reading per line; Auto: unify per lyrics",
+      "auto": "Auto",
+      "word": "Word",
+      "line": "Line"
+    },
+    "appearance": {
+      "marqueeScroll": {
+        "label": "Text scrolling"
+      }
     }
   },
   "collection": {
@@ -2865,5 +3031,20 @@
     "effective": "Current latency: {value} ms",
     "refresh": "Refresh devices",
     "refreshFailed": "Failed to refresh output devices"
+  },
+  "ranking": {
+    "title": "Listening Ranking",
+    "tabs": {
+      "week": "Last Week",
+      "all": "All Time"
+    },
+    "plays": "Plays",
+    "refresh": "Refresh Ranking",
+    "addToQueue": "Add to Play Queue",
+    "empty": "No listening ranking data",
+    "needLogin": "Sign in to view your listening ranking",
+    "toast": {
+      "added": "Added to play queue"
+    }
   }
 }

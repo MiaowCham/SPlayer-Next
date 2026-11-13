@@ -76,45 +76,13 @@ html[data-reduced-motion] {
     --un-translate-y: 0px;
   }
 
-  :is(.cover-card-image, .blur-1, .blur-4) {
-    filter: none !important;
-  }
-
   :is(.will-change-transform, [class*="hover:will-change-"], .s-marquee-scrolling) {
     will-change: auto !important;
   }
 
-  :is(.s-marquee-scrolling, .s-marquee-mask) {
-    animation: none;
-  }
-
-  .s-marquee-scrolling > [aria-hidden="true"] {
-    display: none;
-  }
-
-  :is(.glass-panel, [class*="backdrop-blur-"]) {
-    backdrop-filter: none;
-  }
-
-  footer.glass-panel {
-    background-color: rgb(var(--s-surface-panel) / 0.92);
-  }
+  /* 跑马灯与减少动效解耦：由外观设置单独控制 */
 
   /* 移除毛玻璃后用更实的底色保证可读性 */
-  &[data-appearance-style="image"]
-    :is(
-      .glass-panel,
-      .bg-surface-bright,
-      .bg-field,
-      footer.bg-surface-panel,
-      [role="dialog"].bg-surface-panel,
-      [role="dialog"].bg-surface-alt,
-      [role="alertdialog"].bg-surface-panel,
-      [role="alertdialog"].bg-surface-alt
-    ) {
-    backdrop-filter: none;
-    background-color: rgb(var(--s-surface-panel) / 0.92);
-  }
 
   .player-transition-shine {
     animation: none;

@@ -42,6 +42,8 @@ export type LyricData = {
   /** 托管文件 UUID 或提供方与正文摘要 */
   versionId?: string;
   format: LyricFormat;
+  /** 是否包含逐词时间 */
+  wordTimed?: boolean;
   /** 在线歌词所属平台，仅 source=online 时有值 */
   platform?: Platform;
   /** 区分平台原始歌词与 AMLL、本地 TTML 等解析提供方 */
@@ -239,6 +241,8 @@ export interface TtmlImportResult {
 
 /** 平台额外字段 */
 export interface LyricMatchExtra {
+  /** AMLL 歌词库条目标识 */
+  amllId?: string;
   /** QM 的 mid */
   mid?: string;
   /** 平台数字 song id（netease/QM） */

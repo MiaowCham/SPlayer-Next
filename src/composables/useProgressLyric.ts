@@ -1,7 +1,10 @@
 import { useSettingsStore } from "@/stores/settings";
 import { useMediaStore } from "@/stores/media";
-import { findLyricIndex } from "lyric-kit";
+import { findLyricIndex, type LyricLine as KitLyricLine } from "lyric-kit";
 import { formatTime } from "@/utils/time";
+
+/** 本地歌词类型比 lyric-kit 多几种语言与格式，运行时结构一致，仅类型上需收窄 */
+const asKitLines = (lines: unknown): KitLyricLine[] => lines as KitLyricLine[];
 
 /**
  * 进度条歌词相关功能
@@ -21,7 +24,7 @@ export const useProgressLyric = () => {
     const lyrics = mediaStore.parsedLyric;
     if (!lyrics.length) return null;
 
-    const index = findLyricIndex(lyrics, time);
+    const index = findLyricIndex(asKitLines(lyrics), time);
     if (index === -1) return null;
 
     const line = lyrics[index];
@@ -56,7 +59,7 @@ export const useProgressLyric = () => {
     const lyrics = mediaStore.parsedLyric;
     if (!lyrics.length) return time;
 
-    const currentIdx = findLyricIndex(lyrics, time);
+    const currentIdx = findLyricIndex(asKitLines(lyrics), time);
 
     // 优先检查下一行（预备开始）
     const nextIdx = currentIdx + 1;

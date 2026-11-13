@@ -51,11 +51,16 @@ const pickSub = (
 
 /**
  * 按 id 直取歌词
- * @param id 歌曲 id
+ * @param id - 歌曲 ID
+ * @param prefetch - 是否并行预热 AMLL 歌词
+ * @returns 对应歌曲歌词
  */
-export const getByPlatformId = async (id: string): Promise<LyricMatchResult | null> => {
+export const getByPlatformId = async (
+  id: string,
+  prefetch = true,
+): Promise<LyricMatchResult | null> => {
   // 立刻预热 TTML 抓取
-  prefetchTTML("netease", [id]);
+  if (prefetch) prefetchTTML("netease", [id]);
   // 缓存命中直接返回
   const cached = getCachedLyric("netease", id);
   if (cached) return cached;
@@ -101,13 +106,18 @@ export const getByPlatformId = async (id: string): Promise<LyricMatchResult | nu
 
 /**
  * 按 Track 元数据模糊搜索：search → 挑最佳 → 单次请求歌词
- * @param track 歌曲信息
+ * @param track - 歌曲信息
+ * @param prefetch - 是否预热 AMLL 歌词
+ * @returns 最佳匹配的歌词
  */
-export const getByQuery = async (track: Track): Promise<LyricMatchResult | null> => {
+export const getByQuery = async (
+  track: Track,
+  prefetch = true,
+): Promise<LyricMatchResult | null> => {
   // 命中映射缓存：跳过 search → 直接走 byId
   const fingerprint = buildFingerprint(track);
   const cached = getMatchedId(fingerprint, "netease");
-  if (cached) return getByPlatformId(cached.platformId);
+  if (cached) return getByPlatformId(cached.platformId, prefetch);
 
   const keyword = buildLyricSearchKeyword(track);
   if (!keyword) return null;
@@ -140,7 +150,7 @@ export const getByQuery = async (track: Track): Promise<LyricMatchResult | null>
   );
   if (!best) return null;
   setMatchedId(fingerprint, "netease", best.extra.id);
-  const result = await getByPlatformId(best.extra.id);
+  const result = await getByPlatformId(best.extra.id, prefetch);
   if (!result) return null;
   const enriched = {
     ...result,

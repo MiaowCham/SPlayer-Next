@@ -93,7 +93,11 @@ export const parseLyricSourceId = (source: LyricSearchSource, input: string): st
       value = url.searchParams.get("i") ?? url.pathname.match(/(?:\/id?|\/)(\d+)\/?$/)?.[1] ?? "";
     } else return null;
   }
-  if (platform === "netease" || platform === "appleMusic")
+  if (
+    platform === "netease" ||
+    platform === "appleMusic" ||
+    (source.origin === "amll" && !platform)
+  )
     return /^\d+$/.test(value) ? value : null;
   if (platform === "qqmusic") return /^(?:\d+|[A-Za-z0-9]{14})$/.test(value) ? value : null;
   if (platform === "localTtml") return /^[A-Fa-f0-9]{64}$/.test(value) ? value.toLowerCase() : null;

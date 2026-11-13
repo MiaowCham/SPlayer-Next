@@ -33,3 +33,6 @@ package-lock.json
 
 # 工作日志 / 待办（本地，禁止被 git 追踪或提交）
 TODO.md
+
+!vendor/amll-core/dist
+!vendor/amll-core/dist/**

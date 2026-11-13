@@ -4,7 +4,10 @@ import type { LyricLine } from "@shared/types/lyrics";
 import type { DesktopLyricAlign } from "@shared/types/settings";
 import { getWordSweepProgress } from "lyric-kit";
 import { getNowPlayingCurrentMs } from "@windows/shared/composables/useNowPlayingSync";
-import { computeHorizontalScrollOffset, measureHorizontalScrollRange } from "../utils";
+import {
+  computeLyricScrollOffset,
+  measureHorizontalScrollRange,
+} from "@windows/shared/lyricScroll";
 
 const props = defineProps<{
   line: LyricLine;
@@ -18,6 +21,8 @@ const props = defineProps<{
   isNext: boolean;
   /** 是否启用文本背景遮罩 */
   backgroundMask: boolean;
+  /** 决定滚动进度的歌词行，翻译行传对应的原文行，缺省为自身 */
+  timingLine?: LyricLine;
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
@@ -27,6 +32,8 @@ const wordRefs: HTMLSpanElement[] = [];
 const overflowPx = ref(0);
 /** 将内容开头对齐容器左侧所需的平移量 */
 const scrollStartPx = ref(0);
+/** 可见容器宽度，用于定位演唱焦点 */
+let containerWidth = 0;
 
 /** 单词进度对应的 gradient --p 位置 */
 const getWordProgress = (
@@ -57,20 +64,18 @@ const blockStyle = computed(() => ({
 }));
 
 /**
- * 内容横向平移量：成为当前行后从开头连续滚动到终点
+ * 内容横向平移量：有逐字时间时跟随演唱位置，否则从开头匀速滚动到终点
  * 不做 Math.round，否则在 overflow 小时会出现明显的像素跳动。
  */
 const getScrollTransform = (currentMs: number): string => {
   const overflow = overflowPx.value;
   if (overflow <= 0) return "translateX(0)";
-  const { startTime, endTime } = props.line;
-  const offset = computeHorizontalScrollOffset({
+  const offset = computeLyricScrollOffset({
     currentMs,
     activatedAtMs: scrollActivatedAtMs,
-    lineStartTime: startTime,
-    lineEndTime: endTime,
-    startOffset: scrollStartPx.value,
-    distance: overflow,
+    timingLine: props.timingLine ?? props.line,
+    containerWidth,
+    range: { startOffset: scrollStartPx.value, distance: overflow },
   });
   return `translateX(${offset.toFixed(3)}px)`;
 };
@@ -87,6 +92,7 @@ const measure = (): void => {
     scrollStartPx.value = 0;
     return;
   }
+  containerWidth = outer.clientWidth;
   const range = measureHorizontalScrollRange(outer, inner);
   overflowPx.value = range.distance;
   scrollStartPx.value = range.startOffset;
@@ -126,13 +132,17 @@ const resetScrollPosition = (): void => {
 
 /** 从成为当前行的时刻重新开始横向滚动 */
 const activateScroll = (): void => {
-  scrollActivatedAtMs = Math.max(props.line.startTime, getNowPlayingCurrentMs());
+  scrollActivatedAtMs = Math.max(
+    (props.timingLine ?? props.line).startTime,
+    getNowPlayingCurrentMs(),
+  );
   resetRenderCache();
   resetScrollPosition();
 };
 
+/** 更新可见歌词行的滚动与扫光 */
 const renderFrame = (): void => {
-  if (!needsRaf()) {
+  if (document.hidden || !needsRaf()) {
     rafId = 0;
     return;
   }
@@ -161,8 +171,9 @@ const renderFrame = (): void => {
   rafId = requestAnimationFrame(renderFrame);
 };
 
+/** 可见且有动画工作时启动循环 */
 const startRenderLoop = (): void => {
-  if (rafId === 0 && needsRaf()) {
+  if (!document.hidden && rafId === 0 && needsRaf()) {
     rafId = requestAnimationFrame(renderFrame);
   }
 };
@@ -172,6 +183,12 @@ const stopRenderLoop = (): void => {
     cancelAnimationFrame(rafId);
     rafId = 0;
   }
+};
+
+/** 隐藏时取消动画帧，重新可见时采用当前播放锚点 */
+const syncVisibility = (): void => {
+  if (document.hidden) stopRenderLoop();
+  else startRenderLoop();
 };
 
 watch(
@@ -227,6 +244,7 @@ const onTransitionEnd = (event: TransitionEvent): void => {
 };
 
 onMounted(() => {
+  document.addEventListener("visibilitychange", syncVisibility);
   measure();
   scrollActivatedAtMs = props.scrollEnabled
     ? Math.max(props.line.startTime, getNowPlayingCurrentMs())
@@ -242,6 +260,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener("visibilitychange", syncVisibility);
   stopRenderLoop();
   resizeObs?.disconnect();
   resizeObs = null;

@@ -43,11 +43,11 @@ let lastWordProgress: string[] = [];
 
 const resetRenderCache = (): void => {
   lastWordProgress = [];
-  wordRefs.length = 0;
 };
 
+/** 仅在窗口可见且启用逐字歌词时绘制扫光 */
 const renderFrame = (): void => {
-  if (!props.wordByWord) {
+  if (document.hidden || !props.wordByWord) {
     rafId = 0;
     return;
   }
@@ -64,8 +64,9 @@ const renderFrame = (): void => {
   rafId = requestAnimationFrame(renderFrame);
 };
 
+/** 可见且启用逐字歌词时启动扫光循环 */
 const startRenderLoop = (): void => {
-  if (rafId === 0 && props.wordByWord) {
+  if (!document.hidden && rafId === 0 && props.wordByWord) {
     rafId = requestAnimationFrame(renderFrame);
   }
 };
@@ -87,8 +88,20 @@ watch(
 );
 watch(() => props.line, resetRenderCache);
 
-onMounted(startRenderLoop);
-onBeforeUnmount(stopRenderLoop);
+/** 隐藏时取消动画帧，重新可见时采用当前播放锚点 */
+const syncVisibility = (): void => {
+  if (document.hidden) stopRenderLoop();
+  else startRenderLoop();
+};
+
+onMounted(() => {
+  document.addEventListener("visibilitychange", syncVisibility);
+  startRenderLoop();
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("visibilitychange", syncVisibility);
+  stopRenderLoop();
+});
 </script>
 
 <template>

@@ -1,8 +1,7 @@
 import type { LyricFormat } from "@shared/types/lyrics";
-
 import { DEFAULT_LYRIC_FORMAT_ORDER as DEFAULT_LYRIC_FORMAT_ORDER_SHARED } from "@shared/types/lyrics";
 import type { Platform } from "@shared/types/platform";
-import type { TransitionPreference } from "@shared/types/player";
+import type { MotionCoverSource, TransitionPreference } from "@shared/types/player";
 import type { TransitionMode } from "@shared/types/automix";
 import type { PronunciationOptimization } from "@shared/types/lyricEnhancement";
 
@@ -10,10 +9,14 @@ import type { QualityLevel } from "@/utils/quality";
 import type { LyricAlignment } from "lyric-dom";
 
 /** 播放器背景类型 */
-export type PlayerBgType = "blur" | "solid" | "animation" | "apple-music" | "apple-music-classic";
-/** 流体背景渲染引擎 */
-export type PlayerBgRenderer = "mesh" | "isolation" | "pixi";
+export type PlayerBgType =
+  "blur" | "solid" | "animation" | "isolation" | "titanium" | "apple-music" | "apple-music-classic";
 export type CoverLayout = "default" | "fullscreen";
+
+/** 自动发音的对齐方式 */
+export type PronunciationAlignment = "auto" | "word" | "line";
+
+export type PlayerLayout = "classic" | "fullCover" | "fullLyric" | "apple";
 
 /**
  * 歌曲播放时间显示格式
@@ -24,11 +27,23 @@ export type CoverLayout = "default" | "fullscreen";
 export type TimeFormat = "current-total" | "remaining-total" | "current-remaining";
 
 /**
- * 列表点击播放的行为
+ * 搜索页播放行为
  * - current: 仅播放当前
  * - all: 播放全部
  */
+export type SearchPlayBehavior = "current" | "all";
+
+/** 列表点击播放的行为 */
 export type PlayBehavior = "current" | "all";
+
+/** 歌曲列表样式 */
+export type SongListStyle = "comfortable" | "compact";
+
+/** 流体背景渲染引擎 */
+export type PlayerBgRenderer = "mesh" | "isolation" | "pixi" | "titanium";
+
+/** isolation 渲染器的取色算法 */
+export type IsolationPaletteAlgorithm = "auto" | "kmeans" | "octtree";
 
 /**
  * 歌词来源偏好
@@ -41,9 +56,6 @@ export type LyricSourcePreference = Platform | "auto" | "local" | "self";
 
 /** 布局模式 */
 export type LayoutMode = "default" | "sidebar-full" | "floating";
-
-/** 歌曲列表样式 */
-export type SongListStyle = "comfortable" | "compact";
 
 /** 路由切换动效 */
 export type RouteTransition = "none" | "fade" | "slide" | "zoom";
@@ -135,7 +147,7 @@ export const DEFAULT_SIDEBAR_NAV_GROUPS: SidebarNavGroup[] = [
   {
     name: "",
     showName: false,
-    keys: ["/liked", "/favorites", "/cloud", "/download", "/streaming", "/history"],
+    keys: ["/liked", "/ranking", "/favorites", "/cloud", "/download", "/streaming", "/history"],
   },
 ];
 
@@ -145,6 +157,8 @@ export interface LyricSettings {
   llmTranslation: boolean;
   /** 发音优化方式 */
   pronunciationOptimization: PronunciationOptimization;
+  /** 自动发音的对齐方式 */
+  pronunciationAlignment: PronunciationAlignment;
   /** 歌词来源偏好 */
   lyricSourcePreference: LyricSourcePreference;
   /** 音源顺序 */
@@ -271,6 +285,10 @@ export interface LyricSettings {
 
 /** 播放器设置 */
 export interface PlayerSettings {
+  /** 全屏播放器布局 */
+  layout: PlayerLayout;
+  /** 播放栏歌词模式 */
+  barLyricMode: "lyric" | "translation" | "word";
   /** 播放器背景类型 */
   playerBgType: PlayerBgType;
   /** 流体背景渲染引擎 */
@@ -285,6 +303,22 @@ export interface PlayerSettings {
   playerBgFreezeOnPause: boolean;
   /** 流体背景随低频节拍脉动 */
   playerBgBeat: boolean;
+  /** isolation 渲染器的光波明度调制 */
+  playerBgLightWave: boolean;
+  /** isolation 渲染器：屏幕空间抖动 */
+  playerBgIsolationDithering: boolean;
+  /** isolation 渲染器：取色算法 */
+  playerBgIsolationPalette: IsolationPaletteAlgorithm;
+  /** Titanium 流沙渲染器：细颗粒强度 */
+  playerBgTitaniumGrain: number;
+  /** Titanium 流沙渲染器：金属闪粉强度 */
+  playerBgTitaniumSparkle: number;
+  /** Titanium 流沙渲染器：金属高光强度 */
+  playerBgTitaniumSheen: number;
+  /** Titanium 流沙渲染器：金属化程度 */
+  playerBgTitaniumMetalness: number;
+  /** Titanium 流沙渲染器：换封面时锋线迁移时长（毫秒） */
+  playerBgTitaniumCrestShiftMs: number;
   /** 全屏播放器封面布局 */
   coverLayout: CoverLayout;
   /** 播放页封面/歌词分栏占比（0-1，封面侧宽度） */
@@ -295,6 +329,8 @@ export interface PlayerSettings {
   showPlaybackSource: boolean;
   /** 颜色是否跟随封面 */
   followCoverColor: boolean;
+  /** 全屏播放器动态封面来源 */
+  motionCoverSource: MotionCoverSource;
   /** 全屏播放器自动进入沉浸模式（隐藏顶/底栏与鼠标） */
   autoImmersive: boolean;
   /** 输出设备名称，null 表示跟随系统默认 */
@@ -307,6 +343,16 @@ export interface PlayerSettings {
   deviceLatencyDefault: number;
   /** 独立设备延迟，记录更新时间用于容量淘汰 */
   deviceLatencies: Record<string, { latencyMs: number; updatedAt: number }>;
+  /** 切歌过渡方式 */
+  transitionMode: TransitionMode;
+  /** 切歌过渡激进程度 */
+  transitionPreference: TransitionPreference;
+  /** AutoMix 对拍与原速桥接都不适用时是否改用交叉过渡 */
+  automixCrossfadeFallback: boolean;
+  /** 歌曲列表点击播放行为 */
+  songListPlayBehavior: PlayBehavior;
+  /** Apple Music 搜索使用的商店地区（两位国家码） */
+  appleMusicStorefront: string;
   /** 是否启用音乐频谱可视化 */
   enableSpectrum: boolean;
   /** 频谱单条宽度（px） */
@@ -331,30 +377,18 @@ export interface PlayerSettings {
   showLyricInBar: boolean;
   /** 播放时提前获取下一首的播放数据 */
   preloadNextTrack: boolean;
-  /** 相邻曲目的播放过渡方式 */
-  transitionMode: TransitionMode;
-  /** 曲尾交接时机与淡化时长偏好 */
-  transitionPreference: TransitionPreference;
-  /** AutoMix 对拍与原速桥接都不适用时是否改用交叉过渡，关闭时直接切歌 */
-  automixCrossfadeFallback: boolean;
   /** 搜索页播放行为 */
-  searchPlayBehavior: PlayBehavior;
-  /** 歌曲列表行首播放按钮的行为 */
-  songListPlayBehavior: PlayBehavior;
+  searchPlayBehavior: SearchPlayBehavior;
 }
 
 /** 外观设置 */
 export interface AppearanceSettings {
   /** 布局模式 */
   layoutMode: LayoutMode;
-  /** 歌曲列表样式 */
-  songListStyle: SongListStyle;
   /** 路由切换动效 */
   routeTransition: RouteTransition;
-  /** 页面之间的共享元素过渡 */
-  seamlessTransition: boolean;
-  /** 减弱界面动画 */
-  reduceMotion: boolean;
+  /** 过长文字滚动（标题、歌手等） */
+  marqueeScroll: boolean;
   /** 侧边栏折叠 */
   sidebarCollapsed: boolean;
   /** 侧边栏 Logo 快捷切换折叠状态 */
@@ -371,6 +405,8 @@ export interface AppearanceSettings {
   sidebarNameWithDivider: boolean;
   /** 侧边栏歌单显示顺序 */
   sidebarPlaylistOrder: SidebarPlaylistOrder;
+  /** 侧边栏显示播放统计入口 */
+  showStatsInSidebar: boolean;
   /** 播放栏显示快捷音质切换 */
   showQualitySwitch: boolean;
   /** 点击关闭按钮的行为 */
@@ -381,18 +417,28 @@ export interface AppearanceSettings {
   fontFamily: string;
   /** 性能监视器悬浮卡片 */
   showPerformanceMonitor: boolean;
+  /** 页面切换无缝过渡 */
+  seamlessTransition: boolean;
+  /** 歌曲列表样式 */
+  songListStyle: SongListStyle;
+  /** 减少动态效果 */
+  reduceMotion: boolean;
 }
 
 /** 强迫症设置 */
 export interface PresetSettings {
-  /** 跳过指定关键词歌曲 */
-  skipKeywordsSongs: boolean;
-  /** 跳过指定关键词列表 */
-  skipTrackKeywords: string[];
+  /** Fuck DJ Mode */
+  fuckDjMode: boolean;
+  /** Fuck ** Mode */
+  uncensorProfanity: boolean;
   /** 隐藏歌曲列表的 VIP 标签 */
   hideVipTag: boolean;
   /** 隐藏歌曲列表的音质标签 */
   hideQualityTag: boolean;
   /** 显示歌曲副标题（别名） */
   showSubtitle: boolean;
+  /** 列表是否跳过关键词命中的歌曲 */
+  skipKeywordsSongs: boolean;
+  /** 跳过命中关键词的歌曲所用的关键词 */
+  skipTrackKeywords: string[];
 }

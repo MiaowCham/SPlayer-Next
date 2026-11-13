@@ -436,6 +436,7 @@ const emit = defineEmits<{
 onActivated(batch.exit);
 
 defineExpose({
+  sortedItems,
   /** 进入批量管理模式 */
   enterBatch: batch.enter,
 });
@@ -652,6 +653,7 @@ defineExpose({
               </div>
               <div v-if="showAlbum" class="flex-1 min-w-0">{{ t("songList.album") }}</div>
               <div class="w-12 shrink-0 text-center whitespace-nowrap">
+                <slot name="extraHeader" />
                 {{ t("songList.actions") }}
               </div>
               <div v-if="showDuration" class="w-16 shrink-0 text-center">
@@ -855,6 +857,7 @@ defineExpose({
                   {{ item.album?.name || t("collection.unknownAlbum") }}
                 </span>
               </div>
+              <slot name="extra" :item="item" />
               <!-- 收藏 -->
               <div
                 v-if="!batch.active.value && item.source !== 'plugin'"

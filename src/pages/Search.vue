@@ -2,11 +2,14 @@
 defineOptions({ name: "SearchPage" });
 
 import type { PlaybackContext, Track } from "@shared/types/player";
-import { ALL_PLATFORMS, PLATFORM_SHORT_NAME, type Platform } from "@shared/types/platform";
+import { PLATFORM_SHORT_NAME, SEARCH_PLATFORMS, type Platform } from "@shared/types/platform";
 import type { CoverItem } from "@/types/artist";
 import { searchSongs, searchAlbums, searchArtists, searchPlaylists } from "@/apis/search";
+import { hasAppleMusicPlugin } from "@/apis/search/appleMusic";
 import { useStatusStore } from "@/stores/status";
 import { usePluginsStore } from "@/stores/plugins";
+import { useSettingsStore } from "@/stores/settings";
+import { useCoverPlay } from "@/composables/useCoverPlay";
 import { navigateToAlbum, navigateToArtist, navigateToPlaylist } from "@/utils/navigate";
 
 const { t } = useI18n();
@@ -14,6 +17,24 @@ const route = useRoute();
 const router = useRouter();
 const status = useStatusStore();
 const plugins = usePluginsStore();
+const settings = useSettingsStore();
+
+/** Apple Music 搜索地区选项（iTunes 商店） */
+const STOREFRONT_OPTIONS = [
+  { value: "us", label: "US" },
+  { value: "jp", label: "JP" },
+  { value: "cn", label: "CN" },
+  { value: "tw", label: "TW" },
+  { value: "hk", label: "HK" },
+  { value: "kr", label: "KR" },
+  { value: "gb", label: "GB" },
+  { value: "de", label: "DE" },
+  { value: "fr", label: "FR" },
+  { value: "ca", label: "CA" },
+  { value: "au", label: "AU" },
+  { value: "sg", label: "SG" },
+];
+const { playCover, pendingId } = useCoverPlay();
 
 type TabKey = "songs" | "albums" | "artists" | "playlists";
 
@@ -27,15 +48,30 @@ const activeTab = ref<TabKey>("songs");
 /** 当前生效的关键词 */
 const keyword = ref("");
 
-const tabs = computed(() => [
-  { key: "songs", label: t("search.tabs.songs") },
-  { key: "albums", label: t("search.tabs.albums") },
-  { key: "artists", label: t("search.tabs.artists") },
-  { key: "playlists", label: t("search.tabs.playlists") },
-]);
+/** 当前是 Apple Music 内置搜索（只有单曲） */
+const isAppleMusicTab = computed(
+  () => !isPluginTab.value && status.searchPlatform === "appleMusic",
+);
+
+/** 没有音源插件时只能试听，给出提示 */
+const appleMusicPreviewOnly = computed(() => isAppleMusicTab.value && !hasAppleMusicPlugin());
+
+/** 平台切换按标签数量算宽度：STabs 是 w-full 均分，写死宽度会把 4 个平台挤成一坨 */
+const platformTabsWidth = computed(() => `${platformTabs.value.length * 54 + 8}px`);
+
+const tabs = computed(() =>
+  isAppleMusicTab.value
+    ? [{ key: "songs", label: t("search.tabs.songs") }]
+    : [
+        { key: "songs", label: t("search.tabs.songs") },
+        { key: "albums", label: t("search.tabs.albums") },
+        { key: "artists", label: t("search.tabs.artists") },
+        { key: "playlists", label: t("search.tabs.playlists") },
+      ],
+);
 
 const platformTabs = computed(() => [
-  ...ALL_PLATFORMS.map((key) => ({ key, label: PLATFORM_SHORT_NAME[key] })),
+  ...SEARCH_PLATFORMS.map((key) => ({ key, label: PLATFORM_SHORT_NAME[key] })),
   ...(pluginSources.value.length ? [{ key: "plugin", label: t("search.plugins") }] : []),
 ]);
 const pluginSources = computed(() => {
@@ -275,14 +311,27 @@ const onPlatformSwitch = (key: string): void => {
         pluginSources.value[0])
       : undefined;
   if (key !== "plugin") status.searchPlatform = key as Platform;
+  // Apple Music 只有单曲分类，切过去时把 tab 拉回单曲
+  const nextTab = key === "appleMusic" ? "songs" : activeTab.value;
   router.replace({
     query: {
       ...route.query,
+      tab: nextTab,
       platform: key === "plugin" ? "plugin" : undefined,
       plugin: source?.pluginId,
       source: source?.source,
     },
   });
+};
+
+/**
+ * 切换 Apple Music 搜索地区
+ * @param value - 两位国家码
+ */
+const onStorefrontSwitch = (value: string | number | boolean): void => {
+  settings.player.appleMusicStorefront = String(value);
+  resetStates();
+  if (keyword.value) fetchTab("songs", false);
 };
 
 /**
@@ -332,6 +381,22 @@ const playbackContext = computed<PlaybackContext>(() => ({
   originType: "page",
   originName: keyword.value ? `${t("search.title")}: ${keyword.value}` : t("search.title"),
 }));
+
+/**
+ * 直接播放搜索结果中的专辑
+ * @param item - 专辑封面条目
+ */
+const playAlbum = (item: CoverItem): void => {
+  void playCover(item, { source: status.searchPlatform, type: "album" });
+};
+
+/**
+ * 直接播放搜索结果中的歌单
+ * @param item - 歌单封面条目
+ */
+const playPlaylist = (item: CoverItem): void => {
+  void playCover(item, { source: status.searchPlatform, type: "playlist" });
+};
 </script>
 
 <template>
@@ -351,10 +416,10 @@ const playbackContext = computed<PlaybackContext>(() => ({
           </span>
         </h1>
         <!-- 平台切换 -->
-        <div class="shrink-0 flex items-center">
+        <div class="shrink-0 flex items-center gap-2">
           <div
             class="transition-[width] duration-200 ease-out motion-reduce:transition-none"
-            :class="pluginSources.length ? 'w-56' : 'w-40'"
+            :style="{ width: platformTabsWidth }"
           >
             <STabs
               :model-value="selectedPlatform"
@@ -365,21 +430,33 @@ const playbackContext = computed<PlaybackContext>(() => ({
             />
           </div>
           <Transition name="plugin-source">
-            <div v-if="isPluginTab" class="ml-2 w-40 shrink-0">
-              <div class="w-40">
-                <SSelect
-                  :model-value="selectedSource"
-                  :options="sourceOptions"
-                  :placeholder="t('search.pluginSource')"
-                  round
-                  @update:model-value="onPluginSourceSwitch"
-                />
-              </div>
+            <div v-if="isPluginTab" class="w-40 shrink-0">
+              <SSelect
+                :model-value="selectedSource"
+                :options="sourceOptions"
+                :placeholder="t('search.pluginSource')"
+                round
+                @update:model-value="onPluginSourceSwitch"
+              />
+            </div>
+          </Transition>
+          <Transition name="plugin-source">
+            <div v-if="isAppleMusicTab" class="w-24 shrink-0">
+              <SSelect
+                :model-value="settings.player.appleMusicStorefront"
+                :options="STOREFRONT_OPTIONS"
+                :placeholder="t('search.storefront')"
+                round
+                @update:model-value="onStorefrontSwitch"
+              />
             </div>
           </Transition>
         </div>
       </div>
       <STabs :model-value="activeTab" :tabs="tabs" @update:model-value="onTabSwitch" />
+      <div v-if="appleMusicPreviewOnly" class="mt-2 text-xs text-on-surface-variant/70">
+        {{ t("search.appleMusicPreviewOnly") }}
+      </div>
     </div>
     <!-- 空关键词 -->
     <div v-if="!keyword" class="flex-1 flex items-center justify-center">
@@ -444,9 +521,12 @@ const playbackContext = computed<PlaybackContext>(() => ({
         :padding-bottom="20"
         :has-more="states.albums.hasMore"
         :loading-more="states.albums.loadingMore"
+        playable
+        :pending-id="pendingId"
         @click="
           (item) => navigateToAlbum(item.title, { source: status.searchPlatform, albumId: item.id })
         "
+        @play="playAlbum"
         @reach-bottom="onReachBottom('albums')"
       />
       <CoverList
@@ -473,9 +553,12 @@ const playbackContext = computed<PlaybackContext>(() => ({
         :padding-bottom="20"
         :has-more="states.playlists.hasMore"
         :loading-more="states.playlists.loadingMore"
+        playable
+        :pending-id="pendingId"
         @click="
           (item) => navigateToPlaylist(item.id, { source: status.searchPlatform, name: item.title })
         "
+        @play="playPlaylist"
         @reach-bottom="onReachBottom('playlists')"
       />
     </div>

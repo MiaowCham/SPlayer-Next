@@ -2,12 +2,16 @@
 import type { SImgProps } from "@/components/ui/SImg.vue";
 import defaultFallback from "@/assets/images/song.jpg";
 
-const props = withDefaults(defineProps<SImgProps>(), {
+const props = withDefaults(defineProps<SImgProps & { crossfade?: boolean }>(), {
   fallback: defaultFallback,
   alt: "",
+  crossfade: true,
 });
 
 const loaded = ref(false);
+/** 上一张封面：换图时保留在底层，新图淡入覆盖，形成交叉淡化 */
+const previousSrc = ref<string | null>(null);
+let previousClearTimer: ReturnType<typeof setTimeout> | undefined;
 /** 缩略图本身失效时退回内置占位图，避免播放器持续显示破图 */
 const fallbackSrc = ref(props.fallback || defaultFallback);
 
@@ -20,8 +24,11 @@ watch(
 
 watch(
   () => props.src,
-  () => {
+  (value, oldValue) => {
     loaded.value = false;
+    if (props.crossfade && oldValue && value && oldValue !== value) {
+      previousSrc.value = oldValue;
+    }
   },
 );
 
@@ -36,8 +43,21 @@ const handleLoad = async (event: Event): Promise<void> => {
   } catch {
     return;
   }
-  if (image.getAttribute("src") === props.src) loaded.value = true;
+  if (image.getAttribute("src") !== props.src) return;
+  loaded.value = true;
+  // 交叉淡化结束后移除底层旧图
+  if (previousSrc.value) {
+    if (previousClearTimer) clearTimeout(previousClearTimer);
+    previousClearTimer = setTimeout(() => {
+      previousSrc.value = null;
+      previousClearTimer = undefined;
+    }, 520);
+  }
 };
+
+onUnmounted(() => {
+  if (previousClearTimer) clearTimeout(previousClearTimer);
+});
 
 /** 兜底图加载失败时改用内置占位图 */
 const handleFallbackError = (): void => {
@@ -56,12 +76,20 @@ const handleFallbackError = (): void => {
       @error="handleFallbackError"
     />
     <img
+      v-if="previousSrc"
+      :src="previousSrc"
+      :alt="alt"
+      class="absolute inset-0 size-full object-cover"
+      aria-hidden="true"
+      decoding="async"
+    />
+    <img
       v-if="src"
       :key="src"
       :src="src"
       :alt="alt"
       data-cover-image
-      class="absolute inset-0 size-full object-cover"
+      class="absolute inset-0 size-full object-cover transition-opacity duration-500 ease-out"
       :style="{ opacity: loaded ? 1 : 0 }"
       loading="eager"
       decoding="async"

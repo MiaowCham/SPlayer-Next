@@ -19,6 +19,7 @@ import { getValidArtists } from "@shared/utils/track";
 import { applyLyricCjkTransform } from "@/utils/lyric/cjkTransform";
 import { buildLyricEnhancementRequest } from "@/services/lyric/enhancement";
 import { hideChinesePronunciation } from "@/utils/lyric/hideChinesePronunciation";
+import { applyProfanityUncensor } from "@/utils/preset/profanity";
 
 export const useMediaStore = defineStore("media", () => {
   watchLyricPreference();
@@ -50,6 +51,9 @@ export const useMediaStore = defineStore("media", () => {
 
   /** 当前歌词格式 */
   const lyricFormat = computed((): LyricFormat | null => activeLyric.value?.format ?? null);
+
+  /** 当前歌词是否带逐字时间轴 */
+  const wordTimed = computed(() => activeLyric.value?.wordTimed ?? false);
 
   /** 当前歌词解析结果 */
   const parsedLyric = shallowRef<LyricLine[]>([]);
@@ -211,6 +215,7 @@ export const useMediaStore = defineStore("media", () => {
     () => [
       useSettingsStore().lyric.chineseScriptPreference,
       useSettingsStore().lyric.hideChinesePronunciation,
+      useSettingsStore().preset.uncensorProfanity,
       useSettingsStore().lyric.llmTranslation,
       useSettingsStore().lyric.pronunciationOptimization,
       useSettingsStore().locale,
@@ -220,6 +225,17 @@ export const useMediaStore = defineStore("media", () => {
         setLyric(activeLyric.value, lyricContent.value);
       }
     },
+  );
+
+  // 为播放器弹层复用当前封面缩略图
+  watch(
+    () => track.value?.cover,
+    (cover) => {
+      const root = document.documentElement;
+      if (cover) root.style.setProperty("--s-track-cover", `url(${JSON.stringify(cover)})`);
+      else root.style.removeProperty("--s-track-cover");
+    },
+    { immediate: true },
   );
 
   /**
@@ -244,7 +260,7 @@ export const useMediaStore = defineStore("media", () => {
         });
         nextLines = applyLyricExclude(lines, track.value);
         normalizeLyricLines(nextLines);
-        // Fuck Mode
+        if (settings.preset.uncensorProfanity) applyProfanityUncensor(nextLines);
         applyLyricLanguages(nextLines);
       } catch (e) {
         console.error("[media] parse lyric failed:", e);
@@ -253,7 +269,10 @@ export const useMediaStore = defineStore("media", () => {
     }
     // 解析后无有效行视作无歌词
     const hasContent = nextLines.length > 0;
-    activeLyric.value = hasContent ? source : null;
+    const hasWordTiming = nextLines.some(
+      (line) => line.words.length > 1 && line.words.some((word) => word.endTime > word.startTime),
+    );
+    activeLyric.value = hasContent && source ? { ...source, wordTimed: hasWordTiming } : null;
     lyricContent.value = hasContent ? input : null;
     // 首次字典加载期间不先广播未过滤发音，避免多个歌词窗口短暂闪出拼音。
     parsedLyric.value = settings.lyric.hideChinesePronunciation ? [] : nextLines;
@@ -381,6 +400,7 @@ export const useMediaStore = defineStore("media", () => {
     activeLyric,
     lyricContent,
     lyricFormat,
+    wordTimed,
     parsedLyric,
     lyricAuthors,
     lyricAuthorKind,
