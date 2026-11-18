@@ -435,6 +435,8 @@ export interface PresetSettings {
   hideVipTag: boolean;
   /** 隐藏歌曲列表的音质标签 */
   hideQualityTag: boolean;
+  /** 隐藏歌曲列表的脏标（Explicit 标记） */
+  hideExplicitTag: boolean;
   /** 显示歌曲副标题（别名） */
   showSubtitle: boolean;
   /** 列表是否跳过关键词命中的歌曲 */

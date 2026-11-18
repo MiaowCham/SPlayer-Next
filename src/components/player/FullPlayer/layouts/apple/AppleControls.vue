@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Artist } from "@shared/types/player";
+import ExplicitTag from "@/components/list/ExplicitTag.vue";
 import { useStatusStore } from "@/stores/status";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
@@ -246,6 +247,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
       <div class="flex-1 min-w-0">
         <SMarquee class="w-full min-w-0 font-medium tracking-[0.4px] text-cover/90">
           {{ displayTrack?.title }}
+          <ExplicitTag :explicit="displayTrack?.explicit" class="ml-1" />
         </SMarquee>
         <SDropdownMenu
           :items="artistMenuItems"
