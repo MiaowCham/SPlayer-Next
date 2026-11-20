@@ -247,7 +247,7 @@ const { items: menuItems, handleSelect: onMenuSelect } = useTrackMenu(toRef(medi
       <div class="flex-1 min-w-0">
         <SMarquee class="w-full min-w-0 font-medium tracking-[0.4px] text-cover/90">
           {{ displayTrack?.title }}
-          <ExplicitTag :explicit="displayTrack?.explicit" class="ml-1" />
+          <ExplicitTag :explicit="displayTrack?.explicit" tinted class="ml-1" />
         </SMarquee>
         <SDropdownMenu
           :items="artistMenuItems"
