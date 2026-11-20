@@ -2,6 +2,7 @@
 import type { Track } from "@shared/types/player";
 import type { SVirtualListExposed } from "@/components/ui/SVirtualList.vue";
 import { useQueuePanel } from "@/composables/useQueuePanel";
+import ExplicitTag from "@/components/list/ExplicitTag.vue";
 import * as player from "@/core/player";
 
 defineEmits<{ close: [] }>();
@@ -122,6 +123,7 @@ const {
               <div class="flex-1 min-w-0">
                 <div class="text-base font-medium leading-snug flex items-center gap-1.5">
                   <span class="truncate">{{ item.title }}</span>
+                  <ExplicitTag :explicit="item.explicit" tinted />
                   <span
                     v-if="item.recommended && !item.moreRcmd"
                     class="shrink-0 rounded px-1 text-[10px] leading-4 bg-cover/12 text-cover/70"
