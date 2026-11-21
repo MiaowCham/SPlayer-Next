@@ -17,6 +17,7 @@ import type {
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
 import type {
   LoadOptions,
+  MotionCoverCacheRecord,
   Track,
   TrackSource,
   TransitionPreference,
@@ -755,6 +756,13 @@ const api = {
     // 解析曲目的动态封面
     resolve: (track: unknown, source: string): Promise<string | null> =>
       ipcRenderer.invoke("motionCover:resolve", track, source),
+    // 列出动态封面匹配缓存
+    listCache: (): Promise<MotionCoverCacheRecord[]> => ipcRenderer.invoke("motionCover:listCache"),
+    // 删除单条匹配缓存
+    deleteCache: (fingerprint: string): Promise<void> =>
+      ipcRenderer.invoke("motionCover:deleteCache", fingerprint),
+    // 清空全部匹配缓存
+    clearCache: (): Promise<void> => ipcRenderer.invoke("motionCover:clearCache"),
   },
   theme: {
     // 弹出文件选择框

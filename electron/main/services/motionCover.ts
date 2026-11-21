@@ -472,7 +472,7 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
   }
   /** 记住这张专辑的结果，后续同专辑曲目直接命中 */
   const rememberAlbum = (video: string | null): void => {
-    if (appAlbumKey) setMotionCoverRecord(appAlbumKey, video);
+    if (appAlbumKey) setMotionCoverRecord(appAlbumKey, video, track);
   };
   const candidates = await searchCandidates(track, signal);
   let passed = 0;
@@ -501,7 +501,7 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
         motionCoverLog.info(
           `${track.title}：候选 ${stored.candidate.name} cid=${collectionId} video=${video ? "yes" : "no"}`,
         );
-        setMotionCoverRecord(collectionKey, video);
+        setMotionCoverRecord(collectionKey, video, track);
       } catch (err) {
         if ((err as Error).name === "AbortError") throw err;
         motionCoverLog.warn(
@@ -511,12 +511,12 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
       }
     }
     if (!video) {
-      if (appleKey) setMotionCoverRecord(appleKey, null);
+      if (appleKey) setMotionCoverRecord(appleKey, null, track);
       continue;
     }
     // 专辑名一致，或一方是另一方的前缀（同名专辑的不同版本/合集）
     if (album && isSameAlbumName(album, stored.candidate.album)) {
-      if (appleKey) setMotionCoverRecord(appleKey, video);
+      if (appleKey) setMotionCoverRecord(appleKey, video, track);
       rememberAlbum(video);
       return video;
     }
@@ -525,7 +525,7 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
     if (!artwork) continue;
     if (await isSameArtwork(coverUrl, artwork, signal)) {
       motionCoverLog.info(`${track.title}：近似专辑封面匹配 ${stored.candidate.album}`);
-      if (appleKey) setMotionCoverRecord(appleKey, video);
+      if (appleKey) setMotionCoverRecord(appleKey, video, track);
       rememberAlbum(video);
       return video;
     }
@@ -685,7 +685,7 @@ const resolveAmUncached = async (track: Track, signal: AbortSignal): Promise<str
   }
   if (videoUrl === undefined) {
     videoUrl = await matchVideoUrl(track, signal);
-    setMotionCoverRecord(key, videoUrl);
+    setMotionCoverRecord(key, videoUrl, track);
     if (!videoUrl) return null;
     // 同专辑其他曲目可能已下载过
     const shared = await cachedAm(track, key);

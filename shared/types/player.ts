@@ -246,6 +246,15 @@ export type TransitionPreference = "conservative" | "standard" | "eager";
 /** 动态封面来源 */
 export type MotionCoverSource = "off" | "ncm" | "ncmFirst" | "am" | "amFirst";
 
+/** 动态封面匹配缓存记录 */
+export interface MotionCoverCacheRecord {
+  fingerprint: string;
+  videoUrl: string | null;
+  matchedAt: number;
+  /** 写入缓存时的曲目信息，搜索结果缓存没有 */
+  track?: Track;
+}
+
 export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }
   | { type: "position"; data: { position: number; duration: number } }
