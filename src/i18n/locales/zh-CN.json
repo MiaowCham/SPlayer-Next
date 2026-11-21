@@ -811,7 +811,8 @@
       "more": "更多操作",
       "copyTitle": "复制歌曲名称",
       "copyId": "复制歌曲 ID",
-      "copyUrl": "分享歌曲链接"
+      "copyUrl": "分享歌曲链接",
+      "manageMotionCover": "封面管理"
     },
     "batch": {
       "manage": "批量管理",
@@ -3051,5 +3052,53 @@
     "toast": {
       "added": "已添加到播放列表"
     }
+  },
+  "motionCoverManager": {
+    "open": "封面管理",
+    "title": "封面管理",
+    "searchPlaceholder": "搜索歌曲或缓存键",
+    "clearAll": "清空全部",
+    "empty": "暂无匹配记录",
+    "matchedAt": "匹配于 {time}",
+    "expired": "已过期",
+    "active": "有效",
+    "noCover": "无动态封面",
+    "delete": "删除",
+    "deleteTitle": "删除这条匹配？",
+    "deleteContent": "删除后下次播放会重新匹配。",
+    "deleteFailed": "删除失败",
+    "clearTitle": "清空动态封面缓存？",
+    "clearContent": "全部匹配记录将被删除，下次播放重新匹配。",
+    "clearDone": "已清空动态封面缓存",
+    "clearFailed": "清空失败",
+    "copyUrl": "复制地址",
+    "types": {
+      "track": "曲目",
+      "album": "专辑",
+      "appleTrack": "Apple 曲目",
+      "collection": "Apple 专辑",
+      "other": "其他"
+    },
+    "tabs": {
+      "cache": "缓存记录",
+      "search": "搜索封面"
+    },
+    "manualActive": "已手动指定",
+    "restoreAuto": "恢复自动",
+    "search": "搜索",
+    "searchFailed": "搜索失败",
+    "searchEmpty": "没有搜索结果，换个关键词试试",
+    "sources": {
+      "ncm": "网易云",
+      "am": "Apple Music"
+    },
+    "preview": "预览",
+    "previewFailed": "预览失败",
+    "previewAmHint": "Apple Music 预览地址已复制，应用后会下载缓存",
+    "apply": "应用",
+    "applied": "已应用动态封面",
+    "applyFailed": "操作失败",
+    "clearManualDone": "已恢复自动匹配",
+    "noTrack": "请先播放一首歌"
   }
 }

@@ -24,13 +24,19 @@ import {
 import { callNetease } from "@main/apis/netease";
 import { buildFingerprint } from "@main/database/lyricMatchCache";
 import { getMotionCoverRecord, setMotionCoverRecord } from "@main/database/motionCoverCache";
+import { getManualMotionCover, setManualMotionCover } from "@main/database/motionCoverManual";
 import { store } from "@main/store";
 import { getMotionCoverCacheDir } from "@main/utils/config";
 import { convertTexts } from "@main/services/opencc";
 import { motionCoverLog } from "@main/utils/logger";
 import { getDeveloperToken } from "@main/services/appleMusicLyrics";
 import { toCacheUrl } from "@main/utils/protocol";
-import type { MotionCoverSource, Track } from "@shared/types/player";
+import type {
+  MotionCoverManualRecord,
+  MotionCoverSearchCandidate,
+  MotionCoverSource,
+  Track,
+} from "@shared/types/player";
 
 /** 假名：日文曲目的判定依据 */
 const KANA_RE = /[\p{Script=Hiragana}\p{Script=Katakana}\u30FC\uFF66-\uFF9F]/u;
@@ -99,6 +105,7 @@ const USER_AGENT =
 
 /** iTunes Search 单曲结果 */
 interface ItunesSong {
+  artworkUrl100?: string;
   trackName?: string;
   artistName?: string;
   collectionName?: string;
@@ -472,7 +479,7 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
   }
   /** 记住这张专辑的结果，后续同专辑曲目直接命中 */
   const rememberAlbum = (video: string | null): void => {
-    if (appAlbumKey) setMotionCoverRecord(appAlbumKey, video);
+    if (appAlbumKey) setMotionCoverRecord(appAlbumKey, video, track);
   };
   const candidates = await searchCandidates(track, signal);
   let passed = 0;
@@ -501,7 +508,7 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
         motionCoverLog.info(
           `${track.title}：候选 ${stored.candidate.name} cid=${collectionId} video=${video ? "yes" : "no"}`,
         );
-        setMotionCoverRecord(collectionKey, video);
+        setMotionCoverRecord(collectionKey, video, track);
       } catch (err) {
         if ((err as Error).name === "AbortError") throw err;
         motionCoverLog.warn(
@@ -511,12 +518,12 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
       }
     }
     if (!video) {
-      if (appleKey) setMotionCoverRecord(appleKey, null);
+      if (appleKey) setMotionCoverRecord(appleKey, null, track);
       continue;
     }
     // 专辑名一致，或一方是另一方的前缀（同名专辑的不同版本/合集）
     if (album && isSameAlbumName(album, stored.candidate.album)) {
-      if (appleKey) setMotionCoverRecord(appleKey, video);
+      if (appleKey) setMotionCoverRecord(appleKey, video, track);
       rememberAlbum(video);
       return video;
     }
@@ -525,7 +532,7 @@ const matchVideoUrl = async (track: Track, signal: AbortSignal): Promise<string 
     if (!artwork) continue;
     if (await isSameArtwork(coverUrl, artwork, signal)) {
       motionCoverLog.info(`${track.title}：近似专辑封面匹配 ${stored.candidate.album}`);
-      if (appleKey) setMotionCoverRecord(appleKey, video);
+      if (appleKey) setMotionCoverRecord(appleKey, video, track);
       rememberAlbum(video);
       return video;
     }
@@ -685,7 +692,7 @@ const resolveAmUncached = async (track: Track, signal: AbortSignal): Promise<str
   }
   if (videoUrl === undefined) {
     videoUrl = await matchVideoUrl(track, signal);
-    setMotionCoverRecord(key, videoUrl);
+    setMotionCoverRecord(key, videoUrl, track);
     if (!videoUrl) return null;
     // 同专辑其他曲目可能已下载过
     const shared = await cachedAm(track, key);
@@ -805,6 +812,143 @@ const resolveNcm = async (track: Track, fingerprint: string): Promise<string | n
 };
 
 /**
+ * 确保手动指定的 AM 动态封面已下载到缓存
+ * @param videoUrl - AM 主列表地址
+ * @returns 可直接播放的缓存地址
+ */
+const ensureManualAmCached = async (videoUrl: string): Promise<string> => {
+  const file = clipPath(videoUrl);
+  if (existsSync(file)) {
+    const now = new Date();
+    await fs.utimes(file, now, now);
+    return toCacheUrl(file) ?? videoUrl;
+  }
+  const controller = new AbortController();
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const variant = await pickVariant(videoUrl, controller.signal);
+  const mp4 = await resolveMp4Url(variant, controller.signal);
+  await download(mp4, file, controller.signal);
+  await trimCache(path.dirname(file));
+  return toCacheUrl(file) ?? videoUrl;
+};
+
+/**
+ * 搜索网易云动态封面候选
+ * @param keyword - 搜索关键词
+ * @returns 候选列表
+ */
+export const searchNcmMotionCovers = async (
+  keyword: string,
+): Promise<MotionCoverSearchCandidate[]> => {
+  const term = keyword.trim();
+  if (!term) return [];
+  const { body } = await callNetease("cloudsearch", { keywords: term, type: 1, limit: 20 });
+  const songs =
+    (
+      body as {
+        result?: {
+          songs?: {
+            id: number;
+            name: string;
+            ar?: { name: string }[];
+            al?: { name?: string; picUrl?: string };
+            dt?: number;
+          }[];
+        };
+      }
+    )?.result?.songs ?? [];
+  return songs.map((song) => ({
+    id: String(song.id),
+    source: "ncm" as const,
+    title: song.name,
+    artist: (song.ar ?? []).map((artist) => artist.name).join(" / "),
+    album: song.al?.name,
+    cover: song.al?.picUrl,
+    duration: song.dt,
+  }));
+};
+
+/**
+ * 搜索 Apple Music 动态封面候选
+ * @param keyword - 搜索关键词
+ * @param storefront - 商店地区
+ * @returns 候选列表
+ */
+export const searchAmMotionCovers = async (
+  keyword: string,
+  storefront: string,
+): Promise<MotionCoverSearchCandidate[]> => {
+  const term = keyword.trim();
+  if (!term) return [];
+  const controller = new AbortController();
+  const songs = await searchItunes(term, storefront, controller.signal);
+  return songs
+    .filter((song) => song.collectionId)
+    .map((song) => ({
+      id: String(song.collectionId),
+      source: "am" as const,
+      title: song.trackName ?? "",
+      artist: song.artistName ?? "",
+      album: song.collectionName,
+      cover: song.artworkUrl100?.replace(/\/\d+x\d+bb\./, "/300x300bb."),
+      duration: song.trackTimeMillis,
+      storefront,
+      collectionId: song.collectionId,
+      trackId: song.trackId,
+    }));
+};
+
+/**
+ * 解析候选的动态封面地址，用于预览或手动应用
+ * @param candidate - 搜索候选
+ * @returns 视频地址
+ */
+export const resolveMotionCoverCandidate = async (
+  candidate: MotionCoverSearchCandidate,
+): Promise<string | null> => {
+  if (candidate.source === "ncm") {
+    const { body } = await callNetease("song_dynamic_cover", { id: candidate.id });
+    return (body as { data?: { videoPlayUrl?: string } } | undefined)?.data?.videoPlayUrl ?? null;
+  }
+  if (!candidate.collectionId || !candidate.storefront) return null;
+  const controller = new AbortController();
+  const info = await fetchAlbumInfo(
+    candidate.collectionId,
+    candidate.storefront,
+    controller.signal,
+  );
+  return info.video;
+};
+
+/**
+ * 应用手动指定的动态封面，AM 会先下载到本地缓存
+ * @param track - 目标曲目
+ * @param candidate - 搜索候选
+ * @returns 已保存的手动记录
+ */
+export const applyManualMotionCover = async (
+  track: Track,
+  candidate: MotionCoverSearchCandidate,
+): Promise<MotionCoverManualRecord> => {
+  const videoUrl = await resolveMotionCoverCandidate(candidate);
+  if (!videoUrl) throw new Error("该候选没有可用的动态封面");
+  let url = videoUrl;
+  if (candidate.source === "am") url = await ensureManualAmCached(videoUrl);
+  const record: MotionCoverManualRecord = {
+    source: candidate.source,
+    url,
+    videoUrl: candidate.source === "am" ? videoUrl : undefined,
+    title: candidate.title,
+    artist: candidate.artist,
+    album: candidate.album,
+    cover: candidate.cover,
+    updatedAt: Date.now(),
+  };
+  setManualMotionCover(track, record);
+  return record;
+};
+
+/**
  * 获取曲目的动态封面
  * @param track - 曲目
  * @param source - 来源模式
@@ -814,6 +958,20 @@ export const resolveMotionCover = async (
   track: Track,
   source: MotionCoverSource,
 ): Promise<string | null> => {
+  // 手动指定的封面优先于自动匹配和来源开关
+  const manual = getManualMotionCover(track);
+  if (manual) {
+    if (manual.source === "ncm" && manual.url) return manual.url;
+    if (manual.videoUrl) {
+      try {
+        return await ensureManualAmCached(manual.videoUrl);
+      } catch (err) {
+        motionCoverLog.warn(`手动封面缓存失败，回退自动匹配: ${(err as Error).message}`);
+      }
+    } else if (manual.url) {
+      return manual.url;
+    }
+  }
   if (source === "off" || !track.title || track.artists.length === 0) return null;
   const fingerprint = `${CACHE_VERSION}|${buildFingerprint(track)}`;
   // 并发去重按「曲目 + 专辑」区分，避免同曲目跨专辑时复用错任务

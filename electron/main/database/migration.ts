@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 
 /** 当前 schema 版本 */
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 10;
 
 type TableInfoRow = { name: string };
 
@@ -93,6 +93,25 @@ export const migrate = (d: Database.Database): void => {
       );
     `);
     v = 8;
+  }
+
+  if (v < 9) {
+    if (!hasColumn(d, "motion_cover_cache", "track_json")) {
+      d.exec("ALTER TABLE motion_cover_cache ADD COLUMN track_json TEXT");
+    }
+    v = 9;
+  }
+
+  if (v < 10) {
+    d.exec(`
+      CREATE TABLE IF NOT EXISTS motion_cover_manual (
+        track_key TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+    `);
+    v = 10;
   }
 
   // 版本无关部分

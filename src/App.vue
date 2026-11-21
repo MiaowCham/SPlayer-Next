@@ -16,5 +16,6 @@ watchEffect(() => {
   <AppBackground />
   <RouterView />
   <LyricTrackManagerDialog />
+  <MotionCoverManagerDialog />
   <DeviceLatencyDialog />
 </template>

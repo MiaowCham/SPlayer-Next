@@ -9,6 +9,7 @@ import { usePluginsStore } from "@/stores/plugins";
 import { useStatusStore } from "@/stores/status";
 import { useCopyText } from "@/composables/useCopyText";
 import { useLyricTrackManagerDialog } from "@/composables/useLyricTrackManagerDialog";
+import { useMotionCoverManagerDialog } from "@/composables/useMotionCoverManagerDialog";
 import { useTrackMoreMenu } from "@/composables/useTrackMoreMenu";
 import { toast } from "@/composables/useToast";
 import { buildDownloadQualityItems } from "@/composables/useDownload";
@@ -26,6 +27,7 @@ import IconCloudOff from "~icons/lucide/cloud-off";
 import IconSearch from "~icons/lucide/search";
 import IconMessageCircle from "~icons/lucide/message-circle";
 import IconFilePenLine from "~icons/lucide/file-pen-line";
+import IconClapperboard from "~icons/lucide/clapperboard";
 import IconPuzzle from "~icons/lucide/puzzle";
 
 export interface TrackMenuOptions {
@@ -67,6 +69,7 @@ export const useTrackMenu = (
   const plugins = usePluginsStore();
   const { copy } = useCopyText();
   const lyricManager = useLyricTrackManagerDialog();
+  const motionCoverManager = useMotionCoverManagerDialog();
   const { item: moreMenuItem, handleSelect: handleMoreSelect } = useTrackMoreMenu(track);
   const isPlaylist = options.collectionType === "playlist";
   const isCloudView = options.collectionType === "cloud";
@@ -159,6 +162,11 @@ export const useTrackMenu = (
         icon: markRaw(IconFilePenLine),
         separator: true,
       },
+      {
+        key: "manageMotionCover",
+        label: t("songList.context.manageMotionCover"),
+        icon: markRaw(IconClapperboard),
+      },
       moreMenuItem.value,
     ];
     // 插件贡献：每个有 ui 权限的插件折叠成一个以插件名命名的子菜单
@@ -249,6 +257,9 @@ export const useTrackMenu = (
         break;
       case "manageLyrics":
         lyricManager.show(current, "context-menu");
+        break;
+      case "manageMotionCover":
+        motionCoverManager.show(current, current.title);
         break;
     }
   };

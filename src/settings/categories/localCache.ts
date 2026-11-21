@@ -1,6 +1,7 @@
 import type { SettingCategory } from "@/types/settings-schema";
 import { useSettingsStore } from "@/stores/settings";
 import FileCacheManager from "@/components/settings/custom/FileCacheManager.vue";
+import MotionCoverManager from "@/components/settings/custom/MotionCoverManager.vue";
 import DbCacheManager from "@/components/settings/custom/DbCacheManager.vue";
 import IconLucideHardDrive from "~icons/lucide/hard-drive";
 
@@ -73,6 +74,12 @@ const localCacheCategory: SettingCategory = {
             { value: 1024, label: "1 GB" },
           ],
           defaultValue: 300,
+        },
+        {
+          key: "motionCoverManager",
+          type: "custom",
+          component: MotionCoverManager,
+          fullWidth: true,
         },
         {
           key: "fileCacheManager",

@@ -811,7 +811,8 @@
       "more": "More",
       "copyTitle": "Copy Title",
       "copyId": "Copy Song ID",
-      "copyUrl": "Share Song Link"
+      "copyUrl": "Share Song Link",
+      "manageMotionCover": "Cover manager"
     },
     "batch": {
       "manage": "Batch Manage",
@@ -3051,5 +3052,53 @@
     "toast": {
       "added": "Added to play queue"
     }
+  },
+  "motionCoverManager": {
+    "open": "Cover manager",
+    "title": "Cover manager",
+    "searchPlaceholder": "Search songs or cache keys",
+    "clearAll": "Clear all",
+    "empty": "No cached matches",
+    "matchedAt": "Matched at {time}",
+    "expired": "Expired",
+    "active": "Active",
+    "noCover": "No dynamic cover",
+    "delete": "Delete",
+    "deleteTitle": "Delete this match?",
+    "deleteContent": "The next playback will match again.",
+    "deleteFailed": "Failed to delete",
+    "clearTitle": "Clear dynamic cover cache?",
+    "clearContent": "All cached matches will be removed and matched again on next playback.",
+    "clearDone": "Dynamic cover cache cleared",
+    "clearFailed": "Failed to clear",
+    "copyUrl": "Copy URL",
+    "types": {
+      "track": "Track",
+      "album": "Album",
+      "appleTrack": "Apple track",
+      "collection": "Apple album",
+      "other": "Other"
+    },
+    "tabs": {
+      "cache": "Cached",
+      "search": "Search"
+    },
+    "manualActive": "Manually set",
+    "restoreAuto": "Restore auto",
+    "search": "Search",
+    "searchFailed": "Search failed",
+    "searchEmpty": "No results, try another keyword",
+    "sources": {
+      "ncm": "NetEase",
+      "am": "Apple Music"
+    },
+    "preview": "Preview",
+    "previewFailed": "Preview failed",
+    "previewAmHint": "Apple Music preview URL copied; the video downloads after applying",
+    "apply": "Apply",
+    "applied": "Dynamic cover applied",
+    "applyFailed": "Operation failed",
+    "clearManualDone": "Restored automatic matching",
+    "noTrack": "Play a track first"
   }
 }

@@ -17,6 +17,10 @@ import type {
 import type { HotkeyActionId, HotkeyBinding, HotkeyConflict } from "@shared/types/hotkey";
 import type {
   LoadOptions,
+  MotionCoverCacheRecord,
+  MotionCoverManualRecord,
+  MotionCoverSearchCandidate,
+  MotionCoverSearchSource,
   Track,
   TrackSource,
   TransitionPreference,
@@ -755,6 +759,35 @@ const api = {
     // 解析曲目的动态封面
     resolve: (track: unknown, source: string): Promise<string | null> =>
       ipcRenderer.invoke("motionCover:resolve", track, source),
+    // 列出动态封面匹配缓存
+    listCache: (): Promise<MotionCoverCacheRecord[]> => ipcRenderer.invoke("motionCover:listCache"),
+    // 删除单条匹配缓存
+    deleteCache: (fingerprint: string): Promise<void> =>
+      ipcRenderer.invoke("motionCover:deleteCache", fingerprint),
+    // 清空全部匹配缓存
+    clearCache: (): Promise<void> => ipcRenderer.invoke("motionCover:clearCache"),
+    // 搜索动态封面候选
+    search: (
+      source: MotionCoverSearchSource,
+      keyword: string,
+      storefront: string,
+    ): Promise<MotionCoverSearchCandidate[]> =>
+      ipcRenderer.invoke("motionCover:search", source, keyword, storefront),
+    // 解析候选的动态封面地址
+    preview: (candidate: MotionCoverSearchCandidate): Promise<string | null> =>
+      ipcRenderer.invoke("motionCover:preview", candidate),
+    // 应用为当前曲目的手动封面
+    applyManual: (
+      track: Track,
+      candidate: MotionCoverSearchCandidate,
+    ): Promise<MotionCoverManualRecord> =>
+      ipcRenderer.invoke("motionCover:applyManual", track, candidate),
+    // 读取当前曲目的手动封面
+    getManual: (track: Track): Promise<MotionCoverManualRecord | null> =>
+      ipcRenderer.invoke("motionCover:getManual", track),
+    // 清除当前曲目的手动封面
+    clearManual: (track: Track): Promise<void> =>
+      ipcRenderer.invoke("motionCover:clearManual", track),
   },
   theme: {
     // 弹出文件选择框
