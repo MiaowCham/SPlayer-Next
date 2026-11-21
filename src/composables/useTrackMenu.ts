@@ -259,7 +259,7 @@ export const useTrackMenu = (
         lyricManager.show(current, "context-menu");
         break;
       case "manageMotionCover":
-        motionCoverManager.show(current.title);
+        motionCoverManager.show(current, current.title);
         break;
     }
   };

@@ -255,6 +255,38 @@ export interface MotionCoverCacheRecord {
   track?: Track;
 }
 
+/** 动态封面搜索来源 */
+export type MotionCoverSearchSource = "ncm" | "am";
+
+/** 动态封面搜索结果 */
+export interface MotionCoverSearchCandidate {
+  id: string;
+  source: MotionCoverSearchSource;
+  title: string;
+  artist: string;
+  album?: string;
+  cover?: string;
+  duration?: number;
+  /** Apple Music 专用字段 */
+  storefront?: string;
+  collectionId?: number;
+  trackId?: number;
+}
+
+/** 手动指定的动态封面 */
+export interface MotionCoverManualRecord {
+  source: MotionCoverSearchSource;
+  /** 可直接播放的地址；AM 为本地缓存地址 */
+  url: string;
+  /** AM 原始 m3u8，缓存被清理后可重新下载 */
+  videoUrl?: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  cover?: string;
+  updatedAt: number;
+}
+
 export type PlayerEvent =
   | { type: "status"; data: PlayerStatus }
   | { type: "position"; data: { position: number; duration: number } }

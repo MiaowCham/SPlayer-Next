@@ -120,6 +120,13 @@ export const initDatabase = (): void => {
       matched_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS motion_cover_manual (
+      track_key TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS lyric_ttml_cache (
       platform TEXT NOT NULL,
       id TEXT NOT NULL,
